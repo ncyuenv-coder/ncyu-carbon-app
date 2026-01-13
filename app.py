@@ -19,15 +19,27 @@ st.markdown("""
     html, body, [class*="css"] { font-family: "Microsoft JhengHei", sans-serif; }
     .login-header { font-size: 2.5rem; font-weight: 700; color: #2E4053; text-align: center; margin-bottom: 20px; padding: 20px; background-color: #F4F6F6; border-radius: 15px; }
     button[data-baseweb="tab"] { font-size: 1.5rem !important; font-weight: bold !important; padding: 1rem 2rem !important; }
-    .stSelectbox label { font-size: 1.3rem !important; color: #1B4F72 !important; }
-    div[data-testid="stForm"] { background-color: #E8F0F2; padding: 30px; border-radius: 20px; border: 2px solid #D6EAF8; }
+    .stSelectbox label, .stTextInput label, .stNumberInput label, .stDateInput label { font-size: 1.2rem !important; color: #1B4F72 !important; font-weight: bold; }
+    
+    /* 👇 優化：表單區改為「莫蘭迪綠 (Sage Green)」以區隔背景 */
+    div[data-testid="stForm"] { 
+        background-color: #E8F6F3; 
+        padding: 30px; 
+        border-radius: 20px; 
+        border: 2px solid #A3E4D7;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    
     .info-card { background-color: #FEF9E7; padding: 15px; border-left: 5px solid #F4D03F; border-radius: 5px; margin-bottom: 10px; font-size: 1.1rem; }
     .info-label { font-weight: bold; color: #7F8C8D; }
     .info-value { color: #212F3D; font-weight: 600; margin-left: 10px; }
+    
+    /* 強制顯示必填星號的顏色 */
+    .st-emotion-cache-1629p8f span { color: red; }
 </style>
 """, unsafe_allow_html=True)
 
-# ☁️ 設定區 (請確認這些 ID 是正確的)
+# ☁️ 設定區
 SHEET_ID = "1gqDU21YJeBoBOd8rMYzwwZ45offXWPGEODKTF6B8k-Y" 
 DRIVE_FOLDER_ID = "1DCmR0dXOdFBdTrgnvCYFPtNq_bGzSJeB" 
 
@@ -105,10 +117,11 @@ try:
     
     try: ws_record = sh.worksheet("填報紀錄")
     except: 
-        ws_record = sh.add_worksheet(title="填報紀錄", rows="1000", cols="10")
-        # 如果是新表，建立標題 (增加最後一個欄位：單據備註)
-        if len(ws_record.get_all_values()) == 0:
-            ws_record.append_row(["填報時間", "填報單位", "填報帳號", "設備名稱", "校內財產編號", "加油日期", "加油量", "佐證檔案", "單據備註"])
+        ws_record = sh.add_worksheet(title="填報紀錄", rows="1000", cols="12") # 增加欄位數
+        
+    # 自動檢查並補齊標題列 (新增了 填報人、分機)
+    if len(ws_record.get_all_values()) == 0:
+        ws_record.append_row(["填報時間", "填報單位", "填報帳號", "填報人", "聯絡分機", "設備名稱", "校內財產編號", "加油日期", "加油量", "佐證檔案", "單據備註"])
 
 except Exception as e:
     st.error(f"連線失敗: {e}")
@@ -176,51 +189,85 @@ elif st.session_state['current_page'] == 'fuel':
                 
                 st.markdown("#### 步驟 2：填寫資料")
                 with st.form("entry_form"):
+                    # 第一列：填報人資訊 (新增)
+                    col_p1, col_p2 = st.columns(2)
+                    p_name = col_p1.text_input("👤 填報人姓名 (必填)")
+                    p_ext = col_p2.text_input("📞 聯絡分機 (必填)")
+                    
+                    st.divider() # 分隔線
+                    
+                    # 第二列：油量資訊
                     col_a, col_b = st.columns(2)
                     d_date = col_a.date_input("📅 加油日期 (以加油單為準)", datetime.today())
                     d_vol = col_b.number_input("💧 加油量 (公升)", min_value=0.0, step=0.1, format="%.1f")
                     
-                    # 👇 新增：共用單據欄位
-                    st.markdown("**🧾 單據備註 (若一張發票加多台車，請填寫相同發票號碼以便核對)**")
+                    # 備註欄 (修正文字)
+                    st.markdown("**🧾 單據備註 (若一張發票加多台設備，請填寫相同發票號碼以便核對)**")
                     note = st.text_input("單據號碼/備註 (選填)", placeholder="例如：發票 AB-12345678")
 
-                    st.markdown("**📂 上傳佐證資料**")
-                    f_file = st.file_uploader("", type=['png', 'jpg', 'jpeg', 'pdf'])
+                    st.markdown("---")
+                    # 檔案上傳 (修正：多檔 + 大小限制)
+                    st.markdown("**📂 上傳佐證資料 (最多 3 個檔案，單檔限制 10MB)**")
+                    f_files = st.file_uploader("", type=['png', 'jpg', 'jpeg', 'pdf'], accept_multiple_files=True)
                     
                     submitted = st.form_submit_button("🚀 確認送出資料", type="primary", use_container_width=True)
                     
                     if submitted:
-                        if d_vol > 0:
-                            progress_text = "資料處理中..."
-                            my_bar = st.progress(0, text=progress_text)
-                            
-                            file_link = "無"
-                            if f_file:
-                                try:
-                                    clean_name = f"{selected_dept}_{selected_device}_{d_date}.{f_file.name.split('.')[-1]}".replace("/", "_")
-                                    file_meta = {'name': clean_name, 'parents': [DRIVE_FOLDER_ID]}
-                                    media = MediaIoBaseUpload(f_file, mimetype=f_file.type)
-                                    file = drive_service.files().create(body=file_meta, media_body=media, fields='webViewLink').execute()
-                                    file_link = file.get('webViewLink')
-                                except Exception as e:
-                                    st.warning(f"檔案上傳異常: {e}")
-
-                            my_bar.progress(50, text="寫入資料庫...")
-                            
-                            # 寫入包含備註的資料
-                            ws_record.append_row([
-                                datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                                selected_dept, name, selected_device,
-                                str(row.get('校內財產編號', '-')), str(d_date), d_vol, file_link, note
-                            ])
-                            
-                            my_bar.progress(100, text="完成！")
-                            time.sleep(0.5)
-                            my_bar.empty()
-                            st.success(f"✅ 成功！已新增紀錄：{d_vol} L")
-                            st.balloons()
-                        else:
+                        # 驗證邏輯
+                        if not p_name or not p_ext:
+                            st.warning("⚠️ 「填報人姓名」與「聯絡分機」為必填欄位！")
+                        elif d_vol <= 0:
                             st.warning("⚠️ 加油量不能為 0")
+                        else:
+                            # 檔案檢查
+                            valid_files = True
+                            if f_files:
+                                if len(f_files) > 3:
+                                    st.error("❌ 超過檔案數量上限 (最多 3 個)")
+                                    valid_files = False
+                                for f in f_files:
+                                    if f.size > 10 * 1024 * 1024: # 10MB
+                                        st.error(f"❌ 檔案 {f.name} 太大 (超過 10MB)")
+                                        valid_files = False
+                            
+                            if valid_files:
+                                progress_text = "資料處理中..."
+                                my_bar = st.progress(0, text=progress_text)
+                                
+                                # 檔案上傳迴圈
+                                file_links = []
+                                if f_files:
+                                    for idx, f_file in enumerate(f_files):
+                                        try:
+                                            # 檔名加入序號避免重複
+                                            clean_name = f"{selected_dept}_{selected_device}_{d_date}_{idx+1}.{f_file.name.split('.')[-1]}".replace("/", "_")
+                                            file_meta = {'name': clean_name, 'parents': [DRIVE_FOLDER_ID]}
+                                            media = MediaIoBaseUpload(f_file, mimetype=f_file.type)
+                                            file = drive_service.files().create(body=file_meta, media_body=media, fields='webViewLink').execute()
+                                            file_links.append(file.get('webViewLink'))
+                                        except Exception as e:
+                                            st.warning(f"檔案 {f_file.name} 上傳異常: {e}")
+                                
+                                # 將多個連結合併成一個字串存入 (用換行符號分隔)
+                                final_links = "\n".join(file_links) if file_links else "無"
+
+                                my_bar.progress(50, text="寫入資料庫...")
+                                
+                                # 寫入完整資料 (包含新增的 p_name, p_ext)
+                                ws_record.append_row([
+                                    datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                                    selected_dept, name, 
+                                    p_name, p_ext, # 新增欄位
+                                    selected_device,
+                                    str(row.get('校內財產編號', '-')), str(d_date), d_vol, 
+                                    final_links, note
+                                ])
+                                
+                                my_bar.progress(100, text="完成！")
+                                time.sleep(0.5)
+                                my_bar.empty()
+                                st.success(f"✅ 成功！已新增紀錄：{d_vol} L")
+                                st.balloons()
 
     # --- Tab 2: 看板 ---
     with tab2:
@@ -242,9 +289,7 @@ elif st.session_state['current_page'] == 'fuel':
             m3.metric("📅 最新填報日", str(last_date))
             st.markdown("---")
             
-            # 詳細清冊
             st.subheader("📋 詳細填報清冊")
-            # 確保顯示備註欄位
             st.dataframe(df_records, use_container_width=True)
 
     # --- Tab 3: 管理 ---
