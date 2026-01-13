@@ -30,6 +30,27 @@ st.markdown("""
         box-shadow: 0 4px 6px rgba(0,0,0,0.1);
     }
     
+    /* 👇 V22.0 重點更新：強制將所有輸入框背景改為白色，與底色形成對比 */
+    /* 1. 文字輸入框與數字輸入框 */
+    div[data-baseweb="input"] > div {
+        background-color: #FFFFFF !important;
+        border-color: #D5DBDB !important;
+    }
+    input[type="text"], input[type="number"] {
+        background-color: #FFFFFF !important;
+    }
+    
+    /* 2. 下拉選單 (Selectbox) */
+    div[data-baseweb="select"] > div {
+        background-color: #FFFFFF !important;
+        border-color: #D5DBDB !important;
+    }
+    
+    /* 3. 日期選單 */
+    div[data-baseweb="calendar"] {
+        background-color: #FFFFFF !important;
+    }
+    
     .info-card { background-color: #FEF9E7; padding: 15px; border-left: 5px solid #F4D03F; border-radius: 5px; margin-bottom: 10px; font-size: 1.1rem; }
     .info-label { font-weight: bold; color: #7F8C8D; }
     .info-value { color: #212F3D; font-weight: 600; margin-left: 10px; }
@@ -48,7 +69,10 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ☁️ 設定區
+# 👇 ⚠️⚠️⚠️ 請務必記得把這裡換成您真正的 Google Sheet ID (不要留中文提示喔)
 SHEET_ID = "1gqDU21YJeBoBOd8rMYzwwZ45offXWPGEODKTF6B8k-Y" 
+
+# 資料夾 ID
 DRIVE_FOLDER_ID = "1DCmR0dXOdFBdTrgnvCYFPtNq_bGzSJeB" 
 
 # ==========================================
@@ -158,9 +182,10 @@ if st.session_state['current_page'] == 'home':
         st.info("❄️ 冷氣/冰水主機")
         st.button("前往「冷媒類設備填報區」 (建置中)", use_container_width=True, disabled=True)
     
+    # 首頁底部聯絡資訊
     st.markdown("""
         <div class="contact-footer">
-        如有填報疑問，請電洽環安中心林小姐，分機 7137，謝謝
+        如有填報疑問，請電洽環安中心林小姐(分機 7137)，謝謝
         </div>
     """, unsafe_allow_html=True)
 
@@ -212,11 +237,15 @@ elif st.session_state['current_page'] == 'fuel':
                     
                     st.markdown("**🧾 單據備註 (選填)**")
                     note = st.text_input("若一張發票加多台設備，請填寫相同發票號碼以便核對")
-                    st.caption("ℹ️ 如有資料誤繕情況，請重新新增1筆，並於備註欄註記「前一筆資料填錯，請刪除」")
+                    
+                    # 👇 V22.0 更新：誤繕處理說明文字
+                    st.caption("ℹ️ 如有資料誤繕情況，請重新新增1筆資料，並於備註欄註記「前一筆資料填錯，請刪除」，以利管理單位後端處理，謝謝。")
 
                     st.markdown("---")
                     st.markdown("**📂 上傳佐證資料 (必填)**")
-                    is_shared = st.checkbox("☑️ 是否與其他設備共用加油單？ (勾選此項可幫助辨識)")
+                    
+                    # 👇 V22.0 更新：簡化共用勾選文字
+                    is_shared = st.checkbox("與其他設備共用加油單")
                     
                     f_files = st.file_uploader("支援 png, jpg, pdf (最多 3 個，單檔限 10MB)", type=['png', 'jpg', 'jpeg', 'pdf'], accept_multiple_files=True)
                     
@@ -248,12 +277,10 @@ elif st.session_state['current_page'] == 'fuel':
                                 if f_files:
                                     for idx, f_file in enumerate(f_files):
                                         try:
-                                            # 👇 V21.0 更新：使用「燃料名稱+油量」命名
                                             file_ext = f_file.name.split('.')[-1]
                                             fuel_name = row.get('原燃物料名稱', '未知燃料')
                                             shared_tag = "(共用)" if is_shared else ""
                                             
-                                            # 組合新檔名：單位_設備_日期_燃料50.0公升(共用)_1.jpg
                                             clean_name = f"{selected_dept}_{selected_device}_{d_date}_{fuel_name}{d_vol}公升{shared_tag}_{idx+1}.{file_ext}".replace("/", "_")
                                             
                                             file_meta = {'name': clean_name, 'parents': [DRIVE_FOLDER_ID]}
@@ -282,9 +309,10 @@ elif st.session_state['current_page'] == 'fuel':
                                 st.success(f"✅ 成功！已新增紀錄：{d_vol} L")
                                 st.balloons()
         
+        # 👇 V22.0 更新：分頁內的頁尾聯絡資訊格式
         st.markdown("""
             <div class="contact-footer">
-            如有填報疑問，請電洽環安中心林小姐，分機 7137，謝謝
+            如有填報疑問，請電洽環安中心林小姐(分機 7137)，謝謝
             </div>
         """, unsafe_allow_html=True)
 
@@ -313,7 +341,7 @@ elif st.session_state['current_page'] == 'fuel':
             
         st.markdown("""
             <div class="contact-footer">
-            如有填報疑問，請電洽環安中心林小姐，分機 7137，謝謝
+            如有填報疑問，請電洽環安中心林小姐(分機 7137)，謝謝
             </div>
         """, unsafe_allow_html=True)
 
