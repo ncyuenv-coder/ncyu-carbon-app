@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 import gspread
-from google.oauth2.service_account import Credentials
+from google.oauth2.credentials import Credentials # V24.0 改用這個
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
 import streamlit_authenticator as stauth
@@ -30,9 +30,8 @@ st.markdown("""
         box-shadow: 0 4px 6px rgba(0,0,0,0.1);
     }
     
-    /* 👇 V22.0 重點更新：強制將所有輸入框背景改為白色，與底色形成對比 */
-    /* 1. 文字輸入框與數字輸入框 */
-    div[data-baseweb="input"] > div {
+    /* 強制將所有輸入框背景改為白色 */
+    div[data-baseweb="input"] > div, div[data-baseweb="select"] > div, div[data-baseweb="calendar"] {
         background-color: #FFFFFF !important;
         border-color: #D5DBDB !important;
     }
@@ -40,22 +39,10 @@ st.markdown("""
         background-color: #FFFFFF !important;
     }
     
-    /* 2. 下拉選單 (Selectbox) */
-    div[data-baseweb="select"] > div {
-        background-color: #FFFFFF !important;
-        border-color: #D5DBDB !important;
-    }
-    
-    /* 3. 日期選單 */
-    div[data-baseweb="calendar"] {
-        background-color: #FFFFFF !important;
-    }
-    
     .info-card { background-color: #FEF9E7; padding: 15px; border-left: 5px solid #F4D03F; border-radius: 5px; margin-bottom: 10px; font-size: 1.1rem; }
     .info-label { font-weight: bold; color: #7F8C8D; }
     .info-value { color: #212F3D; font-weight: 600; margin-left: 10px; }
     
-    /* 聯絡人資訊 footer */
     .contact-footer {
         text-align: center;
         margin-top: 50px;
@@ -68,11 +55,8 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# ☁️ 設定區
-# 👇 ⚠️⚠️⚠️ 請務必記得把這裡換成您真正的 Google Sheet ID (不要留中文提示喔)
+# ☁️ 設定區 (⚠️ 請務必填回學校的 ID)
 SHEET_ID = "1gqDU21YJeBoBOd8rMYzwwZ45offXWPGEODKTF6B8k-Y" 
-
-# 資料夾 ID
 DRIVE_FOLDER_ID = "1DCmR0dXOdFBdTrgnvCYFPtNq_bGzSJeB" 
 
 # ==========================================
@@ -90,11 +74,11 @@ if 'current_page' not in st.session_state:
 
 try:
     _raw_creds = st.secrets["credentials"]
-    credentials = clean_secrets(_raw_creds)
+    credentials_login = clean_secrets(_raw_creds)
     cookie_cfg = st.secrets["cookie"]
     
     authenticator = stauth.Authenticate(
-        credentials,
+        credentials_login,
         cookie_cfg["name"],
         cookie_cfg["key"],
         cookie_cfg["expiry_days"],
@@ -130,12 +114,23 @@ except Exception as e:
     st.stop()
 
 # ==========================================
-# 2. 雲端連線
+# 2. 雲端連線 (V24.0: 改用 OAuth 模擬本人)
 # ==========================================
 @st.cache_resource
 def init_google():
-    scope = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
-    creds = Credentials.from_service_account_info(st.secrets["gcp_service_account"], scopes=scope)
+    # 從 secrets 讀取 OAuth 資訊
+    oauth_info = st.secrets["gcp_oauth"]
+    
+    # 建立憑證物件
+    creds = Credentials(
+        token=None, # access_token 會自動重新整理
+        refresh_token=oauth_info["refresh_token"],
+        token_uri="https://oauth2.googleapis.com/token",
+        client_id=oauth_info["client_id"],
+        client_secret=oauth_info["client_secret"],
+        scopes=["https://www.googleapis.com/auth/drive", "https://www.googleapis.com/auth/spreadsheets"]
+    )
+    
     gc = gspread.authorize(creds)
     drive_service = build('drive', 'v3', credentials=creds)
     return gc, drive_service
@@ -182,7 +177,6 @@ if st.session_state['current_page'] == 'home':
         st.info("❄️ 冷氣/冰水主機")
         st.button("前往「冷媒類設備填報區」 (建置中)", use_container_width=True, disabled=True)
     
-    # 首頁底部聯絡資訊
     st.markdown("""
         <div class="contact-footer">
         如有填報疑問，請電洽環安中心林小姐(分機 7137)，謝謝
@@ -237,14 +231,10 @@ elif st.session_state['current_page'] == 'fuel':
                     
                     st.markdown("**🧾 單據備註 (選填)**")
                     note = st.text_input("若一張發票加多台設備，請填寫相同發票號碼以便核對")
-                    
-                    # 👇 V22.0 更新：誤繕處理說明文字
                     st.caption("ℹ️ 如有資料誤繕情況，請重新新增1筆資料，並於備註欄註記「前一筆資料填錯，請刪除」，以利管理單位後端處理，謝謝。")
 
                     st.markdown("---")
                     st.markdown("**📂 上傳佐證資料 (必填)**")
-                    
-                    # 👇 V22.0 更新：簡化共用勾選文字
                     is_shared = st.checkbox("與其他設備共用加油單")
                     
                     f_files = st.file_uploader("支援 png, jpg, pdf (最多 3 個，單檔限 10MB)", type=['png', 'jpg', 'jpeg', 'pdf'], accept_multiple_files=True)
@@ -285,7 +275,12 @@ elif st.session_state['current_page'] == 'fuel':
                                             
                                             file_meta = {'name': clean_name, 'parents': [DRIVE_FOLDER_ID]}
                                             media = MediaIoBaseUpload(f_file, mimetype=f_file.type)
-                                            file = drive_service.files().create(body=file_meta, media_body=media, fields='webViewLink').execute()
+                                            # V24.0: 本人權限上傳，無需 supportsAllDrives
+                                            file = drive_service.files().create(
+                                                body=file_meta, 
+                                                media_body=media, 
+                                                fields='webViewLink'
+                                            ).execute()
                                             file_links.append(file.get('webViewLink'))
                                         except Exception as e:
                                             st.warning(f"檔案 {f_file.name} 上傳異常: {e}")
@@ -309,7 +304,6 @@ elif st.session_state['current_page'] == 'fuel':
                                 st.success(f"✅ 成功！已新增紀錄：{d_vol} L")
                                 st.balloons()
         
-        # 👇 V22.0 更新：分頁內的頁尾聯絡資訊格式
         st.markdown("""
             <div class="contact-footer">
             如有填報疑問，請電洽環安中心林小姐(分機 7137)，謝謝
