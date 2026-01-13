@@ -21,7 +21,6 @@ st.markdown("""
     button[data-baseweb="tab"] { font-size: 1.5rem !important; font-weight: bold !important; padding: 1rem 2rem !important; }
     .stSelectbox label, .stTextInput label, .stNumberInput label, .stDateInput label { font-size: 1.2rem !important; color: #1B4F72 !important; font-weight: bold; }
     
-    /* 表單區風格：莫蘭迪綠 */
     div[data-testid="stForm"] { 
         background-color: #E8F6F3; 
         padding: 30px; 
@@ -30,7 +29,6 @@ st.markdown("""
         box-shadow: 0 4px 6px rgba(0,0,0,0.1);
     }
     
-    /* 強制將所有輸入框背景改為白色 */
     div[data-baseweb="input"] > div, div[data-baseweb="select"] > div, div[data-baseweb="calendar"] {
         background-color: #FFFFFF !important;
         border-color: #D5DBDB !important;
@@ -71,6 +69,10 @@ def clean_secrets(obj):
 
 if 'current_page' not in st.session_state:
     st.session_state['current_page'] = 'home'
+
+# 初始化計數器 (用於重置車輛選單)
+if 'reset_counter' not in st.session_state:
+    st.session_state['reset_counter'] = 0
 
 try:
     _raw_creds = st.secrets["credentials"]
@@ -114,14 +116,11 @@ except Exception as e:
     st.stop()
 
 # ==========================================
-# 2. 雲端連線 (OAuth 模擬本人)
+# 2. 雲端連線 (OAuth)
 # ==========================================
 @st.cache_resource
 def init_google():
-    # 從 secrets 讀取 OAuth 資訊
     oauth_info = st.secrets["gcp_oauth"]
-    
-    # 建立憑證物件
     creds = Credentials(
         token=None, 
         refresh_token=oauth_info["refresh_token"],
@@ -130,7 +129,6 @@ def init_google():
         client_secret=oauth_info["client_secret"],
         scopes=["https://www.googleapis.com/auth/drive", "https://www.googleapis.com/auth/spreadsheets"]
     )
-    
     gc = gspread.authorize(creds)
     drive_service = build('drive', 'v3', credentials=creds)
     return gc, drive_service
@@ -144,16 +142,15 @@ try:
     
     try: ws_record = sh.worksheet("填報紀錄")
     except: 
-        ws_record = sh.add_worksheet(title="填報紀錄", rows="1000", cols="15")
+        ws_record = sh.add_worksheet(title="填報紀錄", rows="1000", cols="11")
         
-    # 👇 V27.0: 更新初始化標題 (如果表單是空的，寫入新標題)
+    # 👇 V29.0: 嚴格依照您要求的順序建立標題
     if len(ws_record.get_all_values()) == 0:
         ws_record.append_row([
-            "填報單位", "填報人", "填報分機", 
-            "設備名稱備註", "設備數量", "校內財產編號", "原燃物料名稱", 
-            "加油日期", "加油量(公升)", "佐證資料", "填報日期時間", "單據備註"
+            "填報時間", "填報單位", "填報人", "填報分機", 
+            "設備名稱", "校內財產編號", "油料種類", 
+            "加油日期", "加油量", "佐證資料", "單據備註"
         ])
-        # 註：我幫您把「單據備註」加在最後一欄(L欄)，避免大家辛苦打的備註消失
 
 except Exception as e:
     st.error(f"連線失敗: {e}")
@@ -205,129 +202,141 @@ elif st.session_state['current_page'] == 'fuel':
             c1, c2 = st.columns(2)
             units = sorted([x for x in df_equip['填報單位'].unique() if x != '-' and x != '填報單位'])
             
-            selected_dept = c1.selectbox("填報單位", units)
-            filtered = df_equip[df_equip['填報單位'] == selected_dept]
-            devices = sorted([x for x in filtered['設備名稱備註'].unique()])
-            
-            selected_device = c2.selectbox(
-                "車輛/機具名稱", 
-                devices, 
+            # 👇 V29.0: 填報單位加入 index=None 與 placeholder
+            selected_dept = c1.selectbox(
+                "填報單位", 
+                units, 
                 index=None, 
-                placeholder="請選擇車輛...", 
-                key="vehicle_selector"
+                placeholder="請選擇單位...", 
+                key="dept_selector"
             )
             
-            if selected_device:
-                row = filtered[filtered['設備名稱備註'] == selected_device].iloc[0]
-                info_html = f"""
-                <div class="info-card">
-                    <div><span class="info-label">🏢 部門：</span><span class="info-value">{row.get('設備所屬單位/部門', '-')}</span></div>
-                    <div><span class="info-label">👤 保管人：</span><span class="info-value">{row.get('保管人', '-')}</span></div>
-                    <div><span class="info-label">🔢 財產編號：</span><span class="info-value">{row.get('校內財產編號', '-')}</span></div>
-                    <div><span class="info-label">📍 位置：</span><span class="info-value">{row.get('設備詳細位置/樓層', '-')}</span></div>
-                    <div><span class="info-label">⛽ 燃料：</span><span class="info-value">{row.get('原燃物料名稱', '-')}</span></div>
-                    <div><span class="info-label">📊 數量：</span><span class="info-value">{row.get('設備數量', '-')}</span></div>
-                </div>
-                """
-                st.markdown(info_html, unsafe_allow_html=True)
+            if selected_dept:
+                filtered = df_equip[df_equip['填報單位'] == selected_dept]
+                devices = sorted([x for x in filtered['設備名稱備註'].unique()])
                 
-                st.markdown("#### 步驟 2：填寫資料")
-                with st.form("entry_form", clear_on_submit=True):
-                    col_p1, col_p2 = st.columns(2)
-                    p_name = col_p1.text_input("👤 填報人姓名 (必填)")
-                    p_ext = col_p2.text_input("📞 聯絡分機 (必填)")
+                # 使用動態 key 來達成重置效果
+                dynamic_key = f"vehicle_selector_{st.session_state['reset_counter']}"
+                
+                selected_device = c2.selectbox(
+                    "車輛/機具名稱", 
+                    devices, 
+                    index=None, 
+                    placeholder="請選擇車輛...", 
+                    key=dynamic_key
+                )
+                
+                if selected_device:
+                    row = filtered[filtered['設備名稱備註'] == selected_device].iloc[0]
+                    info_html = f"""
+                    <div class="info-card">
+                        <div><span class="info-label">🏢 部門：</span><span class="info-value">{row.get('設備所屬單位/部門', '-')}</span></div>
+                        <div><span class="info-label">👤 保管人：</span><span class="info-value">{row.get('保管人', '-')}</span></div>
+                        <div><span class="info-label">🔢 財產編號：</span><span class="info-value">{row.get('校內財產編號', '-')}</span></div>
+                        <div><span class="info-label">📍 位置：</span><span class="info-value">{row.get('設備詳細位置/樓層', '-')}</span></div>
+                        <div><span class="info-label">⛽ 燃料：</span><span class="info-value">{row.get('原燃物料名稱', '-')}</span></div>
+                        <div><span class="info-label">📊 數量：</span><span class="info-value">{row.get('設備數量', '-')}</span></div>
+                    </div>
+                    """
+                    st.markdown(info_html, unsafe_allow_html=True)
                     
-                    st.divider()
-                    
-                    col_a, col_b = st.columns(2)
-                    d_date = col_a.date_input("📅 加油日期 (以加油單為準)", datetime.today())
-                    d_vol = col_b.number_input("💧 加油量 (公升)", min_value=0.0, step=0.1, format="%.1f")
-                    
-                    st.markdown("**🧾 單據備註 (選填)**")
-                    note = st.text_input("若一張發票加多台設備，請填寫相同發票號碼以便核對")
-                    st.caption("ℹ️ 如有資料誤繕情況，請重新新增1筆資料，並於備註欄註記「前一筆資料填錯，請刪除」，以利管理單位後端處理，謝謝。")
+                    st.markdown("#### 步驟 2：填寫資料")
+                    with st.form("entry_form", clear_on_submit=True):
+                        col_p1, col_p2 = st.columns(2)
+                        p_name = col_p1.text_input("👤 填報人姓名 (必填)")
+                        p_ext = col_p2.text_input("📞 聯絡分機 (必填)")
+                        
+                        st.divider()
+                        
+                        col_a, col_b = st.columns(2)
+                        d_date = col_a.date_input("📅 加油日期 (以加油單為準)", datetime.today())
+                        d_vol = col_b.number_input("💧 加油量 (公升)", min_value=0.0, step=0.1, format="%.1f")
+                        
+                        st.markdown("**🧾 單據備註 (選填)**")
+                        note = st.text_input("若一張發票加多台設備，請填寫相同發票號碼以便核對")
+                        st.caption("ℹ️ 如有資料誤繕情況，請重新新增1筆資料，並於備註欄註記「前一筆資料填錯，請刪除」，以利管理單位後端處理，謝謝。")
 
-                    st.markdown("---")
-                    st.markdown("**📂 上傳佐證資料 (必填)**")
-                    is_shared = st.checkbox("與其他設備共用加油單")
-                    
-                    f_files = st.file_uploader("支援 png, jpg, pdf (最多 3 個，單檔限 10MB)", type=['png', 'jpg', 'jpeg', 'pdf'], accept_multiple_files=True)
-                    
-                    submitted = st.form_submit_button("🚀 確認送出資料", type="primary", use_container_width=True)
-                    
-                    if submitted:
-                        if not p_name or not p_ext:
-                            st.warning("⚠️ 「填報人姓名」與「聯絡分機」為必填欄位！")
-                        elif d_vol <= 0:
-                            st.warning("⚠️ 加油量不能為 0")
-                        elif not f_files:
-                            st.error("⚠️ 請務必上傳佐證資料 (加油單據)")
-                        else:
-                            valid_files = True
-                            if f_files:
-                                if len(f_files) > 3:
-                                    st.error("❌ 超過檔案數量上限 (最多 3 個)")
-                                    valid_files = False
-                                for f in f_files:
-                                    if f.size > 10 * 1024 * 1024:
-                                        st.error(f"❌ 檔案 {f.name} 太大 (超過 10MB)")
-                                        valid_files = False
-                            
-                            if valid_files:
-                                progress_text = "資料處理中..."
-                                my_bar = st.progress(0, text=progress_text)
-                                
-                                file_links = []
+                        st.markdown("---")
+                        st.markdown("**📂 上傳佐證資料 (必填)**")
+                        is_shared = st.checkbox("與其他設備共用加油單")
+                        
+                        f_files = st.file_uploader("支援 png, jpg, pdf (最多 3 個，單檔限 10MB)", type=['png', 'jpg', 'jpeg', 'pdf'], accept_multiple_files=True)
+                        
+                        submitted = st.form_submit_button("🚀 確認送出資料", type="primary", use_container_width=True)
+                        
+                        if submitted:
+                            if not p_name or not p_ext:
+                                st.warning("⚠️ 「填報人姓名」與「聯絡分機」為必填欄位！")
+                            elif d_vol <= 0:
+                                st.warning("⚠️ 加油量不能為 0")
+                            elif not f_files:
+                                st.error("⚠️ 請務必上傳佐證資料 (加油單據)")
+                            else:
+                                valid_files = True
                                 if f_files:
-                                    for idx, f_file in enumerate(f_files):
-                                        try:
-                                            file_ext = f_file.name.split('.')[-1]
-                                            fuel_name = row.get('原燃物料名稱', '未知燃料')
-                                            shared_tag = "(共用)" if is_shared else ""
-                                            
-                                            clean_name = f"{selected_dept}_{selected_device}_{d_date}_{fuel_name}{d_vol}公升{shared_tag}_{idx+1}.{file_ext}".replace("/", "_")
-                                            
-                                            file_meta = {'name': clean_name, 'parents': [DRIVE_FOLDER_ID]}
-                                            media = MediaIoBaseUpload(f_file, mimetype=f_file.type)
-                                            # V24.0+V25.0: 本人權限上傳
-                                            file = drive_service.files().create(
-                                                body=file_meta, 
-                                                media_body=media, 
-                                                fields='webViewLink'
-                                            ).execute()
-                                            file_links.append(file.get('webViewLink'))
-                                        except Exception as e:
-                                            st.warning(f"檔案 {f_file.name} 上傳異常: {e}")
+                                    if len(f_files) > 3:
+                                        st.error("❌ 超過檔案數量上限 (最多 3 個)")
+                                        valid_files = False
+                                    for f in f_files:
+                                        if f.size > 10 * 1024 * 1024:
+                                            st.error(f"❌ 檔案 {f.name} 太大 (超過 10MB)")
+                                            valid_files = False
                                 
-                                final_links = "\n".join(file_links) if file_links else "無"
+                                if valid_files:
+                                    progress_text = "資料處理中..."
+                                    my_bar = st.progress(0, text=progress_text)
+                                    
+                                    file_links = []
+                                    if f_files:
+                                        for idx, f_file in enumerate(f_files):
+                                            try:
+                                                file_ext = f_file.name.split('.')[-1]
+                                                fuel_name = row.get('原燃物料名稱', '未知燃料')
+                                                shared_tag = "(共用)" if is_shared else ""
+                                                
+                                                clean_name = f"{selected_dept}_{selected_device}_{d_date}_{fuel_name}{d_vol}公升{shared_tag}_{idx+1}.{file_ext}".replace("/", "_")
+                                                
+                                                file_meta = {'name': clean_name, 'parents': [DRIVE_FOLDER_ID]}
+                                                media = MediaIoBaseUpload(f_file, mimetype=f_file.type)
+                                                file = drive_service.files().create(
+                                                    body=file_meta, 
+                                                    media_body=media, 
+                                                    fields='webViewLink'
+                                                ).execute()
+                                                file_links.append(file.get('webViewLink'))
+                                            except Exception as e:
+                                                st.warning(f"檔案 {f_file.name} 上傳異常: {e}")
+                                    
+                                    final_links = "\n".join(file_links) if file_links else "無"
 
-                                my_bar.progress(50, text="寫入資料庫...")
-                                
-                                # 👇 V27.0: 依照您的要求調整寫入順序
-                                ws_record.append_row([
-                                    selected_dept,                      # A: 填報單位
-                                    p_name,                             # B: 填報人
-                                    p_ext,                              # C: 填報分機
-                                    selected_device,                    # D: 設備名稱備註
-                                    str(row.get('設備數量', '-')),       # E: 設備數量
-                                    str(row.get('校內財產編號', '-')),    # F: 校內財產編號
-                                    str(row.get('原燃物料名稱', '-')),    # G: 原燃物料名稱
-                                    str(d_date),                        # H: 加油日期
-                                    d_vol,                              # I: 加油量(公升)
-                                    final_links,                        # J: 佐證資料
-                                    datetime.now().strftime("%Y-%m-%d %H:%M:%S"), # K: 填報日期時間
-                                    note                                # L: 單據備註 (加在最後以免遺失)
-                                ])
-                                
-                                my_bar.progress(100, text="完成！")
-                                time.sleep(0.5)
-                                my_bar.empty()
-                                st.success(f"✅ 成功！已新增紀錄：{d_vol} L")
-                                st.balloons()
-                                
-                                # session_state 清空車輛
-                                st.session_state["vehicle_selector"] = None
-                                st.rerun()
+                                    my_bar.progress(50, text="寫入資料庫...")
+                                    
+                                    # 👇 V29.0: 嚴格依照要求順序寫入資料庫
+                                    ws_record.append_row([
+                                        datetime.now().strftime("%Y-%m-%d %H:%M:%S"), # 1. 填報時間
+                                        selected_dept,                      # 2. 填報單位
+                                        p_name,                             # 3. 填報人
+                                        p_ext,                              # 4. 填報分機
+                                        selected_device,                    # 5. 設備名稱
+                                        str(row.get('校內財產編號', '-')),    # 6. 校內財產編號
+                                        str(row.get('原燃物料名稱', '-')),    # 7. 油料種類
+                                        str(d_date),                        # 8. 加油日期
+                                        d_vol,                              # 9. 加油量
+                                        final_links,                        # 10. 佐證資料
+                                        note                                # 11. 單據備註
+                                    ])
+                                    
+                                    my_bar.progress(100, text="完成！")
+                                    time.sleep(0.5)
+                                    my_bar.empty()
+                                    st.success(f"✅ 成功！已新增紀錄：{d_vol} L")
+                                    st.balloons()
+                                    
+                                    # 👇 V29.0: 修正錯誤的關鍵
+                                    # 我們不再手動設定 st.session_state[key] = None，
+                                    # 而是單純增加 counter，這會導致頁面刷新後 key 改變，選單自動重置。
+                                    st.session_state['reset_counter'] += 1
+                                    st.rerun()
         
         st.markdown("""
             <div class="contact-footer">
@@ -343,11 +352,10 @@ elif st.session_state['current_page'] == 'fuel':
                 st.cache_data.clear()
                 st.rerun()
         
-        if not df_records.empty and '加油量(公升)' in df_records.columns:
-            # V27.0: 修正數據讀取欄位名稱
+        if not df_records.empty and '加油量' in df_records.columns:
             try:
-                df_records['加油量(公升)'] = pd.to_numeric(df_records['加油量(公升)'], errors='coerce').fillna(0)
-                total = df_records['加油量(公升)'].sum()
+                df_records['加油量'] = pd.to_numeric(df_records['加油量'], errors='coerce').fillna(0)
+                total = df_records['加油量'].sum()
                 count = len(df_records)
                 last_date = df_records['加油日期'].max() if '加油日期' in df_records.columns else "-"
                 
