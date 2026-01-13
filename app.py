@@ -21,7 +21,7 @@ st.markdown("""
     button[data-baseweb="tab"] { font-size: 1.5rem !important; font-weight: bold !important; padding: 1rem 2rem !important; }
     .stSelectbox label, .stTextInput label, .stNumberInput label, .stDateInput label { font-size: 1.2rem !important; color: #1B4F72 !important; font-weight: bold; }
     
-    /* 👇 優化：表單區改為「莫蘭迪綠 (Sage Green)」以區隔背景 */
+    /* 表單區風格：莫蘭迪綠 */
     div[data-testid="stForm"] { 
         background-color: #E8F6F3; 
         padding: 30px; 
@@ -34,13 +34,21 @@ st.markdown("""
     .info-label { font-weight: bold; color: #7F8C8D; }
     .info-value { color: #212F3D; font-weight: 600; margin-left: 10px; }
     
-    /* 強制顯示必填星號的顏色 */
-    .st-emotion-cache-1629p8f span { color: red; }
+    /* 聯絡人資訊 footer */
+    .contact-footer {
+        text-align: center;
+        margin-top: 50px;
+        padding: 20px;
+        background-color: #F8F9F9;
+        border-top: 1px solid #D5DBDB;
+        color: #566573;
+        font-weight: bold;
+    }
 </style>
 """, unsafe_allow_html=True)
 
 # ☁️ 設定區
-SHEET_ID = "1gqDU21YJeBoBOd8rMYzwwZ45offXWPGEODKTF6B8k-Y" 
+SHEET_ID = "請在此貼上您的_Google_Sheet_ID" 
 DRIVE_FOLDER_ID = "1DCmR0dXOdFBdTrgnvCYFPtNq_bGzSJeB" 
 
 # ==========================================
@@ -117,9 +125,8 @@ try:
     
     try: ws_record = sh.worksheet("填報紀錄")
     except: 
-        ws_record = sh.add_worksheet(title="填報紀錄", rows="1000", cols="12") # 增加欄位數
+        ws_record = sh.add_worksheet(title="填報紀錄", rows="1000", cols="12")
         
-    # 自動檢查並補齊標題列 (新增了 填報人、分機)
     if len(ws_record.get_all_values()) == 0:
         ws_record.append_row(["填報時間", "填報單位", "填報帳號", "填報人", "聯絡分機", "設備名稱", "校內財產編號", "加油日期", "加油量", "佐證檔案", "單據備註"])
 
@@ -150,8 +157,12 @@ if st.session_state['current_page'] == 'home':
     with col2:
         st.info("❄️ 冷氣/冰水主機")
         st.button("前往「冷媒類設備填報區」 (建置中)", use_container_width=True, disabled=True)
-    st.markdown("---")
-    st.caption("系統維護單位：環安中心")
+    
+    st.markdown("""
+        <div class="contact-footer">
+        如有填報疑問，請電洽環安中心林小姐，分機 7137，謝謝
+        </div>
+    """, unsafe_allow_html=True)
 
 elif st.session_state['current_page'] == 'fuel':
     st.title("⛽ 燃油設備填報專區")
@@ -189,44 +200,43 @@ elif st.session_state['current_page'] == 'fuel':
                 
                 st.markdown("#### 步驟 2：填寫資料")
                 with st.form("entry_form"):
-                    # 第一列：填報人資訊 (新增)
                     col_p1, col_p2 = st.columns(2)
                     p_name = col_p1.text_input("👤 填報人姓名 (必填)")
                     p_ext = col_p2.text_input("📞 聯絡分機 (必填)")
                     
-                    st.divider() # 分隔線
+                    st.divider()
                     
-                    # 第二列：油量資訊
                     col_a, col_b = st.columns(2)
                     d_date = col_a.date_input("📅 加油日期 (以加油單為準)", datetime.today())
                     d_vol = col_b.number_input("💧 加油量 (公升)", min_value=0.0, step=0.1, format="%.1f")
                     
-                    # 備註欄 (修正文字)
-                    st.markdown("**🧾 單據備註 (若一張發票加多台設備，請填寫相同發票號碼以便核對)**")
-                    note = st.text_input("單據號碼/備註 (選填)", placeholder="例如：發票 AB-12345678")
+                    st.markdown("**🧾 單據備註 (選填)**")
+                    note = st.text_input("若一張發票加多台設備，請填寫相同發票號碼以便核對")
+                    st.caption("ℹ️ 如有資料誤繕情況，請重新新增1筆，並於備註欄註記「前一筆資料填錯，請刪除」")
 
                     st.markdown("---")
-                    # 檔案上傳 (修正：多檔 + 大小限制)
-                    st.markdown("**📂 上傳佐證資料 (最多 3 個檔案，單檔限制 10MB)**")
-                    f_files = st.file_uploader("", type=['png', 'jpg', 'jpeg', 'pdf'], accept_multiple_files=True)
+                    st.markdown("**📂 上傳佐證資料 (必填)**")
+                    is_shared = st.checkbox("☑️ 是否與其他設備共用加油單？ (勾選此項可幫助辨識)")
+                    
+                    f_files = st.file_uploader("支援 png, jpg, pdf (最多 3 個，單檔限 10MB)", type=['png', 'jpg', 'jpeg', 'pdf'], accept_multiple_files=True)
                     
                     submitted = st.form_submit_button("🚀 確認送出資料", type="primary", use_container_width=True)
                     
                     if submitted:
-                        # 驗證邏輯
                         if not p_name or not p_ext:
                             st.warning("⚠️ 「填報人姓名」與「聯絡分機」為必填欄位！")
                         elif d_vol <= 0:
                             st.warning("⚠️ 加油量不能為 0")
+                        elif not f_files:
+                            st.error("⚠️ 請務必上傳佐證資料 (加油單據)")
                         else:
-                            # 檔案檢查
                             valid_files = True
                             if f_files:
                                 if len(f_files) > 3:
                                     st.error("❌ 超過檔案數量上限 (最多 3 個)")
                                     valid_files = False
                                 for f in f_files:
-                                    if f.size > 10 * 1024 * 1024: # 10MB
+                                    if f.size > 10 * 1024 * 1024:
                                         st.error(f"❌ 檔案 {f.name} 太大 (超過 10MB)")
                                         valid_files = False
                             
@@ -234,13 +244,18 @@ elif st.session_state['current_page'] == 'fuel':
                                 progress_text = "資料處理中..."
                                 my_bar = st.progress(0, text=progress_text)
                                 
-                                # 檔案上傳迴圈
                                 file_links = []
                                 if f_files:
                                     for idx, f_file in enumerate(f_files):
                                         try:
-                                            # 檔名加入序號避免重複
-                                            clean_name = f"{selected_dept}_{selected_device}_{d_date}_{idx+1}.{f_file.name.split('.')[-1]}".replace("/", "_")
+                                            # 👇 V21.0 更新：使用「燃料名稱+油量」命名
+                                            file_ext = f_file.name.split('.')[-1]
+                                            fuel_name = row.get('原燃物料名稱', '未知燃料')
+                                            shared_tag = "(共用)" if is_shared else ""
+                                            
+                                            # 組合新檔名：單位_設備_日期_燃料50.0公升(共用)_1.jpg
+                                            clean_name = f"{selected_dept}_{selected_device}_{d_date}_{fuel_name}{d_vol}公升{shared_tag}_{idx+1}.{file_ext}".replace("/", "_")
+                                            
                                             file_meta = {'name': clean_name, 'parents': [DRIVE_FOLDER_ID]}
                                             media = MediaIoBaseUpload(f_file, mimetype=f_file.type)
                                             file = drive_service.files().create(body=file_meta, media_body=media, fields='webViewLink').execute()
@@ -248,16 +263,14 @@ elif st.session_state['current_page'] == 'fuel':
                                         except Exception as e:
                                             st.warning(f"檔案 {f_file.name} 上傳異常: {e}")
                                 
-                                # 將多個連結合併成一個字串存入 (用換行符號分隔)
                                 final_links = "\n".join(file_links) if file_links else "無"
 
                                 my_bar.progress(50, text="寫入資料庫...")
                                 
-                                # 寫入完整資料 (包含新增的 p_name, p_ext)
                                 ws_record.append_row([
                                     datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                                     selected_dept, name, 
-                                    p_name, p_ext, # 新增欄位
+                                    p_name, p_ext,
                                     selected_device,
                                     str(row.get('校內財產編號', '-')), str(d_date), d_vol, 
                                     final_links, note
@@ -268,6 +281,12 @@ elif st.session_state['current_page'] == 'fuel':
                                 my_bar.empty()
                                 st.success(f"✅ 成功！已新增紀錄：{d_vol} L")
                                 st.balloons()
+        
+        st.markdown("""
+            <div class="contact-footer">
+            如有填報疑問，請電洽環安中心林小姐，分機 7137，謝謝
+            </div>
+        """, unsafe_allow_html=True)
 
     # --- Tab 2: 看板 ---
     with tab2:
@@ -291,6 +310,12 @@ elif st.session_state['current_page'] == 'fuel':
             
             st.subheader("📋 詳細填報清冊")
             st.dataframe(df_records, use_container_width=True)
+            
+        st.markdown("""
+            <div class="contact-footer">
+            如有填報疑問，請電洽環安中心林小姐，分機 7137，謝謝
+            </div>
+        """, unsafe_allow_html=True)
 
     # --- Tab 3: 管理 ---
     if tab3:
