@@ -17,9 +17,7 @@ st.set_page_config(page_title="國立嘉義大學碳盤查平台", page_icon="�
 
 st.markdown("""
 <style>
-    /* 🎨 V49.0 強制亮色主題與莫蘭迪配色 
-       無論系統是深色或淺色模式，強制鎖定為以下配色，避免手機跑版
-    */
+    /* 🎨 V50.0 行動裝置深色模式完美適配版 */
     
     :root {
         --morandi-bg: #EAEDED;        
@@ -28,14 +26,14 @@ st.markdown("""
         --contrast-red: #C0392B;      
     }
 
-    /* 強制全站背景與文字顏色 (解決深色模式問題) */
+    /* 強制全站背景與文字顏色 */
     [data-testid="stAppViewContainer"] {
         background-color: var(--morandi-bg);
         color: var(--morandi-text);
     }
     
     [data-testid="stHeader"] {
-        background-color: rgba(0,0,0,0); /* 透明 header */
+        background-color: rgba(0,0,0,0);
     }
     
     [data-testid="stSidebar"] {
@@ -43,61 +41,71 @@ st.markdown("""
         border-right: 1px solid #D5DBDB;
     }
 
-    /* 確保所有文字在深色模式下依然是深色 */
     h1, h2, h3, h4, h5, h6, p, span, div, label {
         color: #2C3E50 !important;
     }
 
     /* 登入標題區塊 */
     .login-header { 
-        font-size: 2.5rem; 
+        font-size: 2.2rem; /* 稍微縮小適配手機 */
         font-weight: 800; 
         color: #1B2631 !important; 
         text-align: center; 
         margin-bottom: 20px; 
-        padding: 30px; 
+        padding: 25px; 
         background-color: #FFFFFF; 
         border: 2px solid #D5DBDB;
         border-radius: 15px; 
         box-shadow: 0 4px 6px rgba(0,0,0,0.1);
     }
 
-    /* Tab 標籤放大 (V49.0 修改) */
+    /* Tab 標籤大小修正 (適中大小) */
     button[data-baseweb="tab"] div p {
-        font-size: 1.8rem !important; /* 放大字體 */
-        font-weight: 900 !important;
+        font-size: 1.3rem !important; /* V50.0: 改回適中大小 */
+        font-weight: 700 !important;
         color: #34495E !important;
         padding: 0.5rem 1rem !important;
     }
     
-    /* 選中狀態的 Tab */
     button[data-baseweb="tab"][aria-selected="true"] div p {
-        color: #E74C3C !important; /* 選中時變色 */
+        color: #E74C3C !important;
     }
 
     /* 表單區塊 */
     div[data-testid="stForm"] { 
         background-color: var(--morandi-form-bg); 
-        padding: 35px; 
+        padding: 25px; /* 手機版邊距縮小一點 */
         border-radius: 20px; 
         border: 2px solid #99A3A4;
         box-shadow: 0 6px 12px rgba(0,0,0,0.15);
     }
     
-    /* 強制輸入框樣式 (解決深色模式變空白) */
+    /* 🔥🔥🔥 V50.0 關鍵修正：強制輸入框樣式 (解決手機深色模式黑字問題) */
     div[data-baseweb="input"] > div, 
     div[data-baseweb="select"] > div, 
+    div[data-baseweb="base-input"] > input,
     div[data-baseweb="calendar"],
     textarea, 
     input {
         background-color: #FFFFFF !important;
         border-color: #BDC3C7 !important;
-        color: #000000 !important;
-        -webkit-text-fill-color: #000000 !important;
+        color: #000000 !important; /* 強制黑色文字 */
+        -webkit-text-fill-color: #000000 !important; /* 🔥 iOS Safari 專用強制黑色 */
+        caret-color: #000000 !important; /* 游標顏色 */
         font-size: 1.1rem !important;
+        opacity: 1 !important; /* 防止被系統變透明 */
     }
     
-    /* 下拉選單的選項顏色 */
+    /* 下拉選單修正 */
+    div[data-baseweb="select"] span {
+        color: #000000 !important;
+        -webkit-text-fill-color: #000000 !important;
+    }
+    
+    ul[data-baseweb="menu"] {
+        background-color: #FFFFFF !important;
+    }
+    
     ul[data-baseweb="menu"] li {
         background-color: #FFFFFF !important;
         color: #000000 !important;
@@ -115,25 +123,27 @@ st.markdown("""
 
     /* KPI 卡片 */
     .kpi-header {
-        font-size: 1.6rem;
+        font-size: 1.5rem;
         font-weight: 800;
         color: #34495E !important;
         margin-bottom: 20px;
         text-align: center;
         background-color: #D6DBDF;
-        padding: 15px;
+        padding: 10px;
         border-radius: 12px;
         letter-spacing: 1px;
     }
     .kpi-container {
         display: flex;
         justify-content: space-between;
-        gap: 25px;
+        gap: 15px; /* 手機版間距縮小 */
         margin-bottom: 25px;
+        flex-wrap: wrap; /* 手機版自動換行 */
     }
     .kpi-card {
         flex: 1;
-        padding: 25px;
+        min-width: 200px; /* 手機版最小寬度 */
+        padding: 20px;
         border-radius: 15px;
         text-align: center;
         box-shadow: 0 4px 8px rgba(0,0,0,0.1);
@@ -144,7 +154,7 @@ st.markdown("""
         border: 1px solid #E5E7E9;
     }
     .kpi-card:hover {
-        transform: translateY(-8px);
+        transform: translateY(-5px);
         box-shadow: 0 12px 20px rgba(0,0,0,0.2);
     }
 
@@ -152,16 +162,16 @@ st.markdown("""
     .kpi-card-gas { border-bottom: 8px solid #52BE80; }   
     .kpi-card-diesel { border-bottom: 8px solid #F4D03F; } 
     
-    .kpi-title { font-size: 1.3rem; font-weight: bold; margin-bottom: 10px; opacity: 0.7; color: #34495E !important; }
-    .kpi-value { font-size: 3.5rem; font-weight: 800; line-height: 1.1; margin-bottom: 5px; color: #212F3D !important; }
-    .kpi-unit { font-size: 1.2rem; font-weight: normal; color: #7F8C8D !important; margin-left: 5px;}
+    .kpi-title { font-size: 1.2rem; font-weight: bold; margin-bottom: 5px; opacity: 0.7; color: #34495E !important; }
+    .kpi-value { font-size: 2.5rem; font-weight: 800; line-height: 1.1; margin-bottom: 5px; color: #212F3D !important; }
+    .kpi-unit { font-size: 1rem; font-weight: normal; color: #7F8C8D !important; margin-left: 5px;}
     
     .kpi-sub { 
-        font-size: 1.1rem; 
+        font-size: 1rem; 
         color: var(--contrast-red) !important;
         font-weight: 700; 
         background-color: #F9EBEA; 
-        padding: 4px 12px; 
+        padding: 4px 10px; 
         border-radius: 20px; 
         display: inline-block;
         margin-top: 5px;
@@ -179,10 +189,10 @@ st.markdown("""
         background-color: #EBF5FB;
         border: 1px solid #85C1E9;
         border-left: 5px solid #2E86C1;
-        padding: 20px;
+        padding: 15px;
         border-radius: 10px;
         margin-bottom: 20px;
-        font-size: 0.95rem;
+        font-size: 0.9rem;
         color: #283747 !important;
         line-height: 1.6;
     }
@@ -582,7 +592,7 @@ elif st.session_state['current_page'] == 'fuel':
             </div>
         """, unsafe_allow_html=True)
 
-    # --- Tab 2: 動態查詢看板 (V49.0 優化版) ---
+    # --- Tab 2: 動態查詢看板 (V50.0: X軸強制補齊版) ---
     with tabs[1]:
         st.markdown("### 📊 動態查詢看板 (年度檢視)")
         st.info("請選擇「單位」與「年份」，檢視該年度的用油統計與詳細紀錄。")
@@ -625,6 +635,7 @@ elif st.session_state['current_page'] == 'fuel':
                         diesel_sum = 0
                     
                     total_sum = df_final['加油量'].sum()
+                    
                     gas_pct = (gasoline_sum / total_sum * 100) if total_sum > 0 else 0
                     diesel_pct = (diesel_sum / total_sum * 100) if total_sum > 0 else 0
                     
@@ -651,55 +662,59 @@ elif st.session_state['current_page'] == 'fuel':
                     """
                     st.markdown(kpi_html, unsafe_allow_html=True)
                     
-                    # 2. 趨勢圖 (V49.0: 改為 Category 軸)
+                    # 2. 趨勢圖 (V50.0: 強制補齊 1-12 月)
                     st.subheader(f"📊 {query_year}年度 每月加油趨勢")
                     
-                    # 補齊 1-12 月資料 + 累計
-                    months_template = pd.DataFrame({'月份': list(range(1, 13))})
+                    # 建立 1~12 月的完整月份清單
+                    all_months = pd.DataFrame({'月份': list(range(1, 13))})
+                    
+                    # 取出實際資料的月份與加油量
                     df_final['月份'] = df_final['日期格式'].dt.month
+                    real_data = df_final.groupby(['月份', '設備名稱備註'])['加油量'].sum().reset_index()
                     
-                    # 依月份群組
-                    monthly_data = df_final.groupby(['月份', '設備名稱備註'])['加油量'].sum().reset_index()
+                    # 合併：確保每個設備在每個月份都有紀錄 (沒有的補 0)
+                    # 這裡使用 Cross Join 先產生所有可能的 (月份, 設備) 組合，再 Merge
+                    unique_devices = df_final['設備名稱備註'].unique()
                     
-                    # 計算全年度累計 (標記為第 13 月，後續轉換為文字)
-                    total_data = df_final.groupby(['設備名稱備註'])['加油量'].sum().reset_index()
-                    total_data['月份'] = 13
-                    
-                    # 合併並對應名稱
-                    combined_data = pd.concat([monthly_data, total_data])
-                    
-                    # 將數字月份轉為中文標籤 (Category)
-                    def map_month(x):
-                        return "全年度累計" if x == 13 else f"{x}月"
+                    if len(unique_devices) > 0:
+                        # 建立 (月份 x 設備) 的完整網格
+                        month_device_grid = pd.MultiIndex.from_product([range(1, 13), unique_devices], names=['月份', '設備名稱備註']).to_frame(index=False)
                         
-                    combined_data['月份標籤'] = combined_data['月份'].apply(map_month)
-                    
-                    # 排序確保 1月..12月..累計
-                    combined_data = combined_data.sort_values('月份')
-                    
-                    morandi_colors = ['#88B04B', '#92A8D1', '#F7CAC9', '#B565A7', '#009B77', '#DD4124', '#D65076', '#45B8AC', '#EFC050', '#5B5EA6']
-                    
-                    fig = px.bar(
-                        combined_data, 
-                        x='月份標籤', 
-                        y='加油量', 
-                        color='設備名稱備註', 
-                        labels={'加油量': '加油量 (公升)', '月份標籤': '統計月份', '設備名稱備註': '設備名稱'},
-                        color_discrete_sequence=morandi_colors,
-                        template="plotly_white"
-                    )
-                    
-                    # 設定 X 軸為 Category 類型，自動去除空隙並置中
-                    fig.update_xaxes(type='category', tickfont=dict(size=14))
-                    fig.update_yaxes(title_font=dict(size=16), tickfont=dict(size=14))
-                    
-                    fig.update_traces(width=0.6, texttemplate='%{y:.2f}', textposition='inside', textfont=dict(size=14))
-                    fig.update_layout(
-                        barmode='stack', 
-                        font=dict(size=14),
-                        legend=dict(font=dict(size=12))
-                    )
-                    st.plotly_chart(fig, use_container_width=True)
+                        # 將實際數據合併進去
+                        merged_data = pd.merge(month_device_grid, real_data, on=['月份', '設備名稱備註'], how='left').fillna(0)
+                        
+                        # 計算全年度累計 (標記為第 13 月)
+                        total_data = df_final.groupby(['設備名稱備註'])['加油量'].sum().reset_index()
+                        total_data['月份'] = 13
+                        
+                        # 合併 1~12 月數據 + 累計數據
+                        final_chart_data = pd.concat([merged_data, total_data])
+                        
+                        # 標籤對應
+                        def map_month(x):
+                            return "全年度累計" if x == 13 else f"{x}月"
+                        
+                        final_chart_data['月份標籤'] = final_chart_data['月份'].apply(map_month)
+                        
+                        morandi_colors = ['#88B04B', '#92A8D1', '#F7CAC9', '#B565A7', '#009B77', '#DD4124', '#D65076', '#45B8AC', '#EFC050', '#5B5EA6']
+                        
+                        fig = px.bar(
+                            final_chart_data, 
+                            x='月份標籤', 
+                            y='加油量', 
+                            color='設備名稱備註', 
+                            labels={'加油量': '加油量 (公升)', '月份標籤': '統計月份', '設備名稱備註': '設備名稱'},
+                            color_discrete_sequence=morandi_colors,
+                            template="plotly_white"
+                        )
+                        
+                        fig.update_xaxes(type='category', tickfont=dict(size=14))
+                        fig.update_yaxes(title_font=dict(size=16), tickfont=dict(size=14))
+                        fig.update_traces(width=0.6, texttemplate='%{y:.2f}', textposition='inside', textfont=dict(size=14))
+                        fig.update_layout(barmode='stack', font=dict(size=14), legend=dict(font=dict(size=12)))
+                        st.plotly_chart(fig, use_container_width=True)
+                    else:
+                        st.info("尚無足夠資料產生圖表")
                     
                     # 3. 圓餅圖
                     st.markdown("---")
