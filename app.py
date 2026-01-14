@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, date, timedelta
 import gspread
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
@@ -29,13 +29,20 @@ st.markdown("""
         box-shadow: 0 4px 6px rgba(0,0,0,0.1);
     }
     
-    div[data-baseweb="input"] > div, div[data-baseweb="select"] > div, div[data-baseweb="calendar"] {
+    /* 強制設定輸入框背景為白，文字為黑 */
+    div[data-baseweb="input"] > div, 
+    div[data-baseweb="select"] > div, 
+    div[data-baseweb="calendar"],
+    textarea, 
+    input {
         background-color: #FFFFFF !important;
         border-color: #D5DBDB !important;
+        color: #000000 !important;
+        -webkit-text-fill-color: #000000 !important;
     }
-    input[type="text"], input[type="number"] {
-        background-color: #FFFFFF !important;
-    }
+    
+    ul[data-baseweb="menu"] li { color: #000000 !important; }
+    div[data-baseweb="select"] span { color: #000000 !important; }
     
     .info-card { background-color: #FEF9E7; padding: 15px; border-left: 5px solid #F4D03F; border-radius: 5px; margin-bottom: 10px; font-size: 1.1rem; }
     .info-label { font-weight: bold; color: #7F8C8D; }
@@ -49,6 +56,48 @@ st.markdown("""
         border-top: 1px solid #D5DBDB;
         color: #566573;
         font-weight: bold;
+    }
+
+    /* V32.0 莫蘭迪 KPI 卡片 */
+    .kpi-container {
+        display: flex;
+        justify-content: space-between;
+        gap: 20px;
+        margin-bottom: 20px;
+    }
+    .kpi-card {
+        flex: 1;
+        padding: 20px;
+        border-radius: 15px;
+        text-align: center;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        color: #2c3e50;
+    }
+    .kpi-card-total { background-color: #D6EAF8; border-left: 8px solid #5DADE2; }
+    .kpi-card-gas { background-color: #D5F5E3; border-left: 8px solid #58D68D; }
+    .kpi-card-diesel { background-color: #FCF3CF; border-left: 8px solid #F4D03F; }
+    
+    .kpi-title { font-size: 1.2rem; font-weight: bold; margin-bottom: 10px; opacity: 0.8; }
+    .kpi-value { font-size: 3rem; font-weight: 800; line-height: 1.2; }
+    .kpi-unit { font-size: 1rem; font-weight: normal; opacity: 0.7; }
+
+    /* 👇 V33.0 新增：個資聲明區塊樣式 */
+    .privacy-box {
+        background-color: #EBF5FB; /* 淺藍底 */
+        border: 1px solid #AED6F1;
+        border-left: 5px solid #2874A6; /* 深藍邊 */
+        padding: 20px;
+        border-radius: 10px;
+        margin-bottom: 20px;
+        font-size: 0.95rem;
+        color: #2E4053;
+        line-height: 1.6;
+    }
+    .privacy-title {
+        font-weight: bold;
+        font-size: 1.2rem;
+        color: #1B4F72;
+        margin-bottom: 10px;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -70,7 +119,6 @@ def clean_secrets(obj):
 if 'current_page' not in st.session_state:
     st.session_state['current_page'] = 'home'
 
-# 初始化計數器 (用於重置車輛選單)
 if 'reset_counter' not in st.session_state:
     st.session_state['reset_counter'] = 0
 
@@ -144,7 +192,6 @@ try:
     except: 
         ws_record = sh.add_worksheet(title="填報紀錄", rows="1000", cols="11")
         
-    # 👇 V29.0: 嚴格依照您要求的順序建立標題
     if len(ws_record.get_all_values()) == 0:
         ws_record.append_row([
             "填報時間", "填報單位", "填報人", "填報分機", 
@@ -189,20 +236,33 @@ if st.session_state['current_page'] == 'home':
 elif st.session_state['current_page'] == 'fuel':
     st.title("⛽ 燃油設備填報專區")
     
+    # 👇 V33.0: 頁面精簡化，刪除舊看板，只保留 2 個主要分頁 (+Admin)
+    tabs_list = ["📝 新增填報", "📊 動態查詢看板"]
     if username == 'admin':
-        tab1, tab2, tab3 = st.tabs(["📝 新增填報", "📊 數據看板", "🛠️ 資料庫管理"])
-    else:
-        tab1, tab2 = st.tabs(["📝 新增填報", "📊 數據看板"])
-        tab3 = None 
+        tabs_list.append("🛠️ 資料庫管理")
+        
+    tabs = st.tabs(tabs_list)
 
     # --- Tab 1: 填報 ---
-    with tab1:
+    with tabs[0]:
+        # 👇 V33.0: 新增「個資聲明」區塊 (使用 HTML 渲染樣式)
+        st.markdown("""
+        <div class="privacy-box">
+            <div class="privacy-title">📜 個人資料蒐集、處理及利用告知聲明</div>
+            1. <strong>蒐集機關</strong>：國立嘉義大學。<br>
+            2. <strong>蒐集目的</strong>：進行本校公務車輛/機具之加油紀錄管理、校園溫室氣體（碳）盤查統計、稽核佐證資料蒐集及後續能源使用分析。<br>
+            3. <strong>個資類別</strong>：填報人姓名。<br>
+            4. <strong>利用期間</strong>：姓名保留至填報年度後第二年1月1日，期滿即進行「去識別化」刪除，其餘數據永久保存。<br>
+            5. <strong>利用對象</strong>：本校教師、行政人員及碳盤查查驗人員。<br>
+            6. <strong>您的權利</strong>：您有權依個資法請求查詢、更正或刪除您的個資。如不提供，將無法完成填報。<br>
+        </div>
+        """, unsafe_allow_html=True)
+
         if not df_equip.empty:
             st.markdown("#### 步驟 1：選擇設備")
             c1, c2 = st.columns(2)
             units = sorted([x for x in df_equip['填報單位'].unique() if x != '-' and x != '填報單位'])
             
-            # 👇 V29.0: 填報單位加入 index=None 與 placeholder
             selected_dept = c1.selectbox(
                 "填報單位", 
                 units, 
@@ -215,7 +275,6 @@ elif st.session_state['current_page'] == 'fuel':
                 filtered = df_equip[df_equip['填報單位'] == selected_dept]
                 devices = sorted([x for x in filtered['設備名稱備註'].unique()])
                 
-                # 使用動態 key 來達成重置效果
                 dynamic_key = f"vehicle_selector_{st.session_state['reset_counter']}"
                 
                 selected_device = c2.selectbox(
@@ -242,34 +301,54 @@ elif st.session_state['current_page'] == 'fuel':
                     
                     st.markdown("#### 步驟 2：填寫資料")
                     with st.form("entry_form", clear_on_submit=True):
+                        # 👇 V33.0: 放入個資同意勾選 (強制必選)
+                        agree_privacy = st.checkbox("我已閱讀並同意上述聲明，且確認所填資料無誤。", value=False)
+                        st.markdown("---")
+
                         col_p1, col_p2 = st.columns(2)
                         p_name = col_p1.text_input("👤 填報人姓名 (必填)")
                         p_ext = col_p2.text_input("📞 聯絡分機 (必填)")
                         
                         st.divider()
                         
+                        is_unused = st.checkbox("🚫 本期無使用 (勾選後免填油量及上傳)", help="若此設備這段時間都沒有加油，請勾選此項。")
+                        
                         col_a, col_b = st.columns(2)
-                        d_date = col_a.date_input("📅 加油日期 (以加油單為準)", datetime.today())
-                        d_vol = col_b.number_input("💧 加油量 (公升)", min_value=0.0, step=0.1, format="%.1f")
+                        
+                        if is_unused:
+                            d_date = col_a.date_input("📅 填報日期", datetime.today())
+                            d_vol = col_b.number_input("💧 加油量 (本期無使用)", value=0.0, disabled=True)
+                        else:
+                            d_date = col_a.date_input("📅 加油日期 (以加油單為準)", datetime.today())
+                            d_vol = col_b.number_input("💧 加油量 (公升)", min_value=0.0, step=0.1, format="%.1f")
                         
                         st.markdown("**🧾 單據備註 (選填)**")
-                        note = st.text_input("若一張發票加多台設備，請填寫相同發票號碼以便核對")
+                        note_input = st.text_input("若一張發票加多台設備，請填寫相同發票號碼以便核對")
                         st.caption("ℹ️ 如有資料誤繕情況，請重新新增1筆資料，並於備註欄註記「前一筆資料填錯，請刪除」，以利管理單位後端處理，謝謝。")
 
                         st.markdown("---")
-                        st.markdown("**📂 上傳佐證資料 (必填)**")
-                        is_shared = st.checkbox("與其他設備共用加油單")
                         
-                        f_files = st.file_uploader("支援 png, jpg, pdf (最多 3 個，單檔限 10MB)", type=['png', 'jpg', 'jpeg', 'pdf'], accept_multiple_files=True)
+                        if is_unused:
+                            st.markdown("**📂 上傳佐證資料 (本期無使用免附)**")
+                            is_shared = False
+                            f_files = None
+                        else:
+                            st.markdown("**📂 上傳佐證資料 (必填)**")
+                            is_shared = st.checkbox("與其他設備共用加油單")
+                            f_files = st.file_uploader("支援 png, jpg, pdf (最多 3 個，單檔限 10MB)", type=['png', 'jpg', 'jpeg', 'pdf'], accept_multiple_files=True)
                         
                         submitted = st.form_submit_button("🚀 確認送出資料", type="primary", use_container_width=True)
                         
                         if submitted:
-                            if not p_name or not p_ext:
+                            # 1. 檢查個資同意
+                            if not agree_privacy:
+                                st.error("❌ 請務必勾選「我已閱讀並同意上述聲明」，才能送出資料！")
+                            # 2. 必填檢查
+                            elif not p_name or not p_ext:
                                 st.warning("⚠️ 「填報人姓名」與「聯絡分機」為必填欄位！")
-                            elif d_vol <= 0:
-                                st.warning("⚠️ 加油量不能為 0")
-                            elif not f_files:
+                            elif not is_unused and d_vol <= 0:
+                                st.warning("⚠️ 加油量不能為 0 (若無使用請勾選上方「本期無使用」)")
+                            elif not is_unused and not f_files:
                                 st.error("⚠️ 請務必上傳佐證資料 (加油單據)")
                             else:
                                 valid_files = True
@@ -309,32 +388,36 @@ elif st.session_state['current_page'] == 'fuel':
                                     
                                     final_links = "\n".join(file_links) if file_links else "無"
 
+                                    final_note = note_input
+                                    if is_unused:
+                                        prefix = "【本期無使用】"
+                                        final_note = f"{prefix} {note_input}" if note_input else prefix
+
                                     my_bar.progress(50, text="寫入資料庫...")
                                     
-                                    # 👇 V29.0: 嚴格依照要求順序寫入資料庫
                                     ws_record.append_row([
-                                        datetime.now().strftime("%Y-%m-%d %H:%M:%S"), # 1. 填報時間
-                                        selected_dept,                      # 2. 填報單位
-                                        p_name,                             # 3. 填報人
-                                        p_ext,                              # 4. 填報分機
-                                        selected_device,                    # 5. 設備名稱
-                                        str(row.get('校內財產編號', '-')),    # 6. 校內財產編號
-                                        str(row.get('原燃物料名稱', '-')),    # 7. 油料種類
-                                        str(d_date),                        # 8. 加油日期
-                                        d_vol,                              # 9. 加油量
-                                        final_links,                        # 10. 佐證資料
-                                        note                                # 11. 單據備註
+                                        datetime.now().strftime("%Y-%m-%d %H:%M:%S"), 
+                                        selected_dept,                      
+                                        p_name,                             
+                                        p_ext,                              
+                                        selected_device,                    
+                                        str(row.get('校內財產編號', '-')),    
+                                        str(row.get('原燃物料名稱', '-')),    
+                                        str(d_date),                        
+                                        d_vol,                              
+                                        final_links,                        
+                                        final_note                          
                                     ])
                                     
                                     my_bar.progress(100, text="完成！")
                                     time.sleep(0.5)
                                     my_bar.empty()
-                                    st.success(f"✅ 成功！已新增紀錄：{d_vol} L")
+                                    if is_unused:
+                                        st.success(f"✅ 已回報：{selected_device} 本期無使用")
+                                    else:
+                                        st.success(f"✅ 成功！已新增紀錄：{d_vol} L")
                                     st.balloons()
                                     
-                                    # 👇 V29.0: 修正錯誤的關鍵
-                                    # 我們不再手動設定 st.session_state[key] = None，
-                                    # 而是單純增加 counter，這會導致頁面刷新後 key 改變，選單自動重置。
                                     st.session_state['reset_counter'] += 1
                                     st.rerun()
         
@@ -344,41 +427,106 @@ elif st.session_state['current_page'] == 'fuel':
             </div>
         """, unsafe_allow_html=True)
 
-    # --- Tab 2: 看板 ---
-    with tab2:
-        col_r1, col_r2 = st.columns([4, 1])
-        with col_r2:
-            if st.button("🔄 刷新數據", use_container_width=True): 
-                st.cache_data.clear()
-                st.rerun()
+    # --- Tab 2: 動態查詢看板 (原單位查核) ---
+    with tabs[1]:
+        st.markdown("### 📊 動態查詢看板")
+        st.info("請透過下方篩選器，檢視單位的用油統計與詳細紀錄。")
         
         if not df_records.empty and '加油量' in df_records.columns:
-            try:
-                df_records['加油量'] = pd.to_numeric(df_records['加油量'], errors='coerce').fillna(0)
-                total = df_records['加油量'].sum()
-                count = len(df_records)
-                last_date = df_records['加油日期'].max() if '加油日期' in df_records.columns else "-"
-                
-                m1, m2, m3 = st.columns(3)
-                m1.metric("🛢️ 全校總油量", f"{total:,.1f} L")
-                m2.metric("📝 總填報筆數", f"{count} 筆")
-                m3.metric("📅 最新填報日", str(last_date))
-                st.markdown("---")
-                
-                st.subheader("📋 詳細填報清冊")
-                st.dataframe(df_records, use_container_width=True)
-            except Exception as e:
-                st.info("💡 資料庫結構更新中，請重新填報一筆資料後即可正常顯示圖表。")
+            # 1. 篩選器區域
+            record_units = sorted([str(x) for x in df_records['填報單位'].unique() if str(x) != 'nan'])
             
+            c_dept, c_date = st.columns([1, 2])
+            query_dept = c_dept.selectbox("🏢 選擇查詢單位", record_units, index=None, placeholder="請選擇...")
+            
+            today = date.today()
+            start_of_year = date(today.year, 1, 1)
+            query_date_range = c_date.date_input(
+                "📅 選擇查詢日期區間",
+                (start_of_year, today),
+                format="YYYY/MM/DD"
+            )
+            
+            if query_dept and isinstance(query_date_range, tuple) and len(query_date_range) == 2:
+                start_date, end_date = query_date_range
+                
+                df_dept = df_records[df_records['填報單位'] == query_dept].copy()
+                df_dept['加油日期'] = pd.to_datetime(df_dept['加油日期'], errors='coerce').dt.date
+                
+                mask = (df_dept['加油日期'] >= start_date) & (df_dept['加油日期'] <= end_date)
+                df_final = df_dept.loc[mask]
+                
+                if not df_final.empty:
+                    # 2. KPI Cards
+                    if '油料種類' in df_final.columns:
+                        df_final['油料種類'] = df_final['油料種類'].astype(str)
+                        gasoline_sum = df_final[df_final['油料種類'].str.contains('汽油')]['加油量'].sum()
+                        diesel_sum = df_final[df_final['油料種類'].str.contains('柴油')]['加油量'].sum()
+                    else:
+                        gasoline_sum = 0
+                        diesel_sum = 0
+                    
+                    total_sum = df_final['加油量'].sum()
+                    
+                    st.markdown("---")
+                    kpi_html = f"""
+                    <div class="kpi-container">
+                        <div class="kpi-card kpi-card-gas">
+                            <div class="kpi-title">⛽ 汽油使用量</div>
+                            <div class="kpi-value">{gasoline_sum:,.1f}<span class="kpi-unit"> L</span></div>
+                        </div>
+                        <div class="kpi-card kpi-card-diesel">
+                            <div class="kpi-title">🚛 柴油使用量</div>
+                            <div class="kpi-value">{diesel_sum:,.1f}<span class="kpi-unit"> L</span></div>
+                        </div>
+                        <div class="kpi-card kpi-card-total">
+                            <div class="kpi-title">💧 總用油量</div>
+                            <div class="kpi-value">{total_sum:,.1f}<span class="kpi-unit"> L</span></div>
+                        </div>
+                    </div>
+                    """
+                    st.markdown(kpi_html, unsafe_allow_html=True)
+                    
+                    # 3. 趨勢圖
+                    st.subheader(f"📊 每月加油趨勢分析 (依設備堆疊)")
+                    df_final['月份'] = pd.to_datetime(df_final['加油日期']).dt.strftime('%Y-%m')
+                    chart_data = df_final.groupby(['月份', '設備名稱'])['加油量'].sum().reset_index()
+                    
+                    fig = px.bar(
+                        chart_data, 
+                        x='月份', 
+                        y='加油量', 
+                        color='設備名稱', 
+                        text_auto=True,
+                        title=f"{query_dept} - 各設備每月用油統計",
+                        labels={'加油量': '加油量 (L)', '月份': '統計月份'},
+                        template="plotly_white"
+                    )
+                    fig.update_layout(barmode='stack')
+                    st.plotly_chart(fig, use_container_width=True)
+                    
+                    # 4. 詳細清單
+                    st.subheader(f"📋 {query_dept} - 填報歷史明細")
+                    display_cols = ["加油日期", "設備名稱", "油料種類", "加油量", "填報人", "單據備註"]
+                    final_cols = [c for c in display_cols if c in df_final.columns]
+                    df_display = df_final[final_cols].sort_values(by='加油日期', ascending=False)
+                    st.dataframe(df_display, use_container_width=True)
+                    
+                else:
+                    st.warning(f"⚠️ 在 {start_date} 到 {end_date} 期間，查無填報紀錄。")
+            else:
+                if query_dept:
+                    st.info("請選擇完整的開始與結束日期。")
+
         st.markdown("""
             <div class="contact-footer">
             如有填報疑問，請電洽環安中心林小姐(分機 7137)，謝謝
             </div>
         """, unsafe_allow_html=True)
 
-    # --- Tab 3: 管理 ---
-    if tab3:
-        with tab3:
+    # --- Tab 3: 管理 (Admin Only) ---
+    if username == 'admin':
+        with tabs[2]:
             st.header("🛠️ 設備資料庫管理")
             edited_df = st.data_editor(df_equip, num_rows="dynamic", use_container_width=True, key="editor")
             if st.button("💾 儲存變更", type="primary"):
