@@ -18,14 +18,16 @@ st.set_page_config(page_title="國立嘉義大學碳盤查平台", page_icon="�
 st.markdown("""
 <style>
     /* =========================================
-       🎨 V52.0 終極視覺修復版 (Visual Fix)
+       🎨 V53.0 按鈕風格重塑版 (Orange Border Style)
        ========================================= */
 
-    /* 1. 變數定義 (莫蘭迪色系) */
+    /* 1. 變數定義 */
     :root {
-        /* 通用變數 */
+        /* 核心顏色 */
+        --btn-border: #E67E22;    /* 粗橘色 */
+        --btn-bg: #F2F4F4;        /* 淺灰底 */
+        --btn-text: #2C3E50;      /* 深色文字 */
         --highlight-red: #C0392B;
-        --btn-text-color: #FFFFFF; /* 按鈕文字永遠是白色 */
         
         /* 淺色模式預設 */
         --bg-color: #EAEDED;
@@ -36,15 +38,15 @@ st.markdown("""
         --kpi-header-bg: #D6DBDF;
     }
 
-    /* 2. 深色模式偵測 (Dark Mode Override) */
+    /* 2. 深色模式偵測 (維持強制亮色邏輯，但適配背景) */
     @media (prefers-color-scheme: dark) {
         :root {
-            --bg-color: #17202A;        /* 深灰底 */
-            --card-bg: #212F3D;         /* 卡片深藍灰 */
-            --text-main: #ECF0F1;       /* 淺白字 */
-            --text-sub: #B3B6B7;        /* 銀灰字 */
-            --border-color: #566573;    /* 邊框 */
-            --kpi-header-bg: #34495E;   /* KPI 標題深色 */
+            --bg-color: #17202A;        
+            --card-bg: #212F3D;         
+            --text-main: #ECF0F1;       
+            --text-sub: #B3B6B7;        
+            --border-color: #566573;    
+            --kpi-header-bg: #34495E;   
         }
     }
 
@@ -61,41 +63,53 @@ st.markdown("""
         border-right: 1px solid var(--border-color);
     }
     
-    /* 強制標題與一般文字跟隨模式 */
     h1, h2, h3, h4, h5, h6, p, span, label {
         color: var(--text-main) !important;
     }
 
-    /* 4. 輸入框專區 (⚠️強制白底黑字，解決手機深色模式問題) */
+    /* 4. 輸入框專區 (強制白底黑字，確保手機深色模式可見) */
     div[data-baseweb="input"] > div, 
     div[data-baseweb="select"] > div, 
     div[data-baseweb="base-input"] > input,
     textarea, input {
-        background-color: #FFFFFF !important; /* 永遠白底 */
+        background-color: #FFFFFF !important; 
         border-color: #BDC3C7 !important;
-        color: #000000 !important;            /* 永遠黑字 */
-        -webkit-text-fill-color: #000000 !important; /* iOS Safari 專用 */
+        color: #000000 !important;            
+        -webkit-text-fill-color: #000000 !important; 
         caret-color: #000000 !important;
         font-size: 1.15rem !important;
     }
     
-    /* 下拉選單 */
     ul[data-baseweb="menu"] { background-color: #FFFFFF !important; }
     ul[data-baseweb="menu"] li { color: #000000 !important; }
     div[data-baseweb="select"] span { color: #000000 !important; -webkit-text-fill-color: #000000 !important;}
 
-    /* 5. 按鈕專區 (⚠️強制深色莫蘭迪底 + 白字) */
+    /* 5. 按鈕專區 (🔥 V53.0 重點：粗橘框 + 淺灰底) */
     div.stButton > button {
-        background-color: #34495E !important; /* 深藍灰 */
-        color: #FFFFFF !important;            /* 白字 */
-        border: none;
-        border-radius: 8px;
-        font-size: 1.2rem !important;
-        font-weight: bold !important;
-        padding: 0.6rem 1.2rem;
-        transition: opacity 0.2s;
+        background-color: var(--btn-bg) !important; 
+        color: var(--btn-text) !important;            
+        border: 3px solid var(--btn-border) !important; /* 3px 粗框 */
+        border-radius: 12px;
+        font-size: 1.3rem !important;
+        font-weight: 800 !important;
+        padding: 0.6rem 1.5rem;
+        transition: all 0.2s ease;
     }
-    div.stButton > button:hover { opacity: 0.9; }
+    
+    /* Hover 效果 */
+    div.stButton > button:hover { 
+        border-color: #D35400 !important; /* 深橘色 */
+        background-color: #FFFFFF !important;
+        color: #D35400 !important;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(230, 126, 34, 0.3);
+    }
+    
+    /* Active (點擊) 效果 */
+    div.stButton > button:active {
+        background-color: #E67E22 !important;
+        color: #FFFFFF !important;
+    }
     
     /* 登入標題區塊 */
     .login-header { 
@@ -118,7 +132,7 @@ st.markdown("""
         color: var(--text-main) !important;
     }
 
-    /* 6. KPI 互動卡片 (修復樣式) */
+    /* 6. KPI 互動卡片 */
     .kpi-header {
         font-size: 1.5rem;
         font-weight: 800;
@@ -136,29 +150,27 @@ st.markdown("""
         justify-content: space-between;
         gap: 20px;
         margin-bottom: 25px;
-        flex-wrap: wrap; /* 手機版換行 */
+        flex-wrap: wrap; 
     }
     
     .kpi-card {
         flex: 1;
-        min-width: 220px; /* 手機最小寬度 */
+        min-width: 220px; 
         padding: 20px;
         border-radius: 15px;
         text-align: center;
-        background-color: var(--card-bg); /* 跟隨模式變色 */
+        background-color: var(--card-bg);
         box-shadow: 0 4px 10px rgba(0,0,0,0.1);
         transition: transform 0.2s ease, box-shadow 0.2s ease;
         border: 1px solid var(--border-color);
         cursor: default;
     }
     
-    /* 懸停特效 */
     .kpi-card:hover {
         transform: translateY(-5px);
         box-shadow: 0 10px 20px rgba(0,0,0,0.15);
     }
 
-    /* 底部色條 */
     .kpi-card-total { border-bottom: 6px solid #5DADE2; } 
     .kpi-card-gas { border-bottom: 6px solid #58D68D; }   
     .kpi-card-diesel { border-bottom: 6px solid #F4D03F; } 
@@ -167,19 +179,17 @@ st.markdown("""
     .kpi-value { font-size: 2.8rem; font-weight: 800; line-height: 1.1; margin-bottom: 5px; color: var(--text-main) !important; }
     .kpi-unit { font-size: 1rem; font-weight: normal; color: var(--text-sub) !important; margin-left: 5px;}
     
-    /* 佔比數字 (磚紅) */
     .kpi-sub { 
         font-size: 1rem; 
         color: var(--highlight-red) !important;
         font-weight: 700; 
-        background-color: rgba(192, 57, 43, 0.1); /* 淡紅背景 */
+        background-color: rgba(192, 57, 43, 0.1);
         padding: 4px 10px; 
         border-radius: 20px; 
         display: inline-block;
         margin-top: 5px;
     }
 
-    /* 填報頁面區塊 */
     .device-info-box {
         background-color: var(--card-bg);
         border: 2px solid #5DADE2;
@@ -215,7 +225,6 @@ st.markdown("""
         text-align: center;
     }
     
-    /* 模式選擇按鈕樣式 */
     div[role="radiogroup"] label {
         background-color: var(--card-bg);
         border: 1px solid var(--border-color);
@@ -506,7 +515,10 @@ elif st.session_state['current_page'] == 'fuel':
                         
                         agree_privacy = st.checkbox("我已閱讀並同意上述聲明，且確認所填資料無誤。", value=False)
                         
-                        submitted = st.form_submit_button("🚀 確認送出資料")
+                        # V53.0: 調整送出按鈕佈局 (強制置中 + 放大)
+                        c_sub1, c_sub2, c_sub3 = st.columns([1, 2, 1])
+                        with c_sub2:
+                            submitted = st.form_submit_button("🚀 確認送出資料", use_container_width=True)
                         
                         if submitted:
                             if not agree_privacy:
@@ -648,7 +660,6 @@ elif st.session_state['current_page'] == 'fuel':
                     
                     st.markdown(f"<div class='kpi-header'>{query_dept} - {query_year}年度 用油統計</div>", unsafe_allow_html=True)
                     
-                    # 恢復 V49 風格的卡片 HTML
                     kpi_html = f"""
                     <div class="kpi-container">
                         <div class="kpi-card kpi-card-gas">
@@ -740,7 +751,7 @@ elif st.session_state['current_page'] == 'fuel':
 
                     st.markdown("---")
                     
-                    # 明細表
+                    # 4. 明細表
                     st.subheader(f"📋 {query_year}年度 填報明細")
                     target_cols = ["加油日期", "設備名稱備註", "原燃物料名稱", "油卡編號", "加油量", "填報人", "備註", "與其他設備共用加油單"]
                     available_cols = [c for c in target_cols if c in df_final.columns]
