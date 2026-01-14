@@ -642,11 +642,13 @@ elif st.session_state['current_page'] == 'fuel':
                         diesel_sum = 0
                     
                     total_sum = df_final['加油量'].sum()
+                    
                     gas_pct = (gasoline_sum / total_sum * 100) if total_sum > 0 else 0
                     diesel_pct = (diesel_sum / total_sum * 100) if total_sum > 0 else 0
                     
                     st.markdown(f"<div class='kpi-header'>{query_dept} - {query_year}年度 用油統計</div>", unsafe_allow_html=True)
                     
+                    # 恢復 V49 風格的卡片 HTML
                     kpi_html = f"""
                     <div class="kpi-container">
                         <div class="kpi-card kpi-card-gas">
@@ -668,9 +670,8 @@ elif st.session_state['current_page'] == 'fuel':
                     """
                     st.markdown(kpi_html, unsafe_allow_html=True)
                     
-                    # 2. 趨勢圖 (V50.0: 強制補齊 1-12 月)
+                    # 2. 趨勢圖
                     st.subheader(f"📊 {query_year}年度 每月加油趨勢")
-                    
                     all_months = pd.DataFrame({'月份': list(range(1, 13))})
                     df_final['月份'] = df_final['日期格式'].dt.month
                     real_data = df_final.groupby(['月份', '設備名稱備註'])['加油量'].sum().reset_index()
@@ -739,7 +740,7 @@ elif st.session_state['current_page'] == 'fuel':
 
                     st.markdown("---")
                     
-                    # 4. 明細表
+                    # 明細表
                     st.subheader(f"📋 {query_year}年度 填報明細")
                     target_cols = ["加油日期", "設備名稱備註", "原燃物料名稱", "油卡編號", "加油量", "填報人", "備註", "與其他設備共用加油單"]
                     available_cols = [c for c in target_cols if c in df_final.columns]
