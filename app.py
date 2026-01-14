@@ -115,6 +115,9 @@ st.markdown("""
         align-items: center;
         justify-content: center;
     }
+    
+    /* 調整多列輸入時的標題間距 */
+    .row-label { font-size: 1rem; font-weight: bold; color: #566573; margin-top: 10px;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -135,6 +138,7 @@ def clean_secrets(obj):
 if 'current_page' not in st.session_state:
     st.session_state['current_page'] = 'home'
 
+# 初始化計數器
 if 'reset_counter' not in st.session_state:
     st.session_state['reset_counter'] = 0
 
@@ -264,7 +268,6 @@ elif st.session_state['current_page'] == 'fuel':
 
     # --- Tab 1: 填報 ---
     with tabs[0]:
-        # 👇 V37.0: 頂部醒目宣導
         st.markdown("""
         <div class="alert-box">
             📢 宣導事項：請務必「誠實申報」，以保障單位及自身權益！請確實填寫，勿隱匿或短報，謝謝配合。
@@ -314,16 +317,16 @@ elif st.session_state['current_page'] == 'fuel':
                     
                     st.markdown("#### 步驟 2：填寫資料")
                     
-                    # 👇 V37.0: 三種申報模式
+                    # 👇 V38.0: 四種模式選擇
                     st.markdown("📋 **申報模式選擇**")
                     report_mode = st.radio(
                         "請選擇申報類型", 
-                        ["單張加油單申報", "多張加油單申報 (批次)", "本季無使用 (零用油)"], 
+                        ["單張加油單申報", "多張加油單申報 (批次)", "油卡申報 (批次)", "本季無使用 (零用油)"], 
                         horizontal=True
                     )
                     
-                    # 如果是多張模式，顯示增減按鈕
-                    if report_mode == "多張加油單申報 (批次)":
+                    # 👇 V38.0: 多張或油卡模式，顯示增減按鈕 (放在 Form 外)
+                    if report_mode in ["多張加油單申報 (批次)", "油卡申報 (批次)"]:
                         c_btn1, c_btn2, c_dummy = st.columns([1, 1, 4])
                         with c_btn1:
                             if st.button("➕ 增加一列", use_container_width=True):
@@ -340,6 +343,11 @@ elif st.session_state['current_page'] == 'fuel':
                         p_name = col_p1.text_input("👤 填報人姓名 (必填)")
                         p_ext = col_p2.text_input("📞 聯絡分機 (必填)")
                         
+                        # 👇 V38.0: 油卡編號輸入框
+                        fuel_card_id = ""
+                        if report_mode == "油卡申報 (批次)":
+                            fuel_card_id = st.text_input("💳 油卡編號 (必填)")
+                        
                         st.divider()
                         
                         # 資料收集容器
@@ -352,7 +360,6 @@ elif st.session_state['current_page'] == 'fuel':
                             col_a, col_b = st.columns(2)
                             d_date = col_a.date_input("📅 填報日期 (紀錄日期)", datetime.today())
                             d_vol = col_b.number_input("💧 加油量", value=0.0, disabled=True)
-                            # 建立一筆 0 油量資料
                             data_entries.append({"date": d_date, "vol": 0.0})
 
                         # --- 模式 A: 單張申報 ---
@@ -362,34 +369,46 @@ elif st.session_state['current_page'] == 'fuel':
                             d_vol = col_b.number_input("💧 加油量 (公升)", min_value=0.0, step=0.1, format="%.1f")
                             data_entries.append({"date": d_date, "vol": d_vol})
                         
-                        # --- 模式 B: 多張申報 ---
+                        # --- 模式 B & D: 批次 (多張 or 油卡) ---
                         else:
-                            st.info("💡 請依序填入每張加油單的日期與油量，系統將會自動分拆成多筆紀錄存檔。")
+                            st.info(f"💡 請依序填入每筆明細，系統將自動分拆存檔。(模式：{report_mode})")
                             rows = st.session_state['multi_row_count']
                             for i in range(rows):
                                 c_d, c_v = st.columns(2)
-                                _date = c_d.date_input(f"📅 第 {i+1} 張 - 加油日期", datetime.today(), key=f"md_{i}")
-                                _vol = c_v.number_input(f"💧 第 {i+1} 張 - 加油量", min_value=0.0, step=0.1, format="%.1f", key=f"mv_{i}")
+                                _date = c_d.date_input(f"📅 明細 {i+1} - 日期", datetime.today(), key=f"md_{i}")
+                                _vol = c_v.number_input(f"💧 明細 {i+1} - 油量", min_value=0.0, step=0.1, format="%.1f", key=f"mv_{i}")
                                 data_entries.append({"date": _date, "vol": _vol})
                         
                         st.markdown("**🧾 單據備註 (選填)**")
                         note_input = st.text_input("若一張發票加多台設備，請填寫相同發票號碼以便核對")
                         
+                        st.markdown("---")
+                        
                         # 附件上傳邏輯
                         f_files = None
                         is_shared = False
                         
-                        st.markdown("---")
-                        
-                        # V37.0: 依模式決定是否顯示上傳區塊
                         if is_unused_mode:
                             st.markdown("**📂 佐證資料 (本季無使用免附)**")
                             st.caption("此模式無需上傳檔案。")
                         else:
-                            limit_msg = "最多 1 個" if report_mode == "單張加油單申報" else "最多 5 個"
-                            st.markdown(f"**📂 上傳佐證資料 (必填，{limit_msg})**")
-                            is_shared = st.checkbox("與其他設備共用加油單")
-                            f_files = st.file_uploader(f"支援 png, jpg, pdf ({limit_msg}，單檔限 10MB)", type=['png', 'jpg', 'jpeg', 'pdf'], accept_multiple_files=True)
+                            # V38.0: 依模式決定限制
+                            # 單張: 1檔, 可共用
+                            # 多張: 5檔, 不顯示共用 (需求：不需要)
+                            # 油卡: 1檔, 可共用
+                            
+                            limit_count = 5 if report_mode == "多張加油單申報 (批次)" else 1
+                            st.markdown(f"**📂 上傳佐證資料 (必填，{limit_msg})**".replace("{limit_msg}", f"最多 {limit_count} 個"))
+                            
+                            # 共用勾選框邏輯
+                            if report_mode == "多張加油單申報 (批次)":
+                                is_shared = False # 多張模式不顯示共用
+                            elif report_mode == "油卡申報 (批次)":
+                                is_shared = st.checkbox("油卡明細與其他設備共用")
+                            else: # 單張
+                                is_shared = st.checkbox("與其他設備共用加油單")
+                                
+                            f_files = st.file_uploader(f"支援 png, jpg, pdf (最多 {limit_count} 個，單檔限 10MB)", type=['png', 'jpg', 'jpeg', 'pdf'], accept_multiple_files=True)
                         
                         st.markdown("---")
                         # 個資聲明
@@ -413,18 +432,21 @@ elif st.session_state['current_page'] == 'fuel':
                             # 1. 個資同意檢查
                             if not agree_privacy:
                                 st.error("❌ 請務必勾選「我已閱讀並同意上述聲明」，才能送出資料！")
-                            # 2. 基本必填檢查
+                            # 2. 基本必填
                             elif not p_name or not p_ext:
                                 st.warning("⚠️ 「填報人姓名」與「聯絡分機」為必填欄位！")
-                            # 3. 檔案檢查 (僅針對有使用油的情況)
+                            # 3. 油卡必填
+                            elif report_mode == "油卡申報 (批次)" and not fuel_card_id:
+                                st.warning("⚠️ 請填寫「油卡編號」！")
+                            # 4. 檔案檢查
                             elif not is_unused_mode and not f_files:
-                                st.error("⚠️ 請務必上傳佐證資料 (加油單據)")
+                                st.error("⚠️ 請務必上傳佐證資料")
                             else:
                                 valid_logic = True
                                 
-                                # 檢查檔案數量/大小 (有檔案才查)
+                                # 檔案數量檢查
                                 if f_files:
-                                    max_files = 1 if report_mode == "單張加油單申報" else 5
+                                    max_files = 5 if report_mode == "多張加油單申報 (批次)" else 1
                                     if len(f_files) > max_files:
                                         st.error(f"❌ 檔案數量過多！目前模式限制最多 {max_files} 個檔案。")
                                         valid_logic = False
@@ -433,7 +455,7 @@ elif st.session_state['current_page'] == 'fuel':
                                             st.error(f"❌ 檔案 {f.name} 太大 (超過 10MB)")
                                             valid_logic = False
                                 
-                                # 檢查油量
+                                # 油量檢查
                                 valid_entries = [] 
                                 if is_unused_mode:
                                     valid_entries.append({"date": data_entries[0]["date"], "vol": 0.0})
@@ -450,7 +472,6 @@ elif st.session_state['current_page'] == 'fuel':
                                     progress_text = "資料處理中..."
                                     my_bar = st.progress(0, text=progress_text)
                                     
-                                    # 上傳檔案
                                     file_links = []
                                     if f_files:
                                         for idx, f_file in enumerate(f_files):
@@ -475,18 +496,23 @@ elif st.session_state['current_page'] == 'fuel':
                                     
                                     final_links = "\n".join(file_links) if file_links else "無"
                                     
-                                    my_bar.progress(50, text="批次寫入資料庫...")
+                                    my_bar.progress(50, text="寫入資料庫...")
                                     
                                     rows_to_append = []
                                     current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                                     
                                     for entry in valid_entries:
+                                        # 備註邏輯
                                         final_note = note_input
                                         if is_unused_mode:
                                             prefix = "【本季無使用】"
                                             final_note = f"{prefix} {note_input}" if note_input else prefix
                                         elif report_mode == "多張加油單申報 (批次)":
                                             prefix = "【批次申報】"
+                                            final_note = f"{prefix} {note_input}" if note_input else prefix
+                                        elif report_mode == "油卡申報 (批次)":
+                                            # V38.0: 油卡備註
+                                            prefix = f"【油卡: {fuel_card_id}】"
                                             final_note = f"{prefix} {note_input}" if note_input else prefix
                                         
                                         row_data = [
