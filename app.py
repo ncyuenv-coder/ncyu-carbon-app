@@ -7,6 +7,7 @@ from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
 import streamlit_authenticator as stauth
 import plotly.express as px
+import plotly.graph_objects as go
 import time
 
 # ==========================================
@@ -17,19 +18,30 @@ st.set_page_config(page_title="國立嘉義大學碳盤查平台", page_icon="�
 st.markdown("""
 <style>
     html, body, [class*="css"] { font-family: "Microsoft JhengHei", sans-serif; }
-    .login-header { font-size: 2.5rem; font-weight: 700; color: #2E4053; text-align: center; margin-bottom: 20px; padding: 20px; background-color: #F4F6F6; border-radius: 15px; }
+    
+    /* 莫蘭迪色系定義 */
+    :root {
+        --morandi-bg: #F4F6F6;
+        --morandi-blue: #93B5C6;
+        --morandi-green: #A8D8B9;
+        --morandi-yellow: #F3E5AB;
+        --morandi-text: #566573;
+        --morandi-card-shadow: rgba(0,0,0,0.1);
+        --morandi-hover-shadow: rgba(0,0,0,0.15);
+    }
+
+    .login-header { font-size: 2.5rem; font-weight: 700; color: #2E4053; text-align: center; margin-bottom: 20px; padding: 20px; background-color: var(--morandi-bg); border-radius: 15px; }
     button[data-baseweb="tab"] { font-size: 1.5rem !important; font-weight: bold !important; padding: 1rem 2rem !important; }
-    .stSelectbox label, .stTextInput label, .stNumberInput label, .stDateInput label, .stRadio label { font-size: 1.2rem !important; color: #1B4F72 !important; font-weight: bold; }
+    .stSelectbox label, .stTextInput label, .stNumberInput label, .stDateInput label, .stRadio label { font-size: 1.2rem !important; color: #34495E !important; font-weight: bold; }
     
     div[data-testid="stForm"] { 
-        background-color: #E8F6F3; 
+        background-color: #FDFEFE; 
         padding: 30px; 
         border-radius: 20px; 
-        border: 2px solid #A3E4D7;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        border: 2px solid #D5DBDB;
+        box-shadow: 0 4px 6px var(--morandi-card-shadow);
     }
     
-    /* 強制設定輸入框背景為白，文字為黑 */
     div[data-baseweb="input"] > div, 
     div[data-baseweb="select"] > div, 
     div[data-baseweb="calendar"],
@@ -41,12 +53,7 @@ st.markdown("""
         -webkit-text-fill-color: #000000 !important;
     }
     
-    ul[data-baseweb="menu"] li { color: #000000 !important; }
-    div[data-baseweb="select"] span { color: #000000 !important; }
-    
-    .info-card { background-color: #FEF9E7; padding: 15px; border-left: 5px solid #F4D03F; border-radius: 5px; margin-bottom: 10px; font-size: 1.1rem; }
-    .info-label { font-weight: bold; color: #7F8C8D; }
-    .info-value { color: #212F3D; font-weight: 600; margin-left: 10px; }
+    .info-card { background-color: #F9EBEA; padding: 15px; border-left: 6px solid #D98880; border-radius: 8px; margin-bottom: 10px; font-size: 1.1rem; color: #641E16; }
     
     .contact-footer {
         text-align: center;
@@ -58,40 +65,51 @@ st.markdown("""
         font-weight: bold;
     }
 
-    /* KPI 卡片樣式 */
+    /* KPI 卡片樣式 (莫蘭迪 + 互動) */
     .kpi-header {
-        font-size: 1.5rem;
-        font-weight: bold;
-        color: #2c3e50;
-        margin-bottom: 15px;
+        font-size: 1.6rem;
+        font-weight: 800;
+        color: #4A6572;
+        margin-bottom: 20px;
         text-align: center;
-        background-color: #ecf0f1;
-        padding: 10px;
-        border-radius: 8px;
+        background-color: #EBF5FB;
+        padding: 15px;
+        border-radius: 12px;
+        letter-spacing: 1px;
     }
     .kpi-container {
         display: flex;
         justify-content: space-between;
-        gap: 20px;
-        margin-bottom: 20px;
+        gap: 25px;
+        margin-bottom: 25px;
     }
     .kpi-card {
         flex: 1;
-        padding: 20px;
+        padding: 25px;
         border-radius: 15px;
         text-align: center;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        color: #2c3e50;
+        box-shadow: 0 4px 10px var(--morandi-card-shadow);
+        color: #2C3E50;
+        transition: transform 0.2s ease, box-shadow 0.2s ease; /* 互動特效 */
+        cursor: default;
     }
-    .kpi-card-total { background-color: #D6EAF8; border-left: 8px solid #5DADE2; }
-    .kpi-card-gas { background-color: #D5F5E3; border-left: 8px solid #58D68D; }
-    .kpi-card-diesel { background-color: #FCF3CF; border-left: 8px solid #F4D03F; }
     
-    .kpi-title { font-size: 1.2rem; font-weight: bold; margin-bottom: 10px; opacity: 0.8; }
-    .kpi-value { font-size: 3rem; font-weight: 800; line-height: 1.2; }
-    .kpi-unit { font-size: 1rem; font-weight: normal; opacity: 0.7; }
+    /* 懸停效果 */
+    .kpi-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 15px var(--morandi-hover-shadow);
+    }
 
-    /* 個資聲明區塊樣式 */
+    .kpi-card-total { background-color: #D6EAF8; border-bottom: 6px solid #5DADE2; } /* 莫蘭迪藍 */
+    .kpi-card-gas { background-color: #D5F5E3; border-bottom: 6px solid #58D68D; }   /* 莫蘭迪綠 */
+    .kpi-card-diesel { background-color: #FCF3CF; border-bottom: 6px solid #F4D03F; } /* 莫蘭迪黃 */
+    
+    .kpi-title { font-size: 1.3rem; font-weight: bold; margin-bottom: 10px; opacity: 0.8; }
+    .kpi-value { font-size: 3.2rem; font-weight: 800; line-height: 1.1; margin-bottom: 5px; }
+    .kpi-unit { font-size: 1.1rem; font-weight: normal; opacity: 0.8; margin-left: 5px;}
+    .kpi-sub { font-size: 1rem; color: #566573; font-weight: 600; background-color: rgba(255,255,255,0.5); padding: 2px 10px; border-radius: 10px; display: inline-block;}
+
+    /* 個資聲明 */
     .privacy-box {
         background-color: #EBF5FB;
         border: 1px solid #AED6F1;
@@ -103,40 +121,28 @@ st.markdown("""
         color: #2E4053;
         line-height: 1.6;
     }
-    .privacy-title {
-        font-weight: bold;
-        font-size: 1.1rem;
-        color: #1B4F72;
-        margin-bottom: 10px;
-    }
+    .privacy-title { font-weight: bold; font-size: 1.1rem; color: #1B4F72; margin-bottom: 10px; }
     
-    /* 宣導區塊 */
     .alert-box {
-        background-color: #FCF3CF;
-        border: 2px solid #F4D03F;
+        background-color: #FEF9E7;
+        border: 2px solid #F7DC6F;
         padding: 15px;
         border-radius: 10px;
         margin-bottom: 20px;
-        color: #7D6608;
+        color: #9A7D0A;
         font-weight: bold;
         font-size: 1.1rem;
         text-align: center;
-        display: flex;
-        align-items: center;
-        justify-content: center;
     }
     
-    /* 設定筆數區塊 */
     .setting-box {
-        background-color: #F8F9F9;
+        background-color: #F2F4F4;
         border: 2px dashed #BDC3C7;
         padding: 15px;
         border-radius: 10px;
         margin-bottom: 20px;
         text-align: center;
     }
-    
-    .row-label { font-size: 1rem; font-weight: bold; color: #566573; margin-top: 10px;}
 </style>
 """, unsafe_allow_html=True)
 
@@ -447,7 +453,6 @@ elif st.session_state['current_page'] == 'fuel':
                                                 first_date = data_entries[0]['date']
                                                 clean_name = f"{selected_dept}_{selected_device}_{first_date}_{idx+1}.{file_ext}".replace("/", "_")
                                                 file_meta = {'name': clean_name, 'parents': [DRIVE_FOLDER_ID]}
-                                                # 👇 V46.1: 開啟 resumable=True，解決 Broken Pipe 問題
                                                 media = MediaIoBaseUpload(f_file, mimetype=f_file.type, resumable=True)
                                                 file = drive_service.files().create(body=file_meta, media_body=media, fields='webViewLink').execute()
                                                 file_links.append(file.get('webViewLink'))
@@ -512,7 +517,7 @@ elif st.session_state['current_page'] == 'fuel':
             </div>
         """, unsafe_allow_html=True)
 
-    # --- Tab 2: 動態查詢看板 (年度檢視) ---
+    # --- Tab 2: 動態查詢看板 (年度檢視 - 莫蘭迪美學版) ---
     with tabs[1]:
         st.markdown("### 📊 動態查詢看板 (年度檢視)")
         st.info("請選擇「單位」與「年份」，檢視該年度的用油統計與詳細紀錄。")
@@ -523,9 +528,7 @@ elif st.session_state['current_page'] == 'fuel':
                 st.cache_data.clear()
                 st.rerun()
         
-        df_display_source = pd.DataFrame()
         available_years = []
-        
         if not df_records.empty and '加油量' in df_records.columns and '加油日期' in df_records.columns:
             df_records['加油量'] = pd.to_numeric(df_records['加油量'], errors='coerce').fillna(0)
             df_records['日期格式'] = pd.to_datetime(df_records['加油日期'], errors='coerce')
@@ -545,6 +548,7 @@ elif st.session_state['current_page'] == 'fuel':
                 df_final = df_dept[df_dept['日期格式'].dt.year == query_year]
                 
                 if not df_final.empty:
+                    # 1. 處理 KPI 數據 (包含百分比)
                     if '原燃物料名稱' in df_final.columns:
                         df_final['原燃物料名稱'] = df_final['原燃物料名稱'].fillna('').astype(str)
                         gas_mask = df_final['原燃物料名稱'].str.contains('汽油', na=False)
@@ -557,49 +561,124 @@ elif st.session_state['current_page'] == 'fuel':
                     
                     total_sum = df_final['加油量'].sum()
                     
+                    # 計算百分比 (避免除以 0)
+                    gas_pct = (gasoline_sum / total_sum * 100) if total_sum > 0 else 0
+                    diesel_pct = (diesel_sum / total_sum * 100) if total_sum > 0 else 0
+                    
+                    # 渲染莫蘭迪色卡
                     st.markdown(f"<div class='kpi-header'>{query_dept} - {query_year}年度 用油統計</div>", unsafe_allow_html=True)
                     
                     kpi_html = f"""
                     <div class="kpi-container">
                         <div class="kpi-card kpi-card-gas">
                             <div class="kpi-title">⛽ 汽油使用量</div>
-                            <div class="kpi-value">{gasoline_sum:,.2f}<span class="kpi-unit"> L</span></div>
+                            <div class="kpi-value">{gasoline_sum:,.2f}<span class="kpi-unit"> 公升</span></div>
+                            <div class="kpi-sub">佔比 {gas_pct:.2f}%</div>
                         </div>
                         <div class="kpi-card kpi-card-diesel">
                             <div class="kpi-title">🚛 柴油使用量</div>
-                            <div class="kpi-value">{diesel_sum:,.2f}<span class="kpi-unit"> L</span></div>
+                            <div class="kpi-value">{diesel_sum:,.2f}<span class="kpi-unit"> 公升</span></div>
+                            <div class="kpi-sub">佔比 {diesel_pct:.2f}%</div>
                         </div>
                         <div class="kpi-card kpi-card-total">
                             <div class="kpi-title">💧 總用油量</div>
-                            <div class="kpi-value">{total_sum:,.2f}<span class="kpi-unit"> L</span></div>
+                            <div class="kpi-value">{total_sum:,.2f}<span class="kpi-unit"> 公升</span></div>
+                            <div class="kpi-sub">100%</div>
                         </div>
                     </div>
                     """
                     st.markdown(kpi_html, unsafe_allow_html=True)
                     
-                    st.subheader(f"📊 {query_year}年度 每月加油趨勢 (依設備堆疊)")
+                    # 2. 趨勢圖 (含累計)
+                    st.subheader(f"📊 {query_year}年度 每月加油趨勢")
                     
+                    # 預備月份數據
                     df_final['月份'] = df_final['日期格式'].dt.month
+                    
+                    # 分組計算
                     chart_data = df_final.groupby(['月份', '設備名稱備註'])['加油量'].sum().reset_index()
                     
+                    # 加入第 13 個月作為「全年度累計」
+                    total_per_device = df_final.groupby(['設備名稱備註'])['加油量'].sum().reset_index()
+                    total_per_device['月份'] = 13 # 暫定 13
+                    
+                    # 合併數據
+                    final_chart_data = pd.concat([chart_data, total_per_device])
+                    
+                    # 莫蘭迪色系 (Plotly Discrete Sequence)
+                    morandi_colors = ['#88B04B', '#92A8D1', '#F7CAC9', '#B565A7', '#009B77', '#DD4124', '#D65076', '#45B8AC', '#EFC050', '#5B5EA6']
+                    
                     fig = px.bar(
-                        chart_data, 
+                        final_chart_data, 
                         x='月份', 
                         y='加油量', 
                         color='設備名稱備註', 
                         text_auto=True,
-                        title=f"{query_dept} - 各設備每月用油統計",
-                        labels={'加油量': '加油量 (L)', '月份': '月份'},
+                        title=f"{query_dept} - 各設備每月用油統計 (含累計)",
+                        labels={'加油量': '加油量 (公升)', '月份': '月份', '設備名稱備註': '設備名稱'},
+                        color_discrete_sequence=morandi_colors, # 套用顏色
                         template="plotly_white"
                     )
                     
-                    fig.update_xaxes(tickmode='linear', tick0=1, dtick=1, range=[0.5, 12.5])
-                    fig.update_layout(barmode='stack')
-                    fig.update_traces(texttemplate='%{y:.2f}')
+                    # X 軸設定：顯示 1~12 月 + 全年度累計
+                    tick_vals = list(range(1, 14))
+                    tick_texts = [str(i) for i in range(1, 13)] + ['全年度累計']
+                    
+                    fig.update_xaxes(tickmode='array', tickvals=tick_vals, ticktext=tick_texts)
+                    fig.update_layout(
+                        barmode='stack', 
+                        font=dict(size=14), # 放大字體
+                        xaxis_title="統計月份",
+                        yaxis_title="加油量 (公升)"
+                    )
+                    fig.update_traces(texttemplate='%{y:.2f}', textposition='inside')
                     st.plotly_chart(fig, use_container_width=True)
                     
+                    # 3. 圓餅圖區塊 (汽油 vs 柴油)
+                    st.markdown("---")
+                    st.subheader("🥧 油品設備佔比分析")
+                    
+                    c_pie1, c_pie2 = st.columns(2)
+                    
+                    # 汽油圓餅
+                    with c_pie1:
+                        gas_df = df_final[df_final['原燃物料名稱'].str.contains('汽油', na=False)]
+                        if not gas_df.empty:
+                            fig_gas = px.pie(
+                                gas_df, 
+                                values='加油量', 
+                                names='設備名稱備註', 
+                                title='⛽ 汽油設備用油佔比',
+                                color_discrete_sequence=px.colors.sequential.Teal, # 綠色系
+                                hole=0.4
+                            )
+                            fig_gas.update_traces(textinfo='percent+label')
+                            st.plotly_chart(fig_gas, use_container_width=True)
+                        else:
+                            st.info("無汽油使用紀錄")
+
+                    # 柴油圓餅
+                    with c_pie2:
+                        diesel_df = df_final[df_final['原燃物料名稱'].str.contains('柴油', na=False)]
+                        if not diesel_df.empty:
+                            fig_diesel = px.pie(
+                                diesel_df, 
+                                values='加油量', 
+                                names='設備名稱備註', 
+                                title='🚛 柴油設備用油佔比',
+                                color_discrete_sequence=px.colors.sequential.Oranges, # 橘黃色系
+                                hole=0.4
+                            )
+                            fig_diesel.update_traces(textinfo='percent+label')
+                            st.plotly_chart(fig_diesel, use_container_width=True)
+                        else:
+                            st.info("無柴油使用紀錄")
+
+                    st.markdown("---")
+                    
+                    # 4. 明細表
                     st.subheader(f"📋 {query_year}年度 填報明細")
-                    target_cols = ["加油日期", "設備名稱備註", "原燃物料名稱", "加油量", "填報人", "備註", "與其他設備共用加油單", "油卡明細與其他設備共用"]
+                    target_cols = ["加油日期", "設備名稱備註", "原燃物料名稱", "油卡編號", "加油量", "填報人", "備註", "與其他設備共用加油單"]
                     available_cols = [c for c in target_cols if c in df_final.columns]
                     
                     df_display = df_final[available_cols].sort_values(by='加油日期', ascending=False)
