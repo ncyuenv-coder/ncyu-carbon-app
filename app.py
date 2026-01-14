@@ -223,7 +223,7 @@ try:
     except: 
         ws_record = sh.add_worksheet(title="填報紀錄", rows="1000", cols="13")
         
-    # 👇 V41.0: 更新欄位名稱 (增加兩欄共用確認)
+    # 👇 V42.0: 欄位擴充至 13 欄，包含詳細勾選資訊
     if len(ws_record.get_all_values()) == 0:
         ws_record.append_row([
             "填報時間", "填報單位", "填報人", "填報人分機", 
@@ -236,11 +236,20 @@ except Exception as e:
     st.error(f"連線失敗: {e}")
     st.stop()
 
+# 👇 V42.0: 使用 get_all_values() 取代 get_all_records()，避免標題對應錯誤導致當機
 @st.cache_data(ttl=600)
 def load_data():
     df_e = pd.DataFrame(ws_equip.get_all_records())
     df_e = df_e.astype(str)
-    df_r = pd.DataFrame(ws_record.get_all_records())
+    
+    # 手動處理填報紀錄，增加強健性
+    data = ws_record.get_all_values()
+    if len(data) > 0:
+        headers = data.pop(0)
+        df_r = pd.DataFrame(data, columns=headers)
+    else:
+        df_r = pd.DataFrame()
+        
     return df_e, df_r
 
 df_equip, df_records = load_data()
@@ -370,7 +379,6 @@ elif st.session_state['current_page'] == 'fuel':
                         elif report_mode == "單張加油單申報":
                             col_a, col_b = st.columns(2)
                             d_date = col_a.date_input("📅 加油日期", datetime.today())
-                            # 👇 V41.0: 統一小數點 2 位
                             d_vol = col_b.number_input("💧 加油量 (公升)", min_value=0.0, step=0.01, format="%.2f")
                             data_entries.append({"date": d_date, "vol": d_vol})
                         
@@ -380,7 +388,6 @@ elif st.session_state['current_page'] == 'fuel':
                             for i in range(rows):
                                 c_d, c_v = st.columns(2)
                                 _date = c_d.date_input(f"📅 明細 {i+1} - 日期", datetime.today(), key=f"md_{i}")
-                                # 👇 V41.0: 統一小數點 2 位
                                 _vol = c_v.number_input(f"💧 明細 {i+1} - 油量", min_value=0.0, step=0.01, format="%.2f", key=f"mv_{i}")
                                 data_entries.append({"date": _date, "vol": _vol})
                         
@@ -390,8 +397,8 @@ elif st.session_state['current_page'] == 'fuel':
                         st.markdown("---")
                         
                         f_files = None
-                        is_shared_single = False # 單張模式的共用
-                        is_shared_card = False   # 油卡模式的共用
+                        is_shared_single = False
+                        is_shared_card = False
                         
                         if is_unused_mode:
                             st.markdown("**📂 佐證資料 (本季無使用免附)**")
@@ -468,18 +475,13 @@ elif st.session_state['current_page'] == 'fuel':
                                     if f_files:
                                         for idx, f_file in enumerate(f_files):
                                             try:
-                                                # 👇 V41.0 關鍵修正：重置檔案讀取指標，避免上傳 0 byte 檔案
+                                                # 👇 V42.0: 修復上傳 (重置讀取指標)
                                                 f_file.seek(0)
                                                 
                                                 file_ext = f_file.name.split('.')[-1]
                                                 fuel_name = row.get('原燃物料名稱', '未知燃料')
                                                 
-                                                shared_tag = ""
-                                                if is_shared_single: shared_tag = "(共用)"
-                                                if is_shared_card: shared_tag = "(油卡共用)"
-                                                
                                                 first_date = valid_entries[0]['date']
-                                                
                                                 clean_name = f"{selected_dept}_{selected_device}_{first_date}_{idx+1}.{file_ext}".replace("/", "_")
                                                 
                                                 file_meta = {'name': clean_name, 'parents': [DRIVE_FOLDER_ID]}
@@ -492,16 +494,16 @@ elif st.session_state['current_page'] == 'fuel':
                                                 file_links.append(file.get('webViewLink'))
                                             except Exception as e:
                                                 st.error(f"❌ 檔案 {f_file.name} 上傳失敗: {e}")
-                                                valid_logic = False # 標記失敗
-                                                break # 停止後續動作
+                                                valid_logic = False
+                                                break
                                     
-                                    # 如果檔案上傳失敗，就不寫入資料庫
+                                    # 如果檔案上傳失敗，停止後續寫入
                                     if not valid_logic:
                                         st.stop()
 
                                     final_links = "\n".join(file_links) if file_links else "無"
                                     
-                                    my_bar.progress(50, text="批次寫入資料庫...")
+                                    my_bar.progress(50, text="寫入資料庫...")
                                     
                                     rows_to_append = []
                                     current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -518,11 +520,10 @@ elif st.session_state['current_page'] == 'fuel':
                                             prefix = f"【油卡: {fuel_card_id}】"
                                             final_note = f"{prefix} {note_input}" if note_input else prefix
                                         
-                                        # 轉換 Boolean 為中文
                                         str_shared_single = "是" if is_shared_single else "-"
                                         str_shared_card = "是" if is_shared_card else "-"
                                         
-                                        # 👇 V41.0: 寫入 13 個欄位
+                                        # 👇 V42.0: 寫入 13 個欄位
                                         row_data = [
                                             current_time, 
                                             selected_dept,                      
@@ -648,19 +649,16 @@ elif st.session_state['current_page'] == 'fuel':
                             template="plotly_white"
                         )
                         fig.update_layout(barmode='stack')
-                        # 設定顯示格式為小數點兩位
                         fig.update_traces(texttemplate='%{y:.2f}')
                         st.plotly_chart(fig, use_container_width=True)
                         
                         st.subheader(f"📋 {query_dept} - 填報歷史明細")
-                        # 依照新的欄位顯示
                         display_cols = ["加油日期", "設備名稱備註", "原燃物料名稱", "加油量", "填報人", "備註"]
                         final_cols = [c for c in display_cols if c in df_final.columns]
                         
                         df_display = df_final[final_cols].sort_values(by='加油日期', ascending=False)
                         df_display = df_display.rename(columns={'加油量': '加油量(公升)'})
                         
-                        # Dataframe 顯示格式設定
                         st.dataframe(df_display.style.format({"加油量(公升)": "{:.2f}"}), use_container_width=True)
                         
                     else:
