@@ -18,36 +18,29 @@ st.set_page_config(page_title="國立嘉義大學碳盤查平台", page_icon="�
 st.markdown("""
 <style>
     /* =========================================
-       🎨 V53.0 按鈕風格重塑版 (Orange Border Style)
+       🎨 V54.0 手機深色模式終極適配版
        ========================================= */
 
-    /* 1. 變數定義 */
+    /* 1. 強制宣告網頁為「亮色模式」 (關鍵技術修正) 
+       這會告訴手機瀏覽器不要隨意反轉顏色 */
     :root {
-        /* 核心顏色 */
+        color-scheme: light; 
+    }
+
+    /* 2. 變數定義 */
+    :root {
+        /* V54.0: 調整為「中性莫蘭迪灰藍」，黑字白字都清楚 */
+        --btn-bg: #B0BEC5;        
         --btn-border: #E67E22;    /* 粗橘色 */
-        --btn-bg: #F2F4F4;        /* 淺灰底 */
-        --btn-text: #2C3E50;      /* 深色文字 */
-        --highlight-red: #C0392B;
+        --btn-text: #17202A;      /* 深色文字 (預設) */
         
-        /* 淺色模式預設 */
         --bg-color: #EAEDED;
         --card-bg: #FFFFFF;
         --text-main: #2C3E50;
         --text-sub: #566573;
         --border-color: #BDC3C7;
         --kpi-header-bg: #D6DBDF;
-    }
-
-    /* 2. 深色模式偵測 (維持強制亮色邏輯，但適配背景) */
-    @media (prefers-color-scheme: dark) {
-        :root {
-            --bg-color: #17202A;        
-            --card-bg: #212F3D;         
-            --text-main: #ECF0F1;       
-            --text-sub: #B3B6B7;        
-            --border-color: #566573;    
-            --kpi-header-bg: #34495E;   
-        }
+        --highlight-red: #C0392B;
     }
 
     /* 3. 全域背景與文字設定 */
@@ -63,11 +56,12 @@ st.markdown("""
         border-right: 1px solid var(--border-color);
     }
     
-    h1, h2, h3, h4, h5, h6, p, span, label {
-        color: var(--text-main) !important;
+    /* 強制所有文字顏色，避免被手機反轉為白色 */
+    h1, h2, h3, h4, h5, h6, p, span, label, div {
+        color: var(--text-main);
     }
 
-    /* 4. 輸入框專區 (強制白底黑字，確保手機深色模式可見) */
+    /* 4. 輸入框專區 */
     div[data-baseweb="input"] > div, 
     div[data-baseweb="select"] > div, 
     div[data-baseweb="base-input"] > input,
@@ -75,7 +69,7 @@ st.markdown("""
         background-color: #FFFFFF !important; 
         border-color: #BDC3C7 !important;
         color: #000000 !important;            
-        -webkit-text-fill-color: #000000 !important; 
+        -webkit-text-fill-color: #000000 !important; /* iOS Safari 強制黑字 */
         caret-color: #000000 !important;
         font-size: 1.15rem !important;
     }
@@ -84,34 +78,36 @@ st.markdown("""
     ul[data-baseweb="menu"] li { color: #000000 !important; }
     div[data-baseweb="select"] span { color: #000000 !important; -webkit-text-fill-color: #000000 !important;}
 
-    /* 5. 按鈕專區 (🔥 V53.0 重點：粗橘框 + 淺灰底) */
+    /* 5. 按鈕專區 (🔥 V54.0 重點：中性灰藍底 + 粗橘框) */
     div.stButton > button {
         background-color: var(--btn-bg) !important; 
         color: var(--btn-text) !important;            
-        border: 3px solid var(--btn-border) !important; /* 3px 粗框 */
+        border: 3px solid var(--btn-border) !important;
         border-radius: 12px;
         font-size: 1.3rem !important;
         font-weight: 800 !important;
         padding: 0.6rem 1.5rem;
         transition: all 0.2s ease;
+        /* V54.0: 確保字體在手機上也是深色，若失效，底色也能襯托白字 */
+        -webkit-text-fill-color: var(--btn-text) !important; 
     }
     
-    /* Hover 效果 */
     div.stButton > button:hover { 
-        border-color: #D35400 !important; /* 深橘色 */
+        border-color: #D35400 !important;
         background-color: #FFFFFF !important;
         color: #D35400 !important;
+        -webkit-text-fill-color: #D35400 !important;
         transform: translateY(-2px);
         box-shadow: 0 4px 8px rgba(230, 126, 34, 0.3);
     }
     
-    /* Active (點擊) 效果 */
     div.stButton > button:active {
         background-color: #E67E22 !important;
         color: #FFFFFF !important;
+        -webkit-text-fill-color: #FFFFFF !important;
     }
     
-    /* 登入標題區塊 */
+    /* 登入標題 */
     .login-header { 
         font-size: 2.2rem; 
         font-weight: 800; 
@@ -132,7 +128,7 @@ st.markdown("""
         color: var(--text-main) !important;
     }
 
-    /* 6. KPI 互動卡片 */
+    /* KPI 卡片 */
     .kpi-header {
         font-size: 1.5rem;
         font-weight: 800;
@@ -225,6 +221,7 @@ st.markdown("""
         text-align: center;
     }
     
+    /* 模式選擇按鈕 */
     div[role="radiogroup"] label {
         background-color: var(--card-bg);
         border: 1px solid var(--border-color);
@@ -232,6 +229,7 @@ st.markdown("""
         border-radius: 8px;
         margin-right: 10px;
         font-weight: bold;
+        color: var(--text-main) !important; /* 確保文字顏色正確 */
     }
 </style>
 """, unsafe_allow_html=True)
@@ -515,7 +513,6 @@ elif st.session_state['current_page'] == 'fuel':
                         
                         agree_privacy = st.checkbox("我已閱讀並同意上述聲明，且確認所填資料無誤。", value=False)
                         
-                        # V53.0: 調整送出按鈕佈局 (強制置中 + 放大)
                         c_sub1, c_sub2, c_sub3 = st.columns([1, 2, 1])
                         with c_sub2:
                             submitted = st.form_submit_button("🚀 確認送出資料", use_container_width=True)
