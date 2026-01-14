@@ -17,205 +17,216 @@ st.set_page_config(page_title="國立嘉義大學碳盤查平台", page_icon="�
 
 st.markdown("""
 <style>
-    /* 🎨 V50.0 行動裝置深色模式完美適配版 */
-    
+    /* =========================================
+       🎨 V51.0 雙模適配系統 (Dual Mode System)
+       ========================================= */
+
+    /* 1. 預設淺色模式 (Light Mode - Morandi) */
     :root {
-        --morandi-bg: #EAEDED;        
-        --morandi-form-bg: #F7F9F9;   
-        --morandi-text: #2C3E50;      
-        --contrast-red: #C0392B;      
+        --bg-color: #EAEDED;
+        --card-bg: #FFFFFF;
+        --text-color: #2C3E50;
+        --sub-text: #566573;
+        --border-color: #BDC3C7;
+        --input-bg: #FFFFFF;
+        --input-text: #000000;
+        --highlight-blue: #5DADE2;
+        --highlight-green: #7DCEA0;
+        --highlight-red: #C0392B;
+        --submit-btn: #34495E; /* 深色莫蘭迪 */
+        --submit-text: #FFFFFF;
+        --home-btn-gas: #A9DFBF; /* 淺綠 */
+        --home-btn-ref: #AED6F1; /* 淺藍 */
     }
 
-    /* 強制全站背景與文字顏色 */
+    /* 2. 深色模式偵測 (Dark Mode - Deep Blue/Grey) */
+    @media (prefers-color-scheme: dark) {
+        :root {
+            --bg-color: #17202A;        /* 深底 */
+            --card-bg: #212F3D;         /* 卡片深灰 */
+            --text-color: #ECF0F1;      /* 淺白字 */
+            --sub-text: #B3B6B7;        /* 次要文字銀灰 */
+            --border-color: #566573;    /* 邊框深灰 */
+            --input-bg: #2C3E50;        /* 輸入框深藍灰 */
+            --input-text: #FFFFFF;      /* 輸入框白字 */
+            --highlight-blue: #3498DB;
+            --highlight-green: #27AE60;
+            --highlight-red: #E74C3C;
+            --submit-btn: #5D6D7E;
+            --submit-text: #FFFFFF;
+            --home-btn-gas: #1E8449;    /* 深綠 */
+            --home-btn-ref: #2874A6;    /* 深藍 */
+        }
+    }
+
+    /* 全域設定 */
     [data-testid="stAppViewContainer"] {
-        background-color: var(--morandi-bg);
-        color: var(--morandi-text);
+        background-color: var(--bg-color);
+        color: var(--text-color);
     }
     
-    [data-testid="stHeader"] {
-        background-color: rgba(0,0,0,0);
-    }
+    [data-testid="stHeader"] { background-color: rgba(0,0,0,0); }
     
     [data-testid="stSidebar"] {
-        background-color: #FFFFFF;
-        border-right: 1px solid #D5DBDB;
+        background-color: var(--card-bg);
+        border-right: 1px solid var(--border-color);
     }
-
+    
     h1, h2, h3, h4, h5, h6, p, span, div, label {
-        color: #2C3E50 !important;
+        color: var(--text-color) !important;
     }
 
-    /* 登入標題區塊 */
+    /* 3. 輸入元件優化 (關鍵：讓深色模式也能看清楚) */
+    div[data-baseweb="input"] > div, 
+    div[data-baseweb="select"] > div, 
+    div[data-baseweb="base-input"] > input,
+    textarea, input {
+        background-color: var(--input-bg) !important;
+        border-color: var(--border-color) !important;
+        color: var(--input-text) !important;
+        -webkit-text-fill-color: var(--input-text) !important;
+        font-size: 1.15rem !important;
+    }
+    
+    /* 下拉選單選單項目 */
+    ul[data-baseweb="menu"] { background-color: var(--card-bg) !important; }
+    ul[data-baseweb="menu"] li { color: var(--text-color) !important; }
+
+    /* 4. 首頁與登入區塊 */
     .login-header { 
-        font-size: 2.2rem; /* 稍微縮小適配手機 */
+        font-size: 2.2rem; 
         font-weight: 800; 
-        color: #1B2631 !important; 
+        color: var(--text-color) !important;
         text-align: center; 
         margin-bottom: 20px; 
         padding: 25px; 
-        background-color: #FFFFFF; 
-        border: 2px solid #D5DBDB;
+        background-color: var(--card-bg); 
+        border: 2px solid var(--border-color);
         border-radius: 15px; 
         box-shadow: 0 4px 6px rgba(0,0,0,0.1);
     }
 
-    /* Tab 標籤大小修正 (適中大小) */
-    button[data-baseweb="tab"] div p {
-        font-size: 1.3rem !important; /* V50.0: 改回適中大小 */
-        font-weight: 700 !important;
-        color: #34495E !important;
-        padding: 0.5rem 1rem !important;
-    }
-    
-    button[data-baseweb="tab"][aria-selected="true"] div p {
-        color: #E74C3C !important;
-    }
-
-    /* 表單區塊 */
-    div[data-testid="stForm"] { 
-        background-color: var(--morandi-form-bg); 
-        padding: 25px; /* 手機版邊距縮小一點 */
-        border-radius: 20px; 
-        border: 2px solid #99A3A4;
-        box-shadow: 0 6px 12px rgba(0,0,0,0.15);
-    }
-    
-    /* 🔥🔥🔥 V50.0 關鍵修正：強制輸入框樣式 (解決手機深色模式黑字問題) */
-    div[data-baseweb="input"] > div, 
-    div[data-baseweb="select"] > div, 
-    div[data-baseweb="base-input"] > input,
-    div[data-baseweb="calendar"],
-    textarea, 
-    input {
-        background-color: #FFFFFF !important;
-        border-color: #BDC3C7 !important;
-        color: #000000 !important; /* 強制黑色文字 */
-        -webkit-text-fill-color: #000000 !important; /* 🔥 iOS Safari 專用強制黑色 */
-        caret-color: #000000 !important; /* 游標顏色 */
-        font-size: 1.1rem !important;
-        opacity: 1 !important; /* 防止被系統變透明 */
-    }
-    
-    /* 下拉選單修正 */
-    div[data-baseweb="select"] span {
-        color: #000000 !important;
-        -webkit-text-fill-color: #000000 !important;
-    }
-    
-    ul[data-baseweb="menu"] {
-        background-color: #FFFFFF !important;
-    }
-    
-    ul[data-baseweb="menu"] li {
-        background-color: #FFFFFF !important;
-        color: #000000 !important;
-    }
-    
-    .contact-footer {
+    /* 首頁大按鈕樣式 */
+    .home-card {
+        padding: 30px;
+        border-radius: 15px;
         text-align: center;
-        margin-top: 50px;
-        padding: 20px;
-        background-color: #F2F3F4;
-        border-top: 1px solid #BDC3C7;
-        color: #626567 !important;
-        font-weight: bold;
-    }
-
-    /* KPI 卡片 */
-    .kpi-header {
         font-size: 1.5rem;
-        font-weight: 800;
-        color: #34495E !important;
-        margin-bottom: 20px;
-        text-align: center;
-        background-color: #D6DBDF;
-        padding: 10px;
-        border-radius: 12px;
-        letter-spacing: 1px;
-    }
-    .kpi-container {
-        display: flex;
-        justify-content: space-between;
-        gap: 15px; /* 手機版間距縮小 */
-        margin-bottom: 25px;
-        flex-wrap: wrap; /* 手機版自動換行 */
-    }
-    .kpi-card {
-        flex: 1;
-        min-width: 200px; /* 手機版最小寬度 */
-        padding: 20px;
-        border-radius: 15px;
-        text-align: center;
-        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-        color: #2C3E50 !important;
-        background-color: #FFFFFF;
-        transition: all 0.3s ease;
+        font-weight: bold;
+        color: #1B2631 !important; /* 按鈕文字維持深色較清楚 */
         cursor: pointer;
-        border: 1px solid #E5E7E9;
+        transition: transform 0.2s;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        border: 2px solid rgba(0,0,0,0.05);
+        margin-bottom: 10px;
     }
-    .kpi-card:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 12px 20px rgba(0,0,0,0.2);
+    .home-card:hover { transform: scale(1.02); }
+    .btn-gas { background-color: var(--home-btn-gas); }
+    .btn-ref { background-color: var(--home-btn-ref); }
+
+    /* 5. 填報頁面優化 */
+    
+    /* 步驟標題放大 */
+    .step-title { font-size: 1.6rem; font-weight: 900; margin-bottom: 15px; color: var(--text-color); }
+
+    /* Tab 標籤 */
+    button[data-baseweb="tab"] div p {
+        font-size: 1.5rem !important; /* 文字放大 */
+        font-weight: 700 !important;
     }
 
-    .kpi-card-total { border-bottom: 8px solid #5499C7; } 
-    .kpi-card-gas { border-bottom: 8px solid #52BE80; }   
-    .kpi-card-diesel { border-bottom: 8px solid #F4D03F; } 
-    
-    .kpi-title { font-size: 1.2rem; font-weight: bold; margin-bottom: 5px; opacity: 0.7; color: #34495E !important; }
-    .kpi-value { font-size: 2.5rem; font-weight: 800; line-height: 1.1; margin-bottom: 5px; color: #212F3D !important; }
-    .kpi-unit { font-size: 1rem; font-weight: normal; color: #7F8C8D !important; margin-left: 5px;}
-    
-    .kpi-sub { 
-        font-size: 1rem; 
-        color: var(--contrast-red) !important;
-        font-weight: 700; 
-        background-color: #F9EBEA; 
-        padding: 4px 10px; 
-        border-radius: 20px; 
-        display: inline-block;
-        margin-top: 5px;
-    }
-
-    .pie-chart-box {
-        background-color: #FFFFFF;
-        border: 2px solid #BDC3C7;
-        border-radius: 15px;
-        padding: 10px;
+    /* 設備資訊框 (有框線) */
+    .device-info-box {
+        background-color: var(--card-bg);
+        border: 2px solid var(--highlight-blue);
+        border-radius: 10px;
+        padding: 20px;
+        margin-bottom: 20px;
         box-shadow: 0 2px 5px rgba(0,0,0,0.05);
     }
+    .device-info-title {
+        font-size: 1.2rem;
+        font-weight: bold;
+        color: var(--highlight-blue) !important;
+        border-bottom: 1px solid var(--border-color);
+        padding-bottom: 10px;
+        margin-bottom: 10px;
+    }
 
-    .privacy-box {
-        background-color: #EBF5FB;
-        border: 1px solid #85C1E9;
-        border-left: 5px solid #2E86C1;
-        padding: 15px;
+    /* 申報模式切換 (按鈕化 Radio) */
+    div[role="radiogroup"] label {
+        background-color: var(--card-bg);
+        border: 1px solid var(--border-color);
+        padding: 15px 20px;
+        border-radius: 8px;
+        margin-right: 10px;
+        font-size: 1.3rem !important; /* 模式文字放大 */
+        font-weight: bold;
+        transition: all 0.2s;
+    }
+    div[role="radiogroup"] label:hover {
+        background-color: var(--bg-color);
+        border-color: var(--highlight-blue);
+    }
+
+    /* 說明文字加深 */
+    .note-text {
+        font-size: 1rem;
+        color: var(--sub-text) !important; /* 使用加深的變數 */
+        margin-bottom: 5px;
+        font-weight: 500;
+    }
+
+    /* 送出按鈕 (深色莫蘭迪) */
+    div.stButton > button {
+        background-color: var(--submit-btn) !important;
+        color: var(--submit-text) !important;
+        font-size: 1.3rem !important;
+        font-weight: bold !important;
         border-radius: 10px;
-        margin-bottom: 20px;
-        font-size: 0.9rem;
-        color: #283747 !important;
-        line-height: 1.6;
+        padding: 10px 20px;
+        border: none;
+        width: 100%;
+    }
+    div.stButton > button:hover {
+        opacity: 0.9;
+    }
+
+    /* 6. 看板與 KPI */
+    .kpi-card {
+        background-color: var(--card-bg);
+        color: var(--text-color) !important;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    }
+    .kpi-value { color: var(--text-color) !important; }
+    .kpi-title { color: var(--sub-text) !important; }
+    
+    /* 圓餅圖外框 */
+    .pie-chart-box {
+        background-color: var(--card-bg);
+        border: 2px solid var(--border-color);
+        border-radius: 15px;
+        padding: 10px;
     }
     
     .alert-box {
-        background-color: #FCF3CF;
+        background-color: #FEF9E7; /* 警語維持亮黃比較顯眼 */
         border: 2px solid #F1C40F;
+        color: #7D6608 !important;
         padding: 15px;
         border-radius: 10px;
         margin-bottom: 20px;
-        color: #9A7D0A !important;
         font-weight: bold;
-        font-size: 1.1rem;
         text-align: center;
     }
     
-    .setting-box {
-        background-color: #EAEDED;
-        border: 2px dashed #99A3A4;
-        padding: 15px;
-        border-radius: 10px;
-        margin-bottom: 20px;
-        text-align: center;
+    /* 深色模式下的警語調整 */
+    @media (prefers-color-scheme: dark) {
+        .alert-box {
+            background-color: #7D6608;
+            color: #FEF9E7 !important;
+            border-color: #F1C40F;
+        }
     }
 </style>
 """, unsafe_allow_html=True)
@@ -257,7 +268,7 @@ try:
     
     if st.session_state["authentication_status"] is not True:
         st.markdown('<div class="login-header">🏫 國立嘉義大學碳盤查<br>油料使用及冷媒填充回報平台</div>', unsafe_allow_html=True)
-        st.markdown("<h3 style='text-align: center; color: #566573;'>登入系統 (Login)</h3>", unsafe_allow_html=True)
+        st.markdown("<h3 style='text-align: center;'>登入系統 (Login)</h3>", unsafe_allow_html=True)
         st.markdown("---")
     
     authenticator.login('main')
@@ -347,15 +358,18 @@ df_equip, df_records = load_data()
 if st.session_state['current_page'] == 'home':
     st.title("🏫 國立嘉義大學碳盤查回報平台")
     st.markdown("### 請選擇填報項目：")
-    col1, col2 = st.columns(2)
-    with col1:
-        st.info("⛽ 車輛/機具用油")
-        if st.button("前往「燃油設備填報區」", use_container_width=True, type="primary"):
+    
+    # V51.0: 改用 HTML 卡片取代 st.info，顏色更好看且可自訂
+    c1, c2 = st.columns(2)
+    with c1:
+        if st.button("⛽ 燃油設備填報區", use_container_width=True, type="primary"):
             st.session_state['current_page'] = 'fuel'
             st.rerun()
-    with col2:
-        st.info("❄️ 冷氣/冰水主機")
-        st.button("前往「冷媒類設備填報區」 (建置中)", use_container_width=True, disabled=True)
+        st.caption("公務車、割草機、發電機等用油填報")
+        
+    with c2:
+        st.button("❄️ 冷媒類設備填報區", use_container_width=True, disabled=True)
+        st.caption("冷氣、冰水主機 (建置中)")
     
     st.markdown("""
         <div class="contact-footer">
@@ -366,11 +380,7 @@ if st.session_state['current_page'] == 'home':
 elif st.session_state['current_page'] == 'fuel':
     st.title("⛽ 燃油設備填報專區")
     
-    tabs_list = ["📝 新增填報", "📊 動態查詢看板"]
-    if username == 'admin':
-        tabs_list.append("🛠️ 資料庫管理")
-        
-    tabs = st.tabs(tabs_list)
+    tabs = st.tabs(["📝 新增填報", "📊 動態查詢看板"])
 
     # --- Tab 1: 填報 ---
     with tabs[0]:
@@ -381,7 +391,7 @@ elif st.session_state['current_page'] == 'fuel':
         """, unsafe_allow_html=True)
 
         if not df_equip.empty:
-            st.markdown("#### 步驟 1：選擇設備")
+            st.markdown('<div class="step-title">步驟 1：選擇設備</div>', unsafe_allow_html=True)
             c1, c2 = st.columns(2)
             units = sorted([x for x in df_equip['填報單位'].unique() if x != '-' and x != '填報單位'])
             
@@ -409,28 +419,32 @@ elif st.session_state['current_page'] == 'fuel':
                 
                 if selected_device:
                     row = filtered[filtered['設備名稱備註'] == selected_device].iloc[0]
+                    # V51.0: 設備資訊加框線
                     info_html = f"""
-                    <div class="info-card">
-                        <div><span class="info-label">🏢 部門：</span><span class="info-value">{row.get('設備所屬單位/部門', '-')}</span></div>
-                        <div><span class="info-label">👤 保管人：</span><span class="info-value">{row.get('保管人', '-')}</span></div>
-                        <div><span class="info-label">🔢 財產編號：</span><span class="info-value">{row.get('校內財產編號', '-')}</span></div>
-                        <div><span class="info-label">📍 位置：</span><span class="info-value">{row.get('設備詳細位置/樓層', '-')}</span></div>
-                        <div><span class="info-label">⛽ 燃料：</span><span class="info-value">{row.get('原燃物料名稱', '-')}</span></div>
-                        <div><span class="info-label">📊 數量：</span><span class="info-value">{row.get('設備數量', '-')}</span></div>
+                    <div class="device-info-box">
+                        <div class="device-info-title">📋 設備詳細資料</div>
+                        <div><strong>🏢 部門：</strong>{row.get('設備所屬單位/部門', '-')}</div>
+                        <div><strong>👤 保管人：</strong>{row.get('保管人', '-')}</div>
+                        <div><strong>🔢 財產編號：</strong>{row.get('校內財產編號', '-')}</div>
+                        <div><strong>📍 位置：</strong>{row.get('設備詳細位置/樓層', '-')}</div>
+                        <div><strong>⛽ 燃料：</strong>{row.get('原燃物料名稱', '-')}</div>
+                        <div><strong>📊 數量：</strong>{row.get('設備數量', '-')}</div>
                     </div>
                     """
                     st.markdown(info_html, unsafe_allow_html=True)
                     
-                    st.markdown("#### 步驟 2：填寫資料")
+                    st.markdown('<div class="step-title">步驟 2：填寫資料</div>', unsafe_allow_html=True)
                     
+                    st.markdown("**請選擇申報類型：**")
                     report_mode = st.radio(
-                        "請選擇申報類型", 
+                        "申報類型", # Label hidden by CSS but needed for accessibility
                         ["用油量申報 (含單筆/多筆/油卡)", "本季無使用"], 
-                        horizontal=True
+                        horizontal=True,
+                        label_visibility="collapsed"
                     )
+                    st.markdown("---")
                     
                     if report_mode == "用油量申報 (含單筆/多筆/油卡)":
-                        st.markdown('<div class="setting-box">', unsafe_allow_html=True)
                         st.markdown("**🔧 設定明細筆數** (請先調整好筆數，再進行填寫)")
                         c_btn1, c_btn2, c_dummy = st.columns([1, 1, 3])
                         with c_btn1:
@@ -441,8 +455,10 @@ elif st.session_state['current_page'] == 'fuel':
                             if st.button("➖ 減少一列", use_container_width=True):
                                 if st.session_state['multi_row_count'] > 1:
                                     st.session_state['multi_row_count'] -= 1
-                        st.caption(f"目前將顯示 **{st.session_state['multi_row_count']}** 列供填寫 (上限 10 列)")
-                        st.markdown('</div>', unsafe_allow_html=True)
+                        
+                        # V51.0: 說明文字加深
+                        st.markdown(f"<div class='note-text'>目前將顯示 <b>{st.session_state['multi_row_count']}</b> 列供填寫 (上限 10 列)</div>", unsafe_allow_html=True)
+                        st.divider()
 
                     with st.form("entry_form", clear_on_submit=True):
                         col_p1, col_p2 = st.columns(2)
@@ -458,8 +474,7 @@ elif st.session_state['current_page'] == 'fuel':
                         if report_mode == "用油量申報 (含單筆/多筆/油卡)":
                             fuel_card_id = st.text_input("💳 油卡編號 (選填)")
                             
-                            st.divider()
-                            st.markdown("⛽ **加油明細區 (必填)**")
+                            st.markdown("##### ⛽ 加油明細區 (必填)")
                             
                             rows = st.session_state['multi_row_count']
                             for i in range(rows):
@@ -472,9 +487,9 @@ elif st.session_state['current_page'] == 'fuel':
                             is_shared = st.checkbox("與其他設備共用加油單")
                             
                             st.markdown("**🧾 備註 (選填)**")
-                            st.caption("A. 若一張發票加多台設備，請填寫相同發票號碼以便核對。")
-                            st.caption("B. 若有資料誤繕情形，請您重新登錄，並於備註欄註記「請刪除前筆資料，以本筆資料為準」，以利管理單位協助刪除。")
-                            note_input = st.text_input("備註內容")
+                            st.markdown("<div class='note-text'>A. 若一張發票加多台設備，請填寫相同發票號碼以便核對。</div>", unsafe_allow_html=True)
+                            st.markdown("<div class='note-text'>B. 若有資料誤繕情形，請您重新登錄，並於備註欄註記「請刪除前筆資料，以本筆資料為準」，以利管理單位協助刪除。</div>", unsafe_allow_html=True)
+                            note_input = st.text_input("請輸入備註內容")
                             
                             st.markdown("**📂 上傳佐證資料 (必填)**")
                             f_files = st.file_uploader("支援 png, jpg, jpeg, pdf (最多 5 個，單檔限 10MB)", type=['png', 'jpg', 'jpeg', 'pdf'], accept_multiple_files=True)
@@ -499,7 +514,8 @@ elif st.session_state['current_page'] == 'fuel':
                         
                         agree_privacy = st.checkbox("我已閱讀並同意上述聲明，且確認所填資料無誤。", value=False)
                         
-                        submitted = st.form_submit_button("🚀 確認送出資料", type="primary", use_container_width=True)
+                        # V51.0: 按鈕樣式已透過 CSS 變成深色莫蘭迪
+                        submitted = st.form_submit_button("🚀 確認送出資料")
                         
                         if submitted:
                             if not agree_privacy:
@@ -592,7 +608,7 @@ elif st.session_state['current_page'] == 'fuel':
             </div>
         """, unsafe_allow_html=True)
 
-    # --- Tab 2: 動態查詢看板 (V50.0: X軸強制補齊版) ---
+    # --- Tab 2: 動態查詢看板 (V50.0) ---
     with tabs[1]:
         st.markdown("### 📊 動態查詢看板 (年度檢視)")
         st.info("請選擇「單位」與「年份」，檢視該年度的用油統計與詳細紀錄。")
@@ -623,7 +639,7 @@ elif st.session_state['current_page'] == 'fuel':
                 df_final = df_dept[df_dept['日期格式'].dt.year == query_year]
                 
                 if not df_final.empty:
-                    # 1. KPI
+                    # KPI
                     if '原燃物料名稱' in df_final.columns:
                         df_final['原燃物料名稱'] = df_final['原燃物料名稱'].fillna('').astype(str)
                         gas_mask = df_final['原燃物料名稱'].str.contains('汽油', na=False)
@@ -635,7 +651,6 @@ elif st.session_state['current_page'] == 'fuel':
                         diesel_sum = 0
                     
                     total_sum = df_final['加油量'].sum()
-                    
                     gas_pct = (gasoline_sum / total_sum * 100) if total_sum > 0 else 0
                     diesel_pct = (diesel_sum / total_sum * 100) if total_sum > 0 else 0
                     
@@ -662,35 +677,22 @@ elif st.session_state['current_page'] == 'fuel':
                     """
                     st.markdown(kpi_html, unsafe_allow_html=True)
                     
-                    # 2. 趨勢圖 (V50.0: 強制補齊 1-12 月)
+                    # 趨勢圖
                     st.subheader(f"📊 {query_year}年度 每月加油趨勢")
-                    
-                    # 建立 1~12 月的完整月份清單
                     all_months = pd.DataFrame({'月份': list(range(1, 13))})
-                    
-                    # 取出實際資料的月份與加油量
                     df_final['月份'] = df_final['日期格式'].dt.month
                     real_data = df_final.groupby(['月份', '設備名稱備註'])['加油量'].sum().reset_index()
-                    
-                    # 合併：確保每個設備在每個月份都有紀錄 (沒有的補 0)
-                    # 這裡使用 Cross Join 先產生所有可能的 (月份, 設備) 組合，再 Merge
                     unique_devices = df_final['設備名稱備註'].unique()
                     
                     if len(unique_devices) > 0:
-                        # 建立 (月份 x 設備) 的完整網格
                         month_device_grid = pd.MultiIndex.from_product([range(1, 13), unique_devices], names=['月份', '設備名稱備註']).to_frame(index=False)
-                        
-                        # 將實際數據合併進去
                         merged_data = pd.merge(month_device_grid, real_data, on=['月份', '設備名稱備註'], how='left').fillna(0)
                         
-                        # 計算全年度累計 (標記為第 13 月)
                         total_data = df_final.groupby(['設備名稱備註'])['加油量'].sum().reset_index()
                         total_data['月份'] = 13
                         
-                        # 合併 1~12 月數據 + 累計數據
                         final_chart_data = pd.concat([merged_data, total_data])
                         
-                        # 標籤對應
                         def map_month(x):
                             return "全年度累計" if x == 13 else f"{x}月"
                         
@@ -716,10 +718,9 @@ elif st.session_state['current_page'] == 'fuel':
                     else:
                         st.info("尚無足夠資料產生圖表")
                     
-                    # 3. 圓餅圖
+                    # 圓餅圖
                     st.markdown("---")
                     st.subheader("🥧 油品設備佔比分析")
-                    
                     c_pie1, c_pie2 = st.columns(2)
                     
                     with c_pie1:
@@ -746,7 +747,7 @@ elif st.session_state['current_page'] == 'fuel':
 
                     st.markdown("---")
                     
-                    # 4. 明細表
+                    # 明細表
                     st.subheader(f"📋 {query_year}年度 填報明細")
                     target_cols = ["加油日期", "設備名稱備註", "原燃物料名稱", "油卡編號", "加油量", "填報人", "備註", "與其他設備共用加油單"]
                     available_cols = [c for c in target_cols if c in df_final.columns]
