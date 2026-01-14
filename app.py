@@ -126,6 +126,16 @@ st.markdown("""
         justify-content: center;
     }
     
+    /* 設定筆數區塊 */
+    .setting-box {
+        background-color: #F2F4F4;
+        border: 1px dashed #99A3A4;
+        padding: 15px;
+        border-radius: 10px;
+        margin-bottom: 15px;
+        text-align: center;
+    }
+    
     .row-label { font-size: 1rem; font-weight: bold; color: #566573; margin-top: 10px;}
 </style>
 """, unsafe_allow_html=True)
@@ -223,7 +233,6 @@ try:
     except: 
         ws_record = sh.add_worksheet(title="填報紀錄", rows="1000", cols="13")
         
-    # 👇 V42.0: 欄位擴充至 13 欄，包含詳細勾選資訊
     if len(ws_record.get_all_values()) == 0:
         ws_record.append_row([
             "填報時間", "填報單位", "填報人", "填報人分機", 
@@ -236,13 +245,11 @@ except Exception as e:
     st.error(f"連線失敗: {e}")
     st.stop()
 
-# 👇 V42.0: 使用 get_all_values() 取代 get_all_records()，避免標題對應錯誤導致當機
 @st.cache_data(ttl=600)
 def load_data():
     df_e = pd.DataFrame(ws_equip.get_all_records())
     df_e = df_e.astype(str)
     
-    # 手動處理填報紀錄，增加強健性
     data = ws_record.get_all_values()
     if len(data) > 0:
         headers = data.pop(0)
@@ -343,8 +350,11 @@ elif st.session_state['current_page'] == 'fuel':
                         horizontal=True
                     )
                     
+                    # 👇 V43.0: 增減列按鈕 (放在 Form 外，用獨立區塊包裝)
                     if report_mode in ["多張加油單申報 (批次)", "油卡申報 (批次)"]:
-                        c_btn1, c_btn2, c_dummy = st.columns([1, 1, 4])
+                        st.markdown('<div class="setting-box">', unsafe_allow_html=True)
+                        st.markdown("**🔧 步驟 2-1：設定明細筆數**")
+                        c_btn1, c_btn2, c_dummy = st.columns([1, 1, 3])
                         with c_btn1:
                             if st.button("➕ 增加一列", use_container_width=True):
                                 if st.session_state['multi_row_count'] < 5:
@@ -353,7 +363,8 @@ elif st.session_state['current_page'] == 'fuel':
                             if st.button("➖ 減少一列", use_container_width=True):
                                 if st.session_state['multi_row_count'] > 1:
                                     st.session_state['multi_row_count'] -= 1
-                        st.caption(f"目前填寫列數：{st.session_state['multi_row_count']} (上限 5 列)")
+                        st.caption(f"目前將顯示 **{st.session_state['multi_row_count']}** 列供填寫 (上限 5 列)")
+                        st.markdown('</div>', unsafe_allow_html=True)
 
                     with st.form("entry_form", clear_on_submit=True):
                         col_p1, col_p2 = st.columns(2)
@@ -383,7 +394,7 @@ elif st.session_state['current_page'] == 'fuel':
                             data_entries.append({"date": d_date, "vol": d_vol})
                         
                         else: # 多張 or 油卡
-                            st.info(f"💡 請依序填入每筆明細，系統將自動分拆存檔。(模式：{report_mode})")
+                            st.info(f"💡 請依序填入 {st.session_state['multi_row_count']} 筆明細，系統將自動分拆存檔。")
                             rows = st.session_state['multi_row_count']
                             for i in range(rows):
                                 c_d, c_v = st.columns(2)
@@ -475,9 +486,7 @@ elif st.session_state['current_page'] == 'fuel':
                                     if f_files:
                                         for idx, f_file in enumerate(f_files):
                                             try:
-                                                # 👇 V42.0: 修復上傳 (重置讀取指標)
                                                 f_file.seek(0)
-                                                
                                                 file_ext = f_file.name.split('.')[-1]
                                                 fuel_name = row.get('原燃物料名稱', '未知燃料')
                                                 
@@ -497,7 +506,6 @@ elif st.session_state['current_page'] == 'fuel':
                                                 valid_logic = False
                                                 break
                                     
-                                    # 如果檔案上傳失敗，停止後續寫入
                                     if not valid_logic:
                                         st.stop()
 
@@ -523,7 +531,6 @@ elif st.session_state['current_page'] == 'fuel':
                                         str_shared_single = "是" if is_shared_single else "-"
                                         str_shared_card = "是" if is_shared_card else "-"
                                         
-                                        # 👇 V42.0: 寫入 13 個欄位
                                         row_data = [
                                             current_time, 
                                             selected_dept,                      
@@ -565,7 +572,7 @@ elif st.session_state['current_page'] == 'fuel':
             </div>
         """, unsafe_allow_html=True)
 
-    # --- Tab 2: 動態查詢看板 ---
+    # --- Tab 2: 動態查詢看板 (V43.0 修復) ---
     with tabs[1]:
         st.markdown("### 📊 動態查詢看板")
         st.info("請透過下方篩選器，檢視單位的用油統計與詳細紀錄。")
@@ -576,96 +583,104 @@ elif st.session_state['current_page'] == 'fuel':
                 st.cache_data.clear()
                 st.rerun()
         
-        if not df_records.empty and '加油量' in df_records.columns:
-            df_records['加油量'] = pd.to_numeric(df_records['加油量'], errors='coerce').fillna(0)
-            
-            record_units = sorted([str(x) for x in df_records['填報單位'].unique() if str(x) != 'nan'])
-            
-            c_dept, c_start, c_end = st.columns([2, 1, 1])
-            query_dept = c_dept.selectbox("🏢 選擇查詢單位", record_units, index=None, placeholder="請選擇...")
-            
-            today = date.today()
-            start_of_year = date(today.year, 1, 1)
-            query_start = c_start.date_input("📅 起始日期", start_of_year)
-            query_end = c_end.date_input("📅 結束日期", today)
-            
-            if query_dept and query_start and query_end:
-                if query_start > query_end:
-                    st.error("起始日期不能晚於結束日期")
-                else:
-                    df_dept = df_records[df_records['填報單位'] == query_dept].copy()
-                    df_dept['加油日期'] = pd.to_datetime(df_dept['加油日期'], errors='coerce').dt.date
-                    
-                    mask = (df_dept['加油日期'] >= query_start) & (df_dept['加油日期'] <= query_end)
-                    df_final = df_dept.loc[mask]
-                    
-                    if not df_final.empty:
-                        if '原燃物料名稱' in df_final.columns:
-                            df_final['原燃物料名稱'] = df_final['原燃物料名稱'].fillna('').astype(str)
-                            gas_mask = df_final['原燃物料名稱'].str.contains('汽油', na=False)
-                            diesel_mask = df_final['原燃物料名稱'].str.contains('柴油', na=False)
-                            gasoline_sum = df_final.loc[gas_mask, '加油量'].sum()
-                            diesel_sum = df_final.loc[diesel_mask, '加油量'].sum()
-                        else:
-                            gasoline_sum = 0
-                            diesel_sum = 0
-                        
-                        total_sum = df_final['加油量'].sum()
-                        
-                        st.markdown(f"<div class='kpi-header'>{query_dept} 用油統計 ({query_start} ~ {query_end})</div>", unsafe_allow_html=True)
-                        
-                        kpi_html = f"""
-                        <div class="kpi-container">
-                            <div class="kpi-card kpi-card-gas">
-                                <div class="kpi-title">⛽ 汽油使用量</div>
-                                <div class="kpi-value">{gasoline_sum:,.2f}<span class="kpi-unit"> L</span></div>
-                            </div>
-                            <div class="kpi-card kpi-card-diesel">
-                                <div class="kpi-title">🚛 柴油使用量</div>
-                                <div class="kpi-value">{diesel_sum:,.2f}<span class="kpi-unit"> L</span></div>
-                            </div>
-                            <div class="kpi-card kpi-card-total">
-                                <div class="kpi-title">💧 總用油量</div>
-                                <div class="kpi-value">{total_sum:,.2f}<span class="kpi-unit"> L</span></div>
-                            </div>
-                        </div>
-                        """
-                        st.markdown(kpi_html, unsafe_allow_html=True)
-                        
-                        st.subheader(f"📊 每月加油趨勢分析 (依設備堆疊)")
-                        
-                        df_final['月份'] = pd.to_datetime(df_final['加油日期']).dt.strftime('%Y-%m')
-                        chart_data = df_final.groupby(['月份', '設備名稱備註'])['加油量'].sum().reset_index()
-                        chart_data = chart_data.sort_values('月份')
-                        
-                        fig = px.bar(
-                            chart_data, 
-                            x='月份', 
-                            y='加油量', 
-                            color='設備名稱備註', 
-                            text_auto=True,
-                            title=f"{query_dept} - 各設備每月用油統計",
-                            labels={'加油量': '加油量 (L)', '月份': '統計月份'},
-                            template="plotly_white"
-                        )
-                        fig.update_layout(barmode='stack')
-                        fig.update_traces(texttemplate='%{y:.2f}')
-                        st.plotly_chart(fig, use_container_width=True)
-                        
-                        st.subheader(f"📋 {query_dept} - 填報歷史明細")
-                        display_cols = ["加油日期", "設備名稱備註", "原燃物料名稱", "加油量", "填報人", "備註"]
-                        final_cols = [c for c in display_cols if c in df_final.columns]
-                        
-                        df_display = df_final[final_cols].sort_values(by='加油日期', ascending=False)
-                        df_display = df_display.rename(columns={'加油量': '加油量(公升)'})
-                        
-                        st.dataframe(df_display.style.format({"加油量(公升)": "{:.2f}"}), use_container_width=True)
-                        
-                    else:
-                        st.warning(f"⚠️ 在 {query_start} 到 {query_end} 期間，查無填報紀錄。")
+        # 👇 V43.0: 移除 "if not empty" 的限制，讓篩選器永遠顯示
+        if df_records.empty:
+            st.warning("📭 目前資料庫尚無資料，請先至「新增填報」分頁填寫。")
+        else:
+            try:
+                df_records['加油量'] = pd.to_numeric(df_records['加油量'], errors='coerce').fillna(0)
+            except:
+                pass # 避免轉換錯誤卡死
+        
+        # 即使 df_records 是空的，這段也會執行，顯示空選單
+        all_units = []
+        if not df_records.empty and '填報單位' in df_records.columns:
+            all_units = sorted([str(x) for x in df_records['填報單位'].unique() if str(x) != 'nan'])
+        
+        c_dept, c_start, c_end = st.columns([2, 1, 1])
+        query_dept = c_dept.selectbox("🏢 選擇查詢單位", all_units, index=None, placeholder="請選擇...")
+        
+        today = date.today()
+        start_of_year = date(today.year, 1, 1)
+        query_start = c_start.date_input("📅 起始日期", start_of_year)
+        query_end = c_end.date_input("📅 結束日期", today)
+        
+        if query_dept and query_start and query_end and not df_records.empty:
+            if query_start > query_end:
+                st.error("起始日期不能晚於結束日期")
             else:
-                if query_dept:
-                    st.info("請選擇完整的開始與結束日期。")
+                df_dept = df_records[df_records['填報單位'] == query_dept].copy()
+                df_dept['加油日期'] = pd.to_datetime(df_dept['加油日期'], errors='coerce').dt.date
+                
+                mask = (df_dept['加油日期'] >= query_start) & (df_dept['加油日期'] <= query_end)
+                df_final = df_dept.loc[mask]
+                
+                if not df_final.empty:
+                    # 統計邏輯
+                    if '原燃物料名稱' in df_final.columns:
+                        df_final['原燃物料名稱'] = df_final['原燃物料名稱'].fillna('').astype(str)
+                        gas_mask = df_final['原燃物料名稱'].str.contains('汽油', na=False)
+                        diesel_mask = df_final['原燃物料名稱'].str.contains('柴油', na=False)
+                        gasoline_sum = df_final.loc[gas_mask, '加油量'].sum()
+                        diesel_sum = df_final.loc[diesel_mask, '加油量'].sum()
+                    else:
+                        gasoline_sum = 0
+                        diesel_sum = 0
+                    
+                    total_sum = df_final['加油量'].sum()
+                    
+                    st.markdown(f"<div class='kpi-header'>{query_dept} 用油統計 ({query_start} ~ {query_end})</div>", unsafe_allow_html=True)
+                    
+                    kpi_html = f"""
+                    <div class="kpi-container">
+                        <div class="kpi-card kpi-card-gas">
+                            <div class="kpi-title">⛽ 汽油使用量</div>
+                            <div class="kpi-value">{gasoline_sum:,.2f}<span class="kpi-unit"> L</span></div>
+                        </div>
+                        <div class="kpi-card kpi-card-diesel">
+                            <div class="kpi-title">🚛 柴油使用量</div>
+                            <div class="kpi-value">{diesel_sum:,.2f}<span class="kpi-unit"> L</span></div>
+                        </div>
+                        <div class="kpi-card kpi-card-total">
+                            <div class="kpi-title">💧 總用油量</div>
+                            <div class="kpi-value">{total_sum:,.2f}<span class="kpi-unit"> L</span></div>
+                        </div>
+                    </div>
+                    """
+                    st.markdown(kpi_html, unsafe_allow_html=True)
+                    
+                    st.subheader(f"📊 每月加油趨勢分析 (依設備堆疊)")
+                    
+                    df_final['月份'] = pd.to_datetime(df_final['加油日期']).dt.strftime('%Y-%m')
+                    chart_data = df_final.groupby(['月份', '設備名稱備註'])['加油量'].sum().reset_index()
+                    chart_data = chart_data.sort_values('月份')
+                    
+                    fig = px.bar(
+                        chart_data, 
+                        x='月份', 
+                        y='加油量', 
+                        color='設備名稱備註', 
+                        text_auto=True,
+                        title=f"{query_dept} - 各設備每月用油統計",
+                        labels={'加油量': '加油量 (L)', '月份': '統計月份'},
+                        template="plotly_white"
+                    )
+                    fig.update_layout(barmode='stack')
+                    fig.update_traces(texttemplate='%{y:.2f}')
+                    st.plotly_chart(fig, use_container_width=True)
+                    
+                    st.subheader(f"📋 {query_dept} - 填報歷史明細")
+                    # 確保所有需要的欄位都存在
+                    target_cols = ["加油日期", "設備名稱備註", "原燃物料名稱", "加油量", "填報人", "備註"]
+                    available_cols = [c for c in target_cols if c in df_final.columns]
+                    
+                    df_display = df_final[available_cols].sort_values(by='加油日期', ascending=False)
+                    df_display = df_display.rename(columns={'加油量': '加油量(公升)'})
+                    
+                    st.dataframe(df_display.style.format({"加油量(公升)": "{:.2f}"}), use_container_width=True)
+                    
+                else:
+                    st.warning(f"⚠️ 在 {query_start} 到 {query_end} 期間，查無填報紀錄。")
 
         st.markdown("""
             <div class="contact-footer">
