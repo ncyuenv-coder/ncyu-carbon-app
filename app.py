@@ -18,7 +18,7 @@ st.set_page_config(page_title="國立嘉義大學碳盤查平台", page_icon="�
 st.markdown("""
 <style>
     /* =========================================
-       🎨 V60.0 碳盤查完美修正版
+       🎨 V61.0 最終定案版 (Orange Button & Big Tabs)
        ========================================= */
 
     /* 1. 強制亮色模式 */
@@ -28,9 +28,10 @@ st.markdown("""
 
     /* 2. 變數定義 */
     :root {
-        --btn-bg: #B0BEC5;        /* 淺灰藍底 */
-        --btn-border: #2C3E50;    /* 深灰藍框 */
-        --btn-text: #17202A;      /* 深色文字 */
+        /* V61.0: 按鈕改用高對比橘色 */
+        --btn-bg: #E67E22;        /* 活力橘底 */
+        --btn-border: #D35400;    /* 深橘框 */
+        --btn-text: #FFFFFF;      /* 白字 */
         
         --bg-color: #EAEDED;
         --card-bg: #FFFFFF;
@@ -38,6 +39,7 @@ st.markdown("""
         --text-sub: #566573;
         --border-color: #BDC3C7;
         
+        /* KPI 配色 */
         --kpi-gas-border: #52BE80;
         --kpi-diesel-border: #F4D03F;
         --kpi-total-border: #5DADE2;
@@ -78,36 +80,53 @@ st.markdown("""
     ul[data-baseweb="menu"] { background-color: #FFFFFF !important; }
     ul[data-baseweb="menu"] li { color: #000000 !important; }
 
-    /* 5. 按鈕專區 (🔥 V60.0: 強力鎖定淺灰藍底) */
+    /* 5. 按鈕專區 (🔥 V61.0: 橘底白字，高強度鎖定) */
     div.stButton > button {
         background-color: var(--btn-bg) !important; 
         color: var(--btn-text) !important;            
-        border: 3px solid var(--btn-border) !important;
+        border: 2px solid var(--btn-border) !important;
         border-radius: 12px;
-        font-size: 1.3rem !important;
+        font-size: 1.4rem !important; /* 字體加大 */
         font-weight: 800 !important;
-        padding: 0.6rem 1.5rem;
+        padding: 0.8rem 1.5rem;
         transition: all 0.2s ease;
-        -webkit-text-fill-color: var(--btn-text) !important; 
+        -webkit-text-fill-color: var(--btn-text) !important; /* 強制文字顏色 */
+        box-shadow: 0 4px 6px rgba(230, 126, 34, 0.2);
     }
     
     /* Hover */
     div.stButton > button:hover { 
-        border-color: #34495E !important;
-        background-color: #CFD8DC !important; /* Hover 時稍微變亮一點點的灰藍 */
-        color: #000000 !important;
-        -webkit-text-fill-color: #000000 !important;
+        background-color: #D35400 !important; /* 深橘色 */
+        border-color: #BA4A00 !important;
+        color: #FFFFFF !important;
         transform: translateY(-2px);
+        box-shadow: 0 6px 12px rgba(211, 84, 0, 0.3);
     }
     
-    /* Active / Focus (解決點擊變白問題) */
+    /* Active / Focus (防止點擊變白) */
     div.stButton > button:active, div.stButton > button:focus {
-        background-color: #90A4AE !important; /* 點擊時變深一點的灰藍 */
-        color: #000000 !important;
-        border-color: var(--btn-border) !important;
+        background-color: #CA6F1E !important; 
+        color: #FFFFFF !important;
+        border-color: #A04000 !important;
+        box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    /* 6. Tab 分頁標籤 (🔥 V61.0: 強制放大) */
+    button[data-baseweb="tab"] {
+        padding: 10px 20px !important;
+    }
+    button[data-baseweb="tab"] div p {
+        font-size: 1.6rem !important; /* 顯著放大 */
+        font-weight: 900 !important;
+        color: var(--text-sub);
+    }
+    /* 選中狀態 */
+    button[data-baseweb="tab"][aria-selected="true"] div p {
+        color: #E67E22 !important; /* 選中時變橘色 */
+        border-bottom: 3px solid #E67E22;
     }
     
-    /* 6. KPI 卡片 */
+    /* 7. KPI 卡片 */
     .kpi-header {
         font-size: 1.5rem;
         font-weight: 800;
@@ -470,6 +489,7 @@ elif st.session_state['current_page'] == 'fuel':
                         
                         c_sub1, c_sub2, c_sub3 = st.columns([1, 2, 1])
                         with c_sub2:
+                            # V61.0: 橘色按鈕樣式已透過 CSS 強制生效
                             submitted = st.form_submit_button("🚀 確認送出資料", use_container_width=True)
                         
                         if submitted:
@@ -563,7 +583,7 @@ elif st.session_state['current_page'] == 'fuel':
             </div>
         """, unsafe_allow_html=True)
 
-    # --- Tab 2: 動態查詢看板 (V60.0: X軸與樹圖修正) ---
+    # --- Tab 2: 動態查詢看板 (年度檢視) ---
     with tabs[1]:
         st.markdown("### 📊 動態查詢看板 (年度檢視)")
         st.info("請選擇「單位」與「年份」，檢視該年度的用油統計與碳排放分析。")
@@ -656,13 +676,12 @@ elif st.session_state['current_page'] == 'fuel':
                     
                     st.markdown("---")
 
-                    # --- 2. 逐月統計圖 (V60.0: X軸與標籤修復) ---
+                    # --- 2. 逐月統計圖 (V60.0 修復版) ---
                     st.subheader(f"📊 {query_year}年度 逐月油料統計 (依汽/柴油分類)")
                     
                     df_final['月份'] = df_final['日期格式'].dt.month
                     df_final['油品類別'] = df_final['原燃物料名稱'].apply(lambda x: '汽油' if '汽油' in x else ('柴油' if '柴油' in x else '其他'))
                     
-                    # 1. 完整骨架
                     months = list(range(1, 13))
                     fuels = ['汽油', '柴油']
                     base_x = pd.MultiIndex.from_product([months, fuels], names=['月份', '油品類別']).to_frame(index=False)
@@ -688,7 +707,6 @@ elif st.session_state['current_page'] == 'fuel':
                             textposition='inside'
                         ))
                     
-                    # 頂部標籤
                     total_grouped = df_final.groupby(['月份', '油品類別'])['加油量'].sum().reset_index()
                     merged_total = pd.merge(base_x, total_grouped, on=['月份', '油品類別'], how='left').fillna(0)
                     label_data = merged_total[merged_total['加油量'] > 0]
@@ -703,7 +721,6 @@ elif st.session_state['current_page'] == 'fuel':
                         showlegend=False
                     ))
 
-                    # V60.0: 移除 tickvals 強制設定，讓 Plotly 自動處理 Multicategory X 軸
                     fig.update_layout(
                         barmode='stack', 
                         font=dict(size=14),
@@ -714,7 +731,7 @@ elif st.session_state['current_page'] == 'fuel':
                     )
                     st.plotly_chart(fig, use_container_width=True)
                     
-                    # --- 3. 碳排結構 (V60.0: 標題與圖例修正) ---
+                    # --- 3. 碳排結構 ---
                     st.markdown("---")
                     st.subheader(f"🌞 單位油料使用碳排放量(公噸二氧化碳當量)結構", anchor=False)
                     
@@ -731,12 +748,11 @@ elif st.session_state['current_page'] == 'fuel':
                         treemap_data, 
                         path=['設備名稱備註'], 
                         values='CO2e',
+                        title=f"{query_dept} - 設備碳排放量權重分析",
                         color='CO2e',
                         color_continuous_scale='Teal'
                     )
                     fig_tree.update_traces(textinfo="label+value+percent entry")
-                    
-                    # V60.0: 移除圖例
                     fig_tree.update_coloraxes(showscale=False)
                     st.plotly_chart(fig_tree, use_container_width=True)
 
