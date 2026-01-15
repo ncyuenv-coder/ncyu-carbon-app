@@ -18,7 +18,7 @@ st.set_page_config(page_title="國立嘉義大學碳盤查平台", page_icon="�
 st.markdown("""
 <style>
     /* =========================================
-       🎨 V66.0 終極橘色鎖定版 (The "Nuclear Option" for Orange Buttons)
+       🎨 V67.0 視覺與功能增強版 (Filter & Font Fix)
        ========================================= */
 
     /* 1. 強制亮色模式 */
@@ -29,9 +29,9 @@ st.markdown("""
     /* 2. 變數定義 */
     :root {
         /* 統一橘色系 */
-        --orange-bg: #E67E22;     /* 活力橘 */
-        --orange-dark: #D35400;   /* 深橘 (Hover用) */
-        --orange-text: #FFFFFF;   /* 白字 */
+        --orange-bg: #E67E22;     
+        --orange-dark: #D35400;   
+        --orange-text: #FFFFFF;   
         
         --bg-color: #EAEDED;
         --card-bg: #FFFFFF;
@@ -79,8 +79,7 @@ st.markdown("""
     ul[data-baseweb="menu"] { background-color: #FFFFFF !important; }
     ul[data-baseweb="menu"] li { color: #000000 !important; }
 
-    /* 🔥🔥🔥 5. 全站按鈕暴力橘色化 (核心修正) 🔥🔥🔥 */
-    /* 鎖定所有類型的按鈕：普通按鈕、Primary按鈕、表單送出按鈕 */
+    /* 🔥🔥🔥 5. 全站按鈕暴力橘色化 🔥🔥🔥 */
     div.stButton > button,
     button[kind="primary"],
     [data-testid="stFormSubmitButton"] > button {
@@ -94,21 +93,19 @@ st.markdown("""
         transition: all 0.2s ease !important;
         -webkit-text-fill-color: var(--orange-text) !important; 
         box-shadow: 0 4px 6px rgba(230, 126, 34, 0.3) !important;
-        background-image: none !important; /* 防止系統漸層覆蓋 */
+        background-image: none !important; 
     }
     
-    /* Hover 狀態 (滑鼠移過) */
     div.stButton > button:hover,
     button[kind="primary"]:hover,
     [data-testid="stFormSubmitButton"] > button:hover { 
-        background-color: var(--orange-dark) !important; /* 變深橘 */
+        background-color: var(--orange-dark) !important; 
         border-color: #A04000 !important;
         color: var(--orange-text) !important;
         transform: translateY(-2px) !important;
         box-shadow: 0 6px 12px rgba(211, 84, 0, 0.4) !important;
     }
     
-    /* Active/Focus 狀態 (點擊瞬間，防止變白) */
     div.stButton > button:active, 
     div.stButton > button:focus,
     button[kind="primary"]:active,
@@ -122,26 +119,25 @@ st.markdown("""
         outline: none !important;
     }
     
-    /* 強制按鈕內的文字標籤為白色 */
     div.stButton > button p,
     [data-testid="stFormSubmitButton"] > button p {
         color: #FFFFFF !important;
     }
 
-    /* 🔥🔥🔥 6. 檔案上傳區 (維持淺灰藍) 🔥🔥🔥 */
+    /* 🔥🔥🔥 6. 檔案上傳區 (淺灰藍) 🔥🔥🔥 */
     [data-testid="stFileUploaderDropzone"] {
-        background-color: #EBF5FB !important; /* 淺藍底 */
-        border: 2px dashed #AED6F1 !important; /* 虛線框 */
+        background-color: #EBF5FB !important; 
+        border: 2px dashed #AED6F1 !important; 
         border-radius: 12px;
         padding: 20px;
     }
     [data-testid="stFileUploaderDropzone"] div,
     [data-testid="stFileUploaderDropzone"] span,
     [data-testid="stFileUploaderDropzone"] small {
-        color: #2E86C1 !important; /* 深藍文字 */
+        color: #2E86C1 !important; 
     }
 
-    /* 7. KPI 卡片 & 其他樣式 */
+    /* 7. KPI 卡片 */
     .kpi-header {
         font-size: 1.5rem;
         font-weight: 800;
@@ -237,7 +233,7 @@ st.markdown("""
     }
     /* 選中狀態 */
     button[data-baseweb="tab"][aria-selected="true"] div p {
-        color: #E67E22 !important; /* 選中時變橘色 */
+        color: #E67E22 !important; 
         border-bottom: 3px solid #E67E22;
     }
 </style>
@@ -373,7 +369,6 @@ if st.session_state['current_page'] == 'home':
     col1, col2 = st.columns(2)
     with col1:
         st.info("⛽ 車輛/機具用油")
-        # 首頁按鈕 (將被 CSS 強制轉為橘色)
         if st.button("前往「燃油設備填報區」", use_container_width=True, type="primary"):
             st.session_state['current_page'] = 'fuel'
             st.rerun()
@@ -458,12 +453,10 @@ elif st.session_state['current_page'] == 'fuel':
                         st.markdown("**🔧 設定明細筆數** (請先調整好筆數，再進行填寫)")
                         c_btn1, c_btn2, c_dummy = st.columns([1, 1, 3])
                         with c_btn1:
-                            # 增減列按鈕 (將被 CSS 強制轉為橘色)
                             if st.button("➕ 增加一列", use_container_width=True):
                                 if st.session_state['multi_row_count'] < 10:
                                     st.session_state['multi_row_count'] += 1
                         with c_btn2:
-                            # 增減列按鈕 (將被 CSS 強制轉為橘色)
                             if st.button("➖ 減少一列", use_container_width=True):
                                 if st.session_state['multi_row_count'] > 1:
                                     st.session_state['multi_row_count'] -= 1
@@ -527,7 +520,6 @@ elif st.session_state['current_page'] == 'fuel':
                         
                         c_sub1, c_sub2, c_sub3 = st.columns([1, 2, 1])
                         with c_sub2:
-                            # 🚀 確認送出按鈕 (將被 CSS 強制轉為橘色)
                             submitted = st.form_submit_button("🚀 確認送出", use_container_width=True)
                         
                         if submitted:
@@ -621,7 +613,7 @@ elif st.session_state['current_page'] == 'fuel':
             </div>
         """, unsafe_allow_html=True)
 
-    # --- Tab 2: 動態查詢看板 (年度檢視) ---
+    # --- Tab 2: 動態查詢看板 (V67.0: 篩選功能) ---
     with tabs[1]:
         st.markdown("### 📊 動態查詢看板 (年度檢視)")
         st.info("請選擇「單位」與「年份」，檢視該年度的用油統計與碳排放分析。")
@@ -668,7 +660,6 @@ elif st.session_state['current_page'] == 'fuel':
                         gasoline_sum = 0; diesel_sum = 0; gas_co2 = 0; diesel_co2 = 0; total_co2 = 0
                     
                     total_sum = df_final['加油量'].sum()
-                    
                     gas_pct = (gasoline_sum / total_sum * 100) if total_sum > 0 else 0
                     diesel_pct = (diesel_sum / total_sum * 100) if total_sum > 0 else 0
                     
@@ -714,15 +705,27 @@ elif st.session_state['current_page'] == 'fuel':
                     
                     st.markdown("---")
 
-                    # --- 2. 逐月統計圖 ---
-                    st.subheader(f"📊 {query_year}年度 逐月油料統計 (依汽/柴油分類)")
+                    # --- 2. 逐月統計圖 (V67.0: 篩選 + X軸修復) ---
+                    st.subheader(f"📊 {query_year}年度 逐月油料統計", anchor=False)
+                    
+                    # 篩選器 (Radio Button)
+                    filter_mode = st.radio("顯示類別", ["全部顯示", "只看汽油", "只看柴油"], horizontal=True)
                     
                     df_final['月份'] = df_final['日期格式'].dt.month
                     df_final['油品類別'] = df_final['原燃物料名稱'].apply(lambda x: '汽油' if '汽油' in x else ('柴油' if '柴油' in x else '其他'))
                     
+                    # 依篩選過濾資料與設定骨架
                     months = list(range(1, 13))
-                    fuels = ['汽油', '柴油']
-                    base_x = pd.MultiIndex.from_product([months, fuels], names=['月份', '油品類別']).to_frame(index=False)
+                    
+                    if filter_mode == "全部顯示":
+                        target_fuels = ['汽油', '柴油']
+                    elif filter_mode == "只看汽油":
+                        target_fuels = ['汽油']
+                    else:
+                        target_fuels = ['柴油']
+                        
+                    # 建立骨架
+                    base_x = pd.MultiIndex.from_product([months, target_fuels], names=['月份', '油品類別']).to_frame(index=False)
                     
                     unique_devices = df_final['設備名稱備註'].unique()
                     
@@ -732,6 +735,7 @@ elif st.session_state['current_page'] == 'fuel':
                     
                     for dev in unique_devices:
                         dev_data = df_final[df_final['設備名稱備註'] == dev]
+                        # 如果設備不屬於當前顯示的油品，資料會變空，這是正常的
                         dev_grouped = dev_data.groupby(['月份', '油品類別'])['加油量'].sum().reset_index()
                         merged_dev = pd.merge(base_x, dev_grouped, on=['月份', '油品類別'], how='left').fillna(0)
                         
@@ -759,22 +763,18 @@ elif st.session_state['current_page'] == 'fuel':
                         showlegend=False
                     ))
 
+                    # X軸設定 (移除強制刻度，增加邊距)
                     fig.update_layout(
                         barmode='stack', 
                         font=dict(size=14),
-                        xaxis=dict(
-                            title="月份 / 油品",
-                            tickmode='array',
-                            tickvals=list(range(1, 13)),
-                            ticktext=[f"{i}月" for i in range(1, 13)]
-                        ),
+                        xaxis=dict(title="月份 / 油品"),
                         yaxis=dict(title="加油量 (公升)"),
-                        height=500,
-                        margin=dict(t=50, b=100)
+                        height=550,
+                        margin=dict(t=50, b=120) # 增加下方邊距以顯示雙層標籤
                     )
                     st.plotly_chart(fig, use_container_width=True)
                     
-                    # --- 3. 碳排結構 ---
+                    # --- 3. 碳排結構 (V67.0: 字體放大) ---
                     st.markdown("---")
                     st.subheader(f"🌞 單位油料使用碳排放量(公噸二氧化碳當量)結構", anchor=False)
                     
@@ -795,11 +795,12 @@ elif st.session_state['current_page'] == 'fuel':
                         color='CO2e',
                         color_continuous_scale='Teal'
                     )
-                    fig_tree.update_traces(textinfo="label+value+percent entry")
+                    # V67.0: 字體放大至 24
+                    fig_tree.update_traces(textinfo="label+value+percent entry", textfont=dict(size=24))
                     fig_tree.update_coloraxes(showscale=False)
                     st.plotly_chart(fig_tree, use_container_width=True)
 
-                    # --- 4. 環形圖 ---
+                    # --- 4. 環形圖 (V67.0: 文字轉平) ---
                     st.subheader("🍩 油品設備用油量佔比分析", anchor=False)
                     c_pie1, c_pie2 = st.columns(2)
                     
@@ -808,7 +809,8 @@ elif st.session_state['current_page'] == 'fuel':
                         gas_df = df_final[df_final['原燃物料名稱'].str.contains('汽油', na=False)]
                         if not gas_df.empty:
                             fig_gas = px.pie(gas_df, values='加油量', names='設備名稱備註', title='⛽ 汽油設備用油量分析', color_discrete_sequence=px.colors.sequential.Teal, hole=0.5)
-                            fig_gas.update_traces(textinfo='percent+label', textfont_size=14)
+                            # V67.0: 文字水平
+                            fig_gas.update_traces(textinfo='percent+label', textfont_size=16, insidetextorientation='horizontal')
                             st.plotly_chart(fig_gas, use_container_width=True)
                         else:
                             st.info("無汽油使用紀錄")
@@ -819,7 +821,8 @@ elif st.session_state['current_page'] == 'fuel':
                         diesel_df = df_final[df_final['原燃物料名稱'].str.contains('柴油', na=False)]
                         if not diesel_df.empty:
                             fig_diesel = px.pie(diesel_df, values='加油量', names='設備名稱備註', title='🚛 柴油設備用油量分析', color_discrete_sequence=px.colors.sequential.Oranges, hole=0.5)
-                            fig_diesel.update_traces(textinfo='percent+label', textfont_size=14)
+                            # V67.0: 文字水平
+                            fig_diesel.update_traces(textinfo='percent+label', textfont_size=16, insidetextorientation='horizontal')
                             st.plotly_chart(fig_diesel, use_container_width=True)
                         else:
                             st.info("無柴油使用紀錄")
