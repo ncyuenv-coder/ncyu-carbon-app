@@ -18,7 +18,7 @@ st.set_page_config(page_title="國立嘉義大學碳盤查平台", page_icon="�
 st.markdown("""
 <style>
     /* =========================================
-       🎨 V65.0 橘色按鈕 + 淺藍上傳區 完美修復版
+       🎨 V66.0 終極橘色鎖定版 (The "Nuclear Option" for Orange Buttons)
        ========================================= */
 
     /* 1. 強制亮色模式 */
@@ -28,14 +28,10 @@ st.markdown("""
 
     /* 2. 變數定義 */
     :root {
-        /* 一般按鈕 (淺灰藍) */
-        --btn-bg: #B0BEC5;        
-        --btn-border: #2C3E50;    
-        --btn-text: #17202A;      
-        
-        /* 送出按鈕 (橘色) */
-        --submit-bg: #E67E22;     
-        --submit-hover: #D35400;  
+        /* 統一橘色系 */
+        --orange-bg: #E67E22;     /* 活力橘 */
+        --orange-dark: #D35400;   /* 深橘 (Hover用) */
+        --orange-text: #FFFFFF;   /* 白字 */
         
         --bg-color: #EAEDED;
         --card-bg: #FFFFFF;
@@ -83,62 +79,56 @@ st.markdown("""
     ul[data-baseweb="menu"] { background-color: #FFFFFF !important; }
     ul[data-baseweb="menu"] li { color: #000000 !important; }
 
-    /* 5. 一般按鈕 (維持淺灰藍) */
-    /* 排除表單內的按鈕 */
-    div:not([data-testid="stForm"]) > .stButton > button {
-        background-color: var(--btn-bg) !important; 
-        color: var(--btn-text) !important;            
-        border: 2px solid var(--btn-border) !important;
-        border-radius: 12px;
+    /* 🔥🔥🔥 5. 全站按鈕暴力橘色化 (核心修正) 🔥🔥🔥 */
+    /* 鎖定所有類型的按鈕：普通按鈕、Primary按鈕、表單送出按鈕 */
+    div.stButton > button,
+    button[kind="primary"],
+    [data-testid="stFormSubmitButton"] > button {
+        background-color: var(--orange-bg) !important; 
+        color: var(--orange-text) !important;            
+        border: 2px solid var(--orange-dark) !important;
+        border-radius: 12px !important;
         font-size: 1.3rem !important;
         font-weight: 800 !important;
-        padding: 0.6rem 1.5rem;
-        transition: all 0.2s ease;
-        -webkit-text-fill-color: var(--btn-text) !important; 
-        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-    }
-    div:not([data-testid="stForm"]) > .stButton > button:hover { 
-        background-color: #CFD8DC !important; 
-        transform: translateY(-2px);
-    }
-
-    /* 🔥🔥🔥 6. 送出按鈕 (橘色重構版) 🔥🔥🔥 */
-    div[data-testid="stForm"] .stButton > button {
-        background-color: #E67E22 !important; /* 強制橘底 */
-        color: #FFFFFF !important;            /* 強制白字 */
-        border: none !important;              /* 無邊框更乾淨 */
-        border-radius: 10px;
-        font-size: 1.5rem !important;
-        font-weight: 900 !important;
-        padding: 0.8rem 2rem;
-        width: 100%;
-        box-shadow: 0 4px 10px rgba(230, 126, 34, 0.4) !important;
-        -webkit-text-fill-color: #FFFFFF !important; /* iOS 修正 */
-    }
-
-    /* 送出按鈕 Hover */
-    div[data-testid="stForm"] .stButton > button:hover {
-        background-color: #D35400 !important; /* 深橘 */
-        color: #FFFFFF !important;
-        transform: translateY(-3px);
-        box-shadow: 0 6px 15px rgba(211, 84, 0, 0.5) !important;
-    }
-
-    /* 送出按鈕 Active (點擊時) */
-    div[data-testid="stForm"] .stButton > button:active,
-    div[data-testid="stForm"] .stButton > button:focus {
-        background-color: #E67E22 !important;
-        color: #FFFFFF !important;
-        border: none !important;
-        box-shadow: inset 0 2px 5px rgba(0,0,0,0.2) !important;
+        padding: 0.7rem 1.5rem !important;
+        transition: all 0.2s ease !important;
+        -webkit-text-fill-color: var(--orange-text) !important; 
+        box-shadow: 0 4px 6px rgba(230, 126, 34, 0.3) !important;
+        background-image: none !important; /* 防止系統漸層覆蓋 */
     }
     
-    /* 文字強制白 */
-    div[data-testid="stForm"] .stButton > button p {
+    /* Hover 狀態 (滑鼠移過) */
+    div.stButton > button:hover,
+    button[kind="primary"]:hover,
+    [data-testid="stFormSubmitButton"] > button:hover { 
+        background-color: var(--orange-dark) !important; /* 變深橘 */
+        border-color: #A04000 !important;
+        color: var(--orange-text) !important;
+        transform: translateY(-2px) !important;
+        box-shadow: 0 6px 12px rgba(211, 84, 0, 0.4) !important;
+    }
+    
+    /* Active/Focus 狀態 (點擊瞬間，防止變白) */
+    div.stButton > button:active, 
+    div.stButton > button:focus,
+    button[kind="primary"]:active,
+    button[kind="primary"]:focus,
+    [data-testid="stFormSubmitButton"] > button:active,
+    [data-testid="stFormSubmitButton"] > button:focus {
+        background-color: var(--orange-bg) !important; 
+        color: var(--orange-text) !important;
+        border-color: var(--orange-dark) !important;
+        box-shadow: inset 0 2px 4px rgba(0,0,0,0.2) !important;
+        outline: none !important;
+    }
+    
+    /* 強制按鈕內的文字標籤為白色 */
+    div.stButton > button p,
+    [data-testid="stFormSubmitButton"] > button p {
         color: #FFFFFF !important;
     }
 
-    /* 🔥🔥🔥 7. 檔案上傳區 (淺灰藍回歸) 🔥🔥🔥 */
+    /* 🔥🔥🔥 6. 檔案上傳區 (維持淺灰藍) 🔥🔥🔥 */
     [data-testid="stFileUploaderDropzone"] {
         background-color: #EBF5FB !important; /* 淺藍底 */
         border: 2px dashed #AED6F1 !important; /* 虛線框 */
@@ -151,7 +141,7 @@ st.markdown("""
         color: #2E86C1 !important; /* 深藍文字 */
     }
 
-    /* 8. KPI 卡片 */
+    /* 7. KPI 卡片 & 其他樣式 */
     .kpi-header {
         font-size: 1.5rem;
         font-weight: 800;
@@ -383,6 +373,7 @@ if st.session_state['current_page'] == 'home':
     col1, col2 = st.columns(2)
     with col1:
         st.info("⛽ 車輛/機具用油")
+        # 首頁按鈕 (將被 CSS 強制轉為橘色)
         if st.button("前往「燃油設備填報區」", use_container_width=True, type="primary"):
             st.session_state['current_page'] = 'fuel'
             st.rerun()
@@ -467,10 +458,12 @@ elif st.session_state['current_page'] == 'fuel':
                         st.markdown("**🔧 設定明細筆數** (請先調整好筆數，再進行填寫)")
                         c_btn1, c_btn2, c_dummy = st.columns([1, 1, 3])
                         with c_btn1:
+                            # 增減列按鈕 (將被 CSS 強制轉為橘色)
                             if st.button("➕ 增加一列", use_container_width=True):
                                 if st.session_state['multi_row_count'] < 10:
                                     st.session_state['multi_row_count'] += 1
                         with c_btn2:
+                            # 增減列按鈕 (將被 CSS 強制轉為橘色)
                             if st.button("➖ 減少一列", use_container_width=True):
                                 if st.session_state['multi_row_count'] > 1:
                                     st.session_state['multi_row_count'] -= 1
@@ -534,7 +527,7 @@ elif st.session_state['current_page'] == 'fuel':
                         
                         c_sub1, c_sub2, c_sub3 = st.columns([1, 2, 1])
                         with c_sub2:
-                            # 🍊 這裡的按鈕標題已更新，且樣式已由 CSS 強制接管
+                            # 🚀 確認送出按鈕 (將被 CSS 強制轉為橘色)
                             submitted = st.form_submit_button("🚀 確認送出", use_container_width=True)
                         
                         if submitted:
