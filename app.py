@@ -18,67 +18,71 @@ st.set_page_config(page_title="國立嘉義大學碳盤查平台", page_icon="�
 st.markdown("""
 <style>
     /* =========================================
-       🎨 V54.0 手機深色模式終極適配版
+       🎨 V56.0 碳盤查專業旗艦版 (Carbon Pro)
        ========================================= */
 
-    /* 1. 強制宣告網頁為「亮色模式」 (關鍵技術修正) 
-       這會告訴手機瀏覽器不要隨意反轉顏色 */
+    /* 1. 強制宣告網頁為「亮色模式」 */
     :root {
         color-scheme: light; 
     }
 
     /* 2. 變數定義 */
     :root {
-        /* V54.0: 調整為「中性莫蘭迪灰藍」，黑字白字都清楚 */
-        --btn-bg: #B0BEC5;        
-        --btn-border: #E67E22;    /* 粗橘色 */
-        --btn-text: #17202A;      /* 深色文字 (預設) */
+        --btn-bg: #B0BEC5;        /* 按鈕淺灰藍 */
+        --btn-border: #2C3E50;    /* 按鈕深框 */
+        --btn-text: #17202A;      
         
         --bg-color: #EAEDED;
         --card-bg: #FFFFFF;
         --text-main: #2C3E50;
         --text-sub: #566573;
         --border-color: #BDC3C7;
-        --kpi-header-bg: #D6DBDF;
-        --highlight-red: #C0392B;
+        
+        /* KPI 配色 */
+        --kpi-gas-border: #52BE80;
+        --kpi-diesel-border: #F4D03F;
+        --kpi-total-border: #5DADE2;
+        --kpi-co2-border: #AF7AC5; /* 碳排紫色 */
+        
+        --menu-bg: #CFD8DC; /* V56.0 下拉選單底色 (淺灰藍) */
     }
 
-    /* 3. 全域背景與文字設定 */
+    /* 3. 全域設定 */
     [data-testid="stAppViewContainer"] {
         background-color: var(--bg-color);
         color: var(--text-main);
     }
-    
     [data-testid="stHeader"] { background-color: rgba(0,0,0,0); }
-    
     [data-testid="stSidebar"] {
         background-color: var(--card-bg);
         border-right: 1px solid var(--border-color);
     }
-    
-    /* 強制所有文字顏色，避免被手機反轉為白色 */
-    h1, h2, h3, h4, h5, h6, p, span, label, div {
-        color: var(--text-main);
-    }
+    h1, h2, h3, h4, h5, h6, p, span, label, div { color: var(--text-main); }
 
-    /* 4. 輸入框專區 */
+    /* 4. 輸入元件優化 */
     div[data-baseweb="input"] > div, 
-    div[data-baseweb="select"] > div, 
     div[data-baseweb="base-input"] > input,
     textarea, input {
         background-color: #FFFFFF !important; 
         border-color: #BDC3C7 !important;
         color: #000000 !important;            
-        -webkit-text-fill-color: #000000 !important; /* iOS Safari 強制黑字 */
-        caret-color: #000000 !important;
+        -webkit-text-fill-color: #000000 !important;
         font-size: 1.15rem !important;
     }
     
+    /* V56.0: 下拉選單底色改淺灰藍，確保深淺模式都可讀 */
+    div[data-baseweb="select"] > div {
+        background-color: var(--menu-bg) !important;
+        border-color: #90A4AE !important;
+    }
+    div[data-baseweb="select"] span {
+        color: #000000 !important; 
+        -webkit-text-fill-color: #000000 !important;
+    }
     ul[data-baseweb="menu"] { background-color: #FFFFFF !important; }
     ul[data-baseweb="menu"] li { color: #000000 !important; }
-    div[data-baseweb="select"] span { color: #000000 !important; -webkit-text-fill-color: #000000 !important;}
 
-    /* 5. 按鈕專區 (🔥 V54.0 重點：中性灰藍底 + 粗橘框) */
+    /* 5. 按鈕專區 */
     div.stButton > button {
         background-color: var(--btn-bg) !important; 
         color: var(--btn-text) !important;            
@@ -88,104 +92,61 @@ st.markdown("""
         font-weight: 800 !important;
         padding: 0.6rem 1.5rem;
         transition: all 0.2s ease;
-        /* V54.0: 確保字體在手機上也是深色，若失效，底色也能襯托白字 */
         -webkit-text-fill-color: var(--btn-text) !important; 
     }
-    
     div.stButton > button:hover { 
         border-color: #D35400 !important;
         background-color: #FFFFFF !important;
         color: #D35400 !important;
         -webkit-text-fill-color: #D35400 !important;
         transform: translateY(-2px);
-        box-shadow: 0 4px 8px rgba(230, 126, 34, 0.3);
     }
     
-    div.stButton > button:active {
-        background-color: #E67E22 !important;
-        color: #FFFFFF !important;
-        -webkit-text-fill-color: #FFFFFF !important;
-    }
-    
-    /* 登入標題 */
-    .login-header { 
-        font-size: 2.2rem; 
-        font-weight: 800; 
-        color: var(--text-main) !important;
-        text-align: center; 
-        margin-bottom: 20px; 
-        padding: 25px; 
-        background-color: var(--card-bg); 
-        border: 2px solid var(--border-color);
-        border-radius: 15px; 
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-    }
-
-    /* Tab 標籤 */
-    button[data-baseweb="tab"] div p {
-        font-size: 1.4rem !important;
-        font-weight: 700 !important;
-        color: var(--text-main) !important;
-    }
-
-    /* KPI 卡片 */
+    /* 6. KPI 卡片 (2x2 Grid 優化) */
     .kpi-header {
         font-size: 1.5rem;
         font-weight: 800;
         color: var(--text-main) !important;
         margin-bottom: 20px;
         text-align: center;
-        background-color: var(--kpi-header-bg);
-        padding: 12px;
+        background-color: #D6DBDF;
+        padding: 10px;
         border-radius: 12px;
-        letter-spacing: 1px;
-    }
-    
-    .kpi-container {
-        display: flex;
-        justify-content: space-between;
-        gap: 20px;
-        margin-bottom: 25px;
-        flex-wrap: wrap; 
     }
     
     .kpi-card {
-        flex: 1;
-        min-width: 220px; 
         padding: 20px;
         border-radius: 15px;
         text-align: center;
         background-color: var(--card-bg);
         box-shadow: 0 4px 10px rgba(0,0,0,0.1);
-        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        transition: transform 0.2s ease;
         border: 1px solid var(--border-color);
-        cursor: default;
+        height: 100%; /* 讓卡片等高 */
     }
-    
-    .kpi-card:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 10px 20px rgba(0,0,0,0.15);
-    }
+    .kpi-card:hover { transform: translateY(-5px); box-shadow: 0 10px 20px rgba(0,0,0,0.15); }
 
-    .kpi-card-total { border-bottom: 6px solid #5DADE2; } 
-    .kpi-card-gas { border-bottom: 6px solid #58D68D; }   
-    .kpi-card-diesel { border-bottom: 6px solid #F4D03F; } 
+    /* 底部色條區分 */
+    .kpi-gas { border-bottom: 6px solid var(--kpi-gas-border); }   
+    .kpi-diesel { border-bottom: 6px solid var(--kpi-diesel-border); } 
+    .kpi-total { border-bottom: 6px solid var(--kpi-total-border); } 
+    .kpi-co2 { border-bottom: 6px solid var(--kpi-co2-border); } 
     
-    .kpi-title { font-size: 1.2rem; font-weight: bold; margin-bottom: 5px; opacity: 0.8; color: var(--text-sub) !important; }
-    .kpi-value { font-size: 2.8rem; font-weight: 800; line-height: 1.1; margin-bottom: 5px; color: var(--text-main) !important; }
-    .kpi-unit { font-size: 1rem; font-weight: normal; color: var(--text-sub) !important; margin-left: 5px;}
+    .kpi-title { font-size: 1.1rem; font-weight: bold; margin-bottom: 5px; opacity: 0.8; color: var(--text-sub) !important; }
+    .kpi-value { font-size: 2.5rem; font-weight: 800; line-height: 1.1; margin-bottom: 5px; color: var(--text-main) !important; }
+    .kpi-unit { font-size: 0.9rem; font-weight: normal; color: var(--text-sub) !important; margin-left: 2px;}
     
     .kpi-sub { 
-        font-size: 1rem; 
-        color: var(--highlight-red) !important;
+        font-size: 0.95rem; 
+        color: #C0392B !important;
         font-weight: 700; 
         background-color: rgba(192, 57, 43, 0.1);
-        padding: 4px 10px; 
+        padding: 2px 10px; 
         border-radius: 20px; 
         display: inline-block;
-        margin-top: 5px;
     }
 
+    /* 其他區塊 */
     .device-info-box {
         background-color: var(--card-bg);
         border: 2px solid #5DADE2;
@@ -193,14 +154,12 @@ st.markdown("""
         padding: 20px;
         margin-bottom: 20px;
     }
-    
     .pie-chart-box {
         background-color: var(--card-bg);
         border: 2px solid var(--border-color);
         border-radius: 15px;
         padding: 10px;
     }
-
     .alert-box {
         background-color: #FCF3CF;
         border: 2px solid #F1C40F;
@@ -211,17 +170,12 @@ st.markdown("""
         font-weight: bold;
         text-align: center;
     }
-    
-    .setting-box {
-        background-color: var(--card-bg);
-        border: 2px dashed var(--border-color);
-        padding: 15px;
-        border-radius: 10px;
-        margin-bottom: 20px;
-        text-align: center;
+    .login-header { 
+        font-size: 2.2rem; font-weight: 800; color: var(--text-main) !important;
+        text-align: center; margin-bottom: 20px; padding: 25px; 
+        background-color: var(--card-bg); border: 2px solid var(--border-color);
+        border-radius: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);
     }
-    
-    /* 模式選擇按鈕 */
     div[role="radiogroup"] label {
         background-color: var(--card-bg);
         border: 1px solid var(--border-color);
@@ -229,7 +183,7 @@ st.markdown("""
         border-radius: 8px;
         margin-right: 10px;
         font-weight: bold;
-        color: var(--text-main) !important; /* 確保文字顏色正確 */
+        color: var(--text-main) !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -384,9 +338,10 @@ elif st.session_state['current_page'] == 'fuel':
 
     # --- Tab 1: 填報 ---
     with tabs[0]:
+        # V56.0: 移除"宣導事項"文字
         st.markdown("""
         <div class="alert-box">
-            📢 宣導事項：請「誠實申報」，以保障單位及自身權益！
+            📢 請「誠實申報」，以保障單位及自身權益！
         </div>
         """, unsafe_allow_html=True)
 
@@ -608,10 +563,10 @@ elif st.session_state['current_page'] == 'fuel':
             </div>
         """, unsafe_allow_html=True)
 
-    # --- Tab 2: 動態查詢看板 (年度檢視) ---
+    # --- Tab 2: 動態查詢看板 (V56.0: 碳排計算與專業圖表) ---
     with tabs[1]:
         st.markdown("### 📊 動態查詢看板 (年度檢視)")
-        st.info("請選擇「單位」與「年份」，檢視該年度的用油統計與詳細紀錄。")
+        st.info("請選擇「單位」與「年份」，檢視該年度的用油統計與碳排放分析。")
         
         col_r1, col_r2 = st.columns([4, 1])
         with col_r2:
@@ -639,96 +594,167 @@ elif st.session_state['current_page'] == 'fuel':
                 df_final = df_dept[df_dept['日期格式'].dt.year == query_year]
                 
                 if not df_final.empty:
-                    # 1. KPI 數據
+                    # --- 1. 計算數據 (含碳排) ---
                     if '原燃物料名稱' in df_final.columns:
                         df_final['原燃物料名稱'] = df_final['原燃物料名稱'].fillna('').astype(str)
                         gas_mask = df_final['原燃物料名稱'].str.contains('汽油', na=False)
                         diesel_mask = df_final['原燃物料名稱'].str.contains('柴油', na=False)
+                        
                         gasoline_sum = df_final.loc[gas_mask, '加油量'].sum()
                         diesel_sum = df_final.loc[diesel_mask, '加油量'].sum()
+                        
+                        # 碳排係數
+                        # 汽油: 0.0022, 柴油: 0.0027
+                        gas_co2 = gasoline_sum * 0.0022
+                        diesel_co2 = diesel_sum * 0.0027
+                        total_co2 = gas_co2 + diesel_co2
                     else:
-                        gasoline_sum = 0
-                        diesel_sum = 0
+                        gasoline_sum = 0; diesel_sum = 0; gas_co2 = 0; diesel_co2 = 0; total_co2 = 0
                     
                     total_sum = df_final['加油量'].sum()
                     
                     gas_pct = (gasoline_sum / total_sum * 100) if total_sum > 0 else 0
                     diesel_pct = (diesel_sum / total_sum * 100) if total_sum > 0 else 0
                     
-                    st.markdown(f"<div class='kpi-header'>{query_dept} - {query_year}年度 用油統計</div>", unsafe_allow_html=True)
+                    st.markdown(f"<div class='kpi-header'>{query_dept} - {query_year}年度 能源使用與碳排統計</div>", unsafe_allow_html=True)
                     
-                    kpi_html = f"""
-                    <div class="kpi-container">
-                        <div class="kpi-card kpi-card-gas">
+                    # V56.0: 2x2 Grid Layout
+                    r1c1, r1c2 = st.columns(2)
+                    with r1c1:
+                        st.markdown(f"""
+                        <div class="kpi-card kpi-gas">
                             <div class="kpi-title">⛽ 汽油使用量</div>
                             <div class="kpi-value">{gasoline_sum:,.2f}<span class="kpi-unit"> 公升</span></div>
                             <div class="kpi-sub">佔比 {gas_pct:.2f}%</div>
                         </div>
-                        <div class="kpi-card kpi-card-diesel">
+                        """, unsafe_allow_html=True)
+                    with r1c2:
+                        st.markdown(f"""
+                        <div class="kpi-card kpi-diesel">
                             <div class="kpi-title">🚛 柴油使用量</div>
                             <div class="kpi-value">{diesel_sum:,.2f}<span class="kpi-unit"> 公升</span></div>
                             <div class="kpi-sub">佔比 {diesel_pct:.2f}%</div>
                         </div>
-                        <div class="kpi-card kpi-card-total">
+                        """, unsafe_allow_html=True)
+                    
+                    st.markdown("<div style='margin-bottom: 20px;'></div>", unsafe_allow_html=True) # Spacer
+                    
+                    r2c1, r2c2 = st.columns(2)
+                    with r2c1:
+                        st.markdown(f"""
+                        <div class="kpi-card kpi-total">
                             <div class="kpi-title">💧 總用油量</div>
                             <div class="kpi-value">{total_sum:,.2f}<span class="kpi-unit"> 公升</span></div>
                             <div class="kpi-sub">100%</div>
                         </div>
-                    </div>
-                    """
-                    st.markdown(kpi_html, unsafe_allow_html=True)
+                        """, unsafe_allow_html=True)
+                    with r2c2:
+                        st.markdown(f"""
+                        <div class="kpi-card kpi-co2">
+                            <div class="kpi-title">☁️ 碳排放量 (公噸CO<sub>2</sub>e)</div>
+                            <div class="kpi-value">{total_co2:,.4f}<span class="kpi-unit"> tCO<sub>2</sub>e</span></div>
+                            <div class="kpi-sub" style="background-color: #F4ECF7; color: #AF7AC5 !important;">ESG 指標</div>
+                        </div>
+                        """, unsafe_allow_html=True)
                     
-                    # 2. 趨勢圖
-                    st.subheader(f"📊 {query_year}年度 每月加油趨勢")
-                    all_months = pd.DataFrame({'月份': list(range(1, 13))})
-                    df_final['月份'] = df_final['日期格式'].dt.month
-                    real_data = df_final.groupby(['月份', '設備名稱備註'])['加油量'].sum().reset_index()
-                    unique_devices = df_final['設備名稱備註'].unique()
-                    
-                    if len(unique_devices) > 0:
-                        month_device_grid = pd.MultiIndex.from_product([range(1, 13), unique_devices], names=['月份', '設備名稱備註']).to_frame(index=False)
-                        merged_data = pd.merge(month_device_grid, real_data, on=['月份', '設備名稱備註'], how='left').fillna(0)
-                        
-                        total_data = df_final.groupby(['設備名稱備註'])['加油量'].sum().reset_index()
-                        total_data['月份'] = 13
-                        
-                        final_chart_data = pd.concat([merged_data, total_data])
-                        
-                        def map_month(x):
-                            return "全年度累計" if x == 13 else f"{x}月"
-                        
-                        final_chart_data['月份標籤'] = final_chart_data['月份'].apply(map_month)
-                        
-                        morandi_colors = ['#88B04B', '#92A8D1', '#F7CAC9', '#B565A7', '#009B77', '#DD4124', '#D65076', '#45B8AC', '#EFC050', '#5B5EA6']
-                        
-                        fig = px.bar(
-                            final_chart_data, 
-                            x='月份標籤', 
-                            y='加油量', 
-                            color='設備名稱備註', 
-                            labels={'加油量': '加油量 (公升)', '月份標籤': '統計月份', '設備名稱備註': '設備名稱'},
-                            color_discrete_sequence=morandi_colors,
-                            template="plotly_white"
-                        )
-                        
-                        fig.update_xaxes(type='category', tickfont=dict(size=14))
-                        fig.update_yaxes(title_font=dict(size=16), tickfont=dict(size=14))
-                        fig.update_traces(width=0.6, texttemplate='%{y:.2f}', textposition='inside', textfont=dict(size=14))
-                        fig.update_layout(barmode='stack', font=dict(size=14), legend=dict(font=dict(size=12)))
-                        st.plotly_chart(fig, use_container_width=True)
-                    else:
-                        st.info("尚無足夠資料產生圖表")
-                    
-                    # 3. 圓餅圖
                     st.markdown("---")
-                    st.subheader("🥧 油品設備佔比分析")
+
+                    # --- 2. 逐月統計圖 (V56.0: 雙類別堆疊 + 頂部數值) ---
+                    st.subheader(f"📊 {query_year}年度 逐月油料統計 (依汽/柴油分類)")
+                    
+                    # 資料處理：先分出汽油與柴油的群組
+                    df_final['月份'] = df_final['日期格式'].dt.month
+                    df_final['油品類別'] = df_final['原燃物料名稱'].apply(lambda x: '汽油' if '汽油' in x else ('柴油' if '柴油' in x else '其他'))
+                    
+                    # 建立 1~12 月的完整資料骨架 (避免月份缺漏)
+                    all_months = pd.DataFrame({'月份': list(range(1, 13))})
+                    
+                    # 依 [月份, 油品類別, 設備] 群組加總
+                    chart_data = df_final.groupby(['月份', '油品類別', '設備名稱備註'])['加油量'].sum().reset_index()
+                    
+                    # 為了要算出每個 Bar 頂端的總數，我們先算一次 Monthly + Fuel Total
+                    monthly_fuel_totals = df_final.groupby(['月份', '油品類別'])['加油量'].sum().reset_index()
+                    
+                    morandi_colors = ['#88B04B', '#92A8D1', '#F7CAC9', '#B565A7', '#009B77', '#DD4124', '#D65076', '#45B8AC', '#EFC050', '#5B5EA6']
+                    
+                    # 使用 Plotly Graph Objects 來自訂堆疊與標籤
+                    fig = go.Figure()
+                    
+                    # 取得所有設備名稱以分配顏色
+                    devices = chart_data['設備名稱備註'].unique()
+                    device_color_map = {dev: morandi_colors[i % len(morandi_colors)] for i, dev in enumerate(devices)}
+                    
+                    # 繪製堆疊柱狀圖 (X軸: [月份, 油品類別])
+                    # Plotly 的 Multicategory Axis
+                    for dev in devices:
+                        dev_data = chart_data[chart_data['設備名稱備註'] == dev]
+                        fig.add_trace(go.Bar(
+                            x=[dev_data['月份'], dev_data['油品類別']], # 雙層 X 軸
+                            y=dev_data['加油量'],
+                            name=dev,
+                            marker_color=device_color_map[dev],
+                            text=dev_data['加油量'],
+                            texttemplate='%{y:.1f}',
+                            textposition='inside'
+                        ))
+                    
+                    # 加上頂部總數標籤 (使用 Scatter mode=text)
+                    # 這裡要小心對齊 X 軸
+                    fig.add_trace(go.Scatter(
+                        x=[monthly_fuel_totals['月份'], monthly_fuel_totals['油品類別']],
+                        y=monthly_fuel_totals['加油量'],
+                        text=monthly_fuel_totals['加油量'].apply(lambda x: f"{x:.1f}"),
+                        mode='text',
+                        textposition='top center',
+                        textfont=dict(size=14, color='black'),
+                        showlegend=False
+                    ))
+
+                    fig.update_layout(
+                        barmode='stack', 
+                        font=dict(size=14),
+                        xaxis=dict(title="月份 / 油品"),
+                        yaxis=dict(title="加油量 (公升)"),
+                        height=500,
+                        margin=dict(t=50, b=100) # 留空間給 X 軸
+                    )
+                    st.plotly_chart(fig, use_container_width=True)
+                    
+                    # --- 3. 碳排結構 (旭日圖) ---
+                    st.markdown("---")
+                    st.subheader(f"🌞 單位油料使用碳排放量結構 (公噸CO<sub>2</sub>e)", anchor=False)
+                    
+                    # 計算每個設備的碳排
+                    def calc_co2(row):
+                        if '汽油' in row['原燃物料名稱']: return row['加油量'] * 0.0022
+                        if '柴油' in row['原燃物料名稱']: return row['加油量'] * 0.0027
+                        return 0
+                    
+                    df_final['CO2e'] = df_final.apply(calc_co2, axis=1)
+                    
+                    # 旭日圖資料 (油品 -> 設備)
+                    sunburst_data = df_final.groupby(['油品類別', '設備名稱備註'])['CO2e'].sum().reset_index()
+                    
+                    fig_sun = px.sunburst(
+                        sunburst_data, 
+                        path=['油品類別', '設備名稱備註'], 
+                        values='CO2e',
+                        color='油品類別',
+                        color_discrete_map={'汽油': '#7DCEA0', '柴油': '#F7DC6F', '其他': '#BDC3C7'},
+                        title=f"{query_dept} - 碳排放結構分析"
+                    )
+                    fig_sun.update_traces(textinfo="label+percent entry")
+                    st.plotly_chart(fig_sun, use_container_width=True)
+
+                    # --- 4. 環形圖 (Donut) ---
+                    st.subheader("🍩 油品設備佔比分析 (油量)", anchor=False)
                     c_pie1, c_pie2 = st.columns(2)
                     
                     with c_pie1:
                         st.markdown('<div class="pie-chart-box">', unsafe_allow_html=True) 
                         gas_df = df_final[df_final['原燃物料名稱'].str.contains('汽油', na=False)]
                         if not gas_df.empty:
-                            fig_gas = px.pie(gas_df, values='加油量', names='設備名稱備註', title='⛽ 汽油設備用油佔比', color_discrete_sequence=px.colors.sequential.Teal, hole=0.4)
+                            fig_gas = px.pie(gas_df, values='加油量', names='設備名稱備註', title='⛽ 汽油設備 (油量)', color_discrete_sequence=px.colors.sequential.Teal, hole=0.5)
                             fig_gas.update_traces(textinfo='percent+label', textfont_size=14)
                             st.plotly_chart(fig_gas, use_container_width=True)
                         else:
@@ -739,7 +765,7 @@ elif st.session_state['current_page'] == 'fuel':
                         st.markdown('<div class="pie-chart-box">', unsafe_allow_html=True) 
                         diesel_df = df_final[df_final['原燃物料名稱'].str.contains('柴油', na=False)]
                         if not diesel_df.empty:
-                            fig_diesel = px.pie(diesel_df, values='加油量', names='設備名稱備註', title='🚛 柴油設備用油佔比', color_discrete_sequence=px.colors.sequential.Oranges, hole=0.4)
+                            fig_diesel = px.pie(diesel_df, values='加油量', names='設備名稱備註', title='🚛 柴油設備 (油量)', color_discrete_sequence=px.colors.sequential.Oranges, hole=0.5)
                             fig_diesel.update_traces(textinfo='percent+label', textfont_size=14)
                             st.plotly_chart(fig_diesel, use_container_width=True)
                         else:
@@ -748,7 +774,7 @@ elif st.session_state['current_page'] == 'fuel':
 
                     st.markdown("---")
                     
-                    # 4. 明細表
+                    # 明細表
                     st.subheader(f"📋 {query_year}年度 填報明細")
                     target_cols = ["加油日期", "設備名稱備註", "原燃物料名稱", "油卡編號", "加油量", "填報人", "備註", "與其他設備共用加油單"]
                     available_cols = [c for c in target_cols if c in df_final.columns]
