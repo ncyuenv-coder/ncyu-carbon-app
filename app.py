@@ -18,7 +18,7 @@ st.set_page_config(page_title="國立嘉義大學碳盤查平台", page_icon="�
 st.markdown("""
 <style>
     /* =========================================
-       🎨 V61.0 最終定案版 (Orange Button & Big Tabs)
+       🎨 V62.0 樣式強制覆蓋版 (Force Orange & Blue Upload)
        ========================================= */
 
     /* 1. 強制亮色模式 */
@@ -28,10 +28,9 @@ st.markdown("""
 
     /* 2. 變數定義 */
     :root {
-        /* V61.0: 按鈕改用高對比橘色 */
-        --btn-bg: #E67E22;        /* 活力橘底 */
-        --btn-border: #D35400;    /* 深橘框 */
-        --btn-text: #FFFFFF;      /* 白字 */
+        --btn-bg: #B0BEC5;        
+        --btn-border: #2C3E50;    
+        --btn-text: #17202A;      
         
         --bg-color: #EAEDED;
         --card-bg: #FFFFFF;
@@ -69,7 +68,6 @@ st.markdown("""
         font-size: 1.15rem !important;
     }
     
-    /* 下拉選單 */
     div[data-baseweb="select"] > div {
         border-color: #BDC3C7 !important;
         background-color: #FFFFFF !important;
@@ -80,52 +78,56 @@ st.markdown("""
     ul[data-baseweb="menu"] { background-color: #FFFFFF !important; }
     ul[data-baseweb="menu"] li { color: #000000 !important; }
 
-    /* 5. 按鈕專區 (🔥 V61.0: 橘底白字，高強度鎖定) */
+    /* 5. 一般按鈕 (維持淺灰藍) */
     div.stButton > button {
         background-color: var(--btn-bg) !important; 
         color: var(--btn-text) !important;            
-        border: 2px solid var(--btn-border) !important;
+        border: 3px solid var(--btn-border) !important;
         border-radius: 12px;
-        font-size: 1.4rem !important; /* 字體加大 */
+        font-size: 1.3rem !important;
         font-weight: 800 !important;
-        padding: 0.8rem 1.5rem;
+        padding: 0.6rem 1.5rem;
         transition: all 0.2s ease;
-        -webkit-text-fill-color: var(--btn-text) !important; /* 強制文字顏色 */
-        box-shadow: 0 4px 6px rgba(230, 126, 34, 0.2);
     }
     
-    /* Hover */
-    div.stButton > button:hover { 
-        background-color: #D35400 !important; /* 深橘色 */
-        border-color: #BA4A00 !important;
-        color: #FFFFFF !important;
-        transform: translateY(-2px);
-        box-shadow: 0 6px 12px rgba(211, 84, 0, 0.3);
-    }
-    
-    /* Active / Focus (防止點擊變白) */
-    div.stButton > button:active, div.stButton > button:focus {
-        background-color: #CA6F1E !important; 
-        color: #FFFFFF !important;
-        border-color: #A04000 !important;
-        box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
+    /* 🔥🔥🔥 V62.0: 強制覆蓋表單內的送出按鈕為橘色 */
+    div[data-testid="stForm"] .stButton > button {
+        background-color: #E67E22 !important; /* 橘色底 */
+        color: #FFFFFF !important;            /* 白字 */
+        border: 3px solid #D35400 !important; /* 深橘框 */
+        -webkit-text-fill-color: #FFFFFF !important;
     }
 
-    /* 6. Tab 分頁標籤 (🔥 V61.0: 強制放大) */
-    button[data-baseweb="tab"] {
-        padding: 10px 20px !important;
+    /* 送出按鈕 Hover */
+    div[data-testid="stForm"] .stButton > button:hover {
+        background-color: #D35400 !important; /* 深橘底 */
+        border-color: #A04000 !important;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(230, 126, 34, 0.4);
     }
-    button[data-baseweb="tab"] div p {
-        font-size: 1.6rem !important; /* 顯著放大 */
-        font-weight: 900 !important;
-        color: var(--text-sub);
+
+    /* 送出按鈕 Active/Focus (防止變白) */
+    div[data-testid="stForm"] .stButton > button:active,
+    div[data-testid="stForm"] .stButton > button:focus {
+        background-color: #E67E22 !important;
+        color: #FFFFFF !important;
+        border-color: #D35400 !important;
+        box-shadow: none;
     }
-    /* 選中狀態 */
-    button[data-baseweb="tab"][aria-selected="true"] div p {
-        color: #E67E22 !important; /* 選中時變橘色 */
-        border-bottom: 3px solid #E67E22;
+
+    /* 6. 上傳區域優化 (V62.0: 淺灰藍底色) */
+    section[data-testid="stFileUploaderDropzone"] {
+        background-color: #EBF5FB !important; /* 淺灰藍 */
+        border: 2px dashed #AED6F1 !important;
+        border-radius: 10px;
     }
-    
+    /* 上傳區文字顏色 */
+    section[data-testid="stFileUploaderDropzone"] div,
+    section[data-testid="stFileUploaderDropzone"] span,
+    section[data-testid="stFileUploaderDropzone"] small {
+        color: #2E86C1 !important;
+    }
+
     /* 7. KPI 卡片 */
     .kpi-header {
         font-size: 1.5rem;
@@ -204,6 +206,14 @@ st.markdown("""
         margin-right: 10px;
         font-weight: bold;
         color: var(--text-main) !important;
+    }
+    .setting-box {
+        background-color: var(--card-bg);
+        border: 2px dashed var(--border-color);
+        padding: 15px;
+        border-radius: 10px;
+        margin-bottom: 20px;
+        text-align: center;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -489,7 +499,6 @@ elif st.session_state['current_page'] == 'fuel':
                         
                         c_sub1, c_sub2, c_sub3 = st.columns([1, 2, 1])
                         with c_sub2:
-                            # V61.0: 橘色按鈕樣式已透過 CSS 強制生效
                             submitted = st.form_submit_button("🚀 確認送出資料", use_container_width=True)
                         
                         if submitted:
@@ -676,22 +685,25 @@ elif st.session_state['current_page'] == 'fuel':
                     
                     st.markdown("---")
 
-                    # --- 2. 逐月統計圖 (V60.0 修復版) ---
+                    # --- 2. 逐月統計圖 (V62.0: 完整 1-12 月骨架) ---
                     st.subheader(f"📊 {query_year}年度 逐月油料統計 (依汽/柴油分類)")
                     
                     df_final['月份'] = df_final['日期格式'].dt.month
                     df_final['油品類別'] = df_final['原燃物料名稱'].apply(lambda x: '汽油' if '汽油' in x else ('柴油' if '柴油' in x else '其他'))
                     
+                    # 1. 建立骨架
                     months = list(range(1, 13))
                     fuels = ['汽油', '柴油']
                     base_x = pd.MultiIndex.from_product([months, fuels], names=['月份', '油品類別']).to_frame(index=False)
                     
                     unique_devices = df_final['設備名稱備註'].unique()
                     
+                    # 2. 準備圖表
                     fig = go.Figure()
                     morandi_colors = ['#88B04B', '#92A8D1', '#F7CAC9', '#B565A7', '#009B77', '#DD4124', '#D65076', '#45B8AC', '#EFC050', '#5B5EA6']
                     device_color_map = {dev: morandi_colors[i % len(morandi_colors)] for i, dev in enumerate(unique_devices)}
                     
+                    # 3. 堆疊柱狀圖
                     for dev in unique_devices:
                         dev_data = df_final[df_final['設備名稱備註'] == dev]
                         dev_grouped = dev_data.groupby(['月份', '油品類別'])['加油量'].sum().reset_index()
@@ -707,6 +719,7 @@ elif st.session_state['current_page'] == 'fuel':
                             textposition='inside'
                         ))
                     
+                    # 4. 頂部總數標籤
                     total_grouped = df_final.groupby(['月份', '油品類別'])['加油量'].sum().reset_index()
                     merged_total = pd.merge(base_x, total_grouped, on=['月份', '油品類別'], how='left').fillna(0)
                     label_data = merged_total[merged_total['加油量'] > 0]
@@ -721,17 +734,23 @@ elif st.session_state['current_page'] == 'fuel':
                         showlegend=False
                     ))
 
+                    # 5. 版面設定 (X 軸)
                     fig.update_layout(
                         barmode='stack', 
                         font=dict(size=14),
-                        xaxis=dict(title="月份 / 油品"),
+                        xaxis=dict(
+                            title="月份 / 油品",
+                            tickmode='array',
+                            tickvals=list(range(1, 13)),
+                            ticktext=[f"{i}月" for i in range(1, 13)]
+                        ),
                         yaxis=dict(title="加油量 (公升)"),
                         height=500,
                         margin=dict(t=50, b=100)
                     )
                     st.plotly_chart(fig, use_container_width=True)
                     
-                    # --- 3. 碳排結構 ---
+                    # --- 3. 碳排結構 (Treemap) ---
                     st.markdown("---")
                     st.subheader(f"🌞 單位油料使用碳排放量(公噸二氧化碳當量)結構", anchor=False)
                     
@@ -756,7 +775,7 @@ elif st.session_state['current_page'] == 'fuel':
                     fig_tree.update_coloraxes(showscale=False)
                     st.plotly_chart(fig_tree, use_container_width=True)
 
-                    # --- 4. 環形圖 ---
+                    # --- 4. 環形圖 (標題更新) ---
                     st.subheader("🍩 油品設備用油量佔比分析", anchor=False)
                     c_pie1, c_pie2 = st.columns(2)
                     
