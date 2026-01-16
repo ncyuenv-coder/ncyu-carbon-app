@@ -23,7 +23,7 @@ def get_taiwan_time():
 st.markdown("""
 <style>
     /* =========================================
-       🎨 V87.0 最終精修版 (2-Col Layout & Date Range)
+       🎨 V89.0 外部填報最終優化版 (No Usage Range & Batch Fix)
        ========================================= */
 
     /* 1. 強制亮色模式 */
@@ -130,7 +130,7 @@ st.markdown("""
     }
     .batch-card { padding: 15px; border-left: 5px solid #E67E22; }
     
-    /* V87: 設備卡片 - 標題區 */
+    /* V88: 設備卡片標題區 */
     .equip-header {
         padding: 12px 15px;
         border-bottom: 1px solid #BDC3C7;
@@ -147,7 +147,7 @@ st.markdown("""
     .equip-body { padding: 15px; display: flex; flex-direction: column; gap: 8px; }
     .equip-info { font-size: 0.9rem; line-height: 1.5; color: #34495E; }
     
-    /* V87: 底部欄 */
+    /* V88: 底部欄 */
     .equip-footer { 
         margin-top: 10px; padding-top: 10px; border-top: 1px dashed #D7DBDD;
         display: flex; justify-content: space-between; align-items: center;
@@ -156,6 +156,23 @@ st.markdown("""
     .status-warn { background-color: #FADBD8; color: #943126; border: 1px solid #F1948A;}
     .last-date { font-size: 0.85rem; color: #7F8C8D; }
     .count-text { font-size: 0.85rem; color: #2C3E50; font-weight: 800; margin-right: 8px; }
+    
+    /* V88: 個資聲明樣式 */
+    .privacy-box {
+        background-color: #F8F9F9;
+        border: 1px solid #BDC3C7;
+        padding: 15px;
+        border-radius: 10px;
+        font-size: 0.9rem;
+        color: #566573;
+        margin-bottom: 10px;
+    }
+    .privacy-title {
+        font-weight: bold;
+        color: #2C3E50;
+        margin-bottom: 5px;
+        font-size: 1rem;
+    }
 
     /* 8. KPI 卡片 */
     .kpi-header { font-size: 1.5rem; font-weight: 800; color: var(--text-main) !important; margin-bottom: 20px; text-align: center; background-color: #D6DBDF; padding: 10px; border-radius: 12px; }
@@ -205,14 +222,14 @@ DEVICE_CODE_MAP = {
     "GS-1": "鍋爐(GS-1-)", "GS-2": "發電機(GS-2-)", "GS-3": "肩背或手持式割草機、吹葉機(GS-3-)", "GS-4": "肩背或手持式農用機具(GS-4-)"
 }
 
-# --- V87: 正統莫蘭迪色卡 ---
+# --- V88: 高級莫蘭迪色卡 ---
 MORANDI_COLORS = {
-    "公務車輛(GV-1-)": "#D6DBDF",       # 霧灰藍
-    "乘坐式割草機(GV-2-)": "#E5E8E8",     # 雲霧白
-    "乘坐式農用機具(GV-3-)": "#F6DDCC",   # 杏仁奶茶
-    "鍋爐(GS-1-)": "#F1948A",             # 乾燥玫瑰 (稍微淡化)
-    "發電機(GS-2-)": "#D2B4DE",           # 薰衣草灰
-    "肩背或手持式割草機、吹葉機(GS-3-)": "#A9DFBF", # 鼠尾草綠
+    "公務車輛(GV-1-)": "#B0C4DE",       # 淺鋼藍
+    "乘坐式割草機(GV-2-)": "#BDC3C7",     # 銀灰
+    "乘坐式農用機具(GV-3-)": "#D5D8DC",   # 雲灰
+    "鍋爐(GS-1-)": "#E6B0AA",             # 柔和紅
+    "發電機(GS-2-)": "#A9CCE3",           # 寧靜藍
+    "肩背或手持式割草機、吹葉機(GS-3-)": "#A3E4D7", # 薄荷綠
     "肩背或手持式農用機具(GS-4-)": "#F9E79F"       # 奶油黃
 }
 
@@ -352,7 +369,7 @@ if st.session_state['current_page'] == 'home':
     st.markdown('<div class="contact-footer">如有填報疑問，請電洽環安中心林小姐(分機 7137)，謝謝</div>', unsafe_allow_html=True)
 
 # ------------------------------------------
-# ⛽ 外部填報區 (V87.0: 增加區間申報)
+# ⛽ 外部填報區 (V89.0: 包含完整個資聲明)
 # ------------------------------------------
 elif st.session_state['current_page'] == 'fuel':
     st.title("⛽ 燃油設備填報專區")
@@ -367,6 +384,19 @@ elif st.session_state['current_page'] == 'fuel':
             units = sorted([x for x in df_equip['填報單位'].unique() if x != '-' and x != '填報單位'])
             selected_dept = c1.selectbox("填報單位", units, index=None, placeholder="請選擇單位...", key="dept_selector")
             
+            # V88.0: 完整個資聲明 HTML
+            privacy_html = """
+            <div class="privacy-box">
+                <div class="privacy-title">📜 個人資料蒐集、處理及利用告知聲明</div>
+                1. <strong>蒐集機關</strong>：國立嘉義大學。<br>
+                2. <strong>蒐集目的</strong>：進行本校公務車輛/機具之加油紀錄管理、校園溫室氣體（碳）盤查統計、稽核佐證資料蒐集及後續能源使用分析。<br>
+                3. <strong>個資類別</strong>：填報人姓名。<br>
+                4. <strong>利用期間</strong>：姓名保留至填報年度後第二年1月1日，期滿即進行「去識別化」刪除，其餘數據永久保存。<br>
+                5. <strong>利用對象</strong>：本校教師、行政人員及碳盤查查驗人員。<br>
+                6. <strong>您有權依個資法請求查詢、更正或刪除您的個資。如不提供，將無法完成填報。</strong><br>
+            </div>
+            """
+
             # --- V74.0 批次申報 (卡片式) ---
             if selected_dept in VIP_UNITS:
                 st.info(f"💡 您選擇了 **{selected_dept}**，系統已自動切換為「油卡批次申報模式」。")
@@ -386,54 +416,74 @@ elif st.session_state['current_page'] == 'fuel':
                     elif "柴油" in target_sub_cat: filtered_equip = filtered_equip[filtered_equip['原燃物料名稱'].str.contains("柴油")]
                     
                     st.markdown("#### 步驟 2：批次填寫與上傳")
+                    
+                    # V89.0: 批次模式也加入「無使用」選項
+                    batch_mode = st.radio("請選擇申報類型", ["批量填報 (中油明細)", "期間無使用"], horizontal=True, key="batch_mode_radio")
+                    
                     with st.form("batch_form", clear_on_submit=True):
-                        col_p1, col_p2, col_p3 = st.columns(3)
+                        col_p1, col_p2 = st.columns(2)
                         p_name = col_p1.text_input("👤 填報人姓名 (必填)")
                         p_ext = col_p2.text_input("📞 聯絡分機 (必填)")
-                        today = datetime.today()
-                        batch_date = col_p3.date_input("📅 加油月份 (日期統一選擇該月份最終日)", today)
                         
-                        st.markdown("⛽ **請填入各設備本月加油總量：**")
+                        f_file = None
                         batch_inputs = {}
-                        for idx, row in filtered_equip.iterrows():
-                            with st.container():
-                                st.markdown(f"""
-                                <div class="batch-card">
-                                    <div class="batch-title">⛽ {row['設備名稱備註']}</div>
-                                    <div class="batch-tag">{row['原燃物料名稱']}</div>
-                                    <div class="batch-info">
-                                        🏢 {row.get('設備所屬單位/部門','-')} | 👤 {row.get('保管人','-')} <br>
-                                        🔢 {row.get('校內財產編號','-')} | 📊 數量: {row.get('設備數量','-')}
+                        batch_date = datetime.today() # Default
+                        
+                        if batch_mode == "批量填報 (中油明細)":
+                            batch_date = st.date_input("📅 加油月份 (日期統一選擇該月份最終日)", datetime.today())
+                            st.markdown("⛽ **請填入各設備本月加油總量：**")
+                            
+                            for idx, row in filtered_equip.iterrows():
+                                with st.container():
+                                    st.markdown(f"""
+                                    <div class="batch-card">
+                                        <div class="batch-title">⛽ {row['設備名稱備註']}</div>
+                                        <div class="batch-tag">{row['原燃物料名稱']}</div>
+                                        <div class="batch-info">
+                                            🏢 {row.get('設備所屬單位/部門','-')} | 👤 {row.get('保管人','-')} <br>
+                                            🔢 {row.get('校內財產編號','-')} | 📊 數量: {row.get('設備數量','-')}
+                                        </div>
                                     </div>
-                                </div>
-                                """, unsafe_allow_html=True)
-                                c_in1, c_in2 = st.columns([3, 2])
-                                with c_in2:
-                                    vol = st.number_input(f"💧 月份總加油量 (公升)", min_value=0.0, step=0.1, key=f"batch_vol_{row['校內財產編號']}_{idx}")
-                                    batch_inputs[idx] = vol
-                                st.markdown("---")
-
-                        st.markdown("**📂 上傳中油加油明細 (只需一份)**")
-                        f_file = st.file_uploader("支援 PDF/JPG/PNG", type=['pdf', 'jpg', 'png', 'jpeg'])
+                                    """, unsafe_allow_html=True)
+                                    c_in1, c_in2 = st.columns([3, 2])
+                                    with c_in2:
+                                        vol = st.number_input(f"💧 月份總加油量 (公升)", min_value=0.0, step=0.1, key=f"batch_vol_{row['校內財產編號']}_{idx}")
+                                        batch_inputs[idx] = vol
+                                    st.markdown("---")
+                            st.markdown("**📂 上傳中油加油明細 (只需一份)**")
+                            f_file = st.file_uploader("支援 PDF/JPG/PNG", type=['pdf', 'jpg', 'png', 'jpeg'])
+                        
+                        else: # 期間無使用
+                            st.info(f"ℹ️ 您將回報「{target_sub_cat}」類別下所有設備，於指定期間內無使用。")
+                            c_start, c_end = st.columns(2)
+                            d_start = c_start.date_input("📅 開始日期", datetime(datetime.now().year, 1, 1))
+                            d_end = c_end.date_input("📅 結束日期", datetime.now())
+                            batch_date = d_end # 使用結束日作為紀錄日
+                            # 自動為所有設備填 0
+                            for idx, row in filtered_equip.iterrows():
+                                batch_inputs[idx] = 0.0
+                        
                         st.markdown("---")
-                        agree_privacy = st.checkbox("我已閱讀並同意個資聲明，且確認所填資料無誤。", value=False)
+                        st.markdown(privacy_html, unsafe_allow_html=True)
+                        agree_privacy = st.checkbox("我已閱讀並同意上述聲明，且確認所填資料無誤。", value=False)
                         submitted = st.form_submit_button("🚀 批次確認送出", use_container_width=True)
                         
                         if submitted:
-                            total_vol = sum(batch_inputs.values())
-                            if not agree_privacy: st.error("❌ 請勾選同意聲明")
-                            elif not p_name or not p_ext: st.warning("⚠️ 姓名與分機為必填")
-                            elif not f_file: st.error("⚠️ 請上傳加油明細佐證")
-                            elif total_vol <= 0: st.warning("⚠️ 總加油量為 0")
+                            if not agree_privacy: st.error("❌ 請務必勾選同意聲明！")
+                            elif not p_name or not p_ext: st.warning("⚠️ 姓名與分機為必填！")
+                            elif batch_mode == "批量填報 (中油明細)" and not f_file: st.error("⚠️ 請上傳加油明細佐證！")
+                            elif batch_mode == "批量填報 (中油明細)" and sum(batch_inputs.values()) <= 0: st.warning("⚠️ 總加油量為 0，請至少填寫一台設備！")
                             else:
                                 try:
-                                    f_file.seek(0)
-                                    file_ext = f_file.name.split('.')[-1]
-                                    clean_name = f"BATCH_{selected_dept}_{batch_date}_{int(time.time())}.{file_ext}"
-                                    file_meta = {'name': clean_name, 'parents': [DRIVE_FOLDER_ID]}
-                                    media = MediaIoBaseUpload(f_file, mimetype=f_file.type, resumable=True)
-                                    file = drive_service.files().create(body=file_meta, media_body=media, fields='webViewLink').execute()
-                                    file_link = file.get('webViewLink')
+                                    file_link = "無"
+                                    if batch_mode == "批量填報 (中油明細)" and f_file:
+                                        f_file.seek(0)
+                                        file_ext = f_file.name.split('.')[-1]
+                                        clean_name = f"BATCH_{selected_dept}_{batch_date}_{int(time.time())}.{file_ext}"
+                                        file_meta = {'name': clean_name, 'parents': [DRIVE_FOLDER_ID]}
+                                        media = MediaIoBaseUpload(f_file, mimetype=f_file.type, resumable=True)
+                                        file = drive_service.files().create(body=file_meta, media_body=media, fields='webViewLink').execute()
+                                        file_link = file.get('webViewLink')
                                     
                                     fleet_id = "-"
                                     if selected_dept == "總務處事務組": fleet_id = FLEET_CARDS.get(f"總務處事務組-{'汽油' if '汽油' in target_sub_cat else '柴油'}", "-")
@@ -441,11 +491,23 @@ elif st.session_state['current_page'] == 'fuel':
                                     
                                     rows_to_append = []
                                     current_time = get_taiwan_time().strftime("%Y-%m-%d %H:%M:%S")
+                                    
+                                    note_str = f"批次申報-{target_sub_cat}"
+                                    if batch_mode == "期間無使用":
+                                        note_str += f" (無使用期間: {d_start} ~ {d_end})"
+                                    
                                     for idx, vol in batch_inputs.items():
-                                        if vol > 0:
+                                        # 批量填報只寫入 > 0，無使用則強制寫入 0
+                                        if vol > 0 or batch_mode == "期間無使用":
                                             row = filtered_equip.loc[idx]
-                                            row_data = [current_time, selected_dept, p_name, p_ext, row['設備名稱備註'], str(row.get('校內財產編號','-')), row['原燃物料名稱'], fleet_id, str(batch_date), vol, "是", f"批次申報-{target_sub_cat}", file_link]
+                                            row_data = [
+                                                current_time, selected_dept, p_name, p_ext,
+                                                row['設備名稱備註'], str(row.get('校內財產編號','-')), row['原燃物料名稱'],
+                                                fleet_id, str(batch_date), vol, 
+                                                "是", note_str, file_link
+                                            ]
                                             rows_to_append.append(row_data)
+                                    
                                     if rows_to_append:
                                         ws_record.append_rows(rows_to_append)
                                         st.success(f"✅ 批次申報成功！已寫入 {len(rows_to_append)} 筆紀錄。")
@@ -453,7 +515,8 @@ elif st.session_state['current_page'] == 'fuel':
                                         st.session_state['reset_counter'] += 1
                                         time.sleep(1.5)
                                         st.rerun()
-                                    else: st.warning("沒有大於 0 的紀錄可寫入。")
+                                    else:
+                                        st.warning("沒有可寫入的紀錄。")
                                 except Exception as e: st.error(f"失敗: {e}")
 
             # --- 一般申報模式 ---
@@ -477,7 +540,7 @@ elif st.session_state['current_page'] == 'fuel':
                     """
                     st.markdown(info_html, unsafe_allow_html=True)
                     st.markdown("#### 步驟 2：填寫資料")
-                    # V87.0: 模式名稱與邏輯更新
+                    # V89.0: 模式名稱更新
                     report_mode = st.radio("請選擇申報類型", ["用油量申報 (含單筆/多筆/油卡)", "無使用"], horizontal=True)
                     
                     if report_mode == "用油量申報 (含單筆/多筆/油卡)":
@@ -514,19 +577,18 @@ elif st.session_state['current_page'] == 'fuel':
                             st.markdown("**📂 上傳佐證資料 (必填)**")
                             f_files = st.file_uploader("支援 png, jpg, jpeg, pdf (最多 5 個)", type=['png', 'jpg', 'jpeg', 'pdf'], accept_multiple_files=True)
                         else:
-                            # V87.0: 無使用模式 - 增加日期區間
+                            # V89.0: 無使用區間
                             st.info("ℹ️ 您選擇了「無使用」，請選擇無使用的期間。")
                             c_start, c_end = st.columns(2)
                             d_start = c_start.date_input("📅 開始日期", datetime(datetime.now().year, 1, 1))
                             d_end = c_end.date_input("📅 結束日期", datetime.now())
                             
-                            # 寫入邏輯：用結束日期作為代表日，備註註明區間
                             data_entries.append({"date": d_end, "vol": 0.0})
                             note_input = f"無使用 (期間: {d_start} ~ {d_end})"
                             f_files = None
 
                         st.markdown("---")
-                        st.markdown("""<div class="privacy-box">📜 個人資料蒐集、處理及利用告知聲明...</div>""", unsafe_allow_html=True)
+                        st.markdown(privacy_html, unsafe_allow_html=True)
                         agree_privacy = st.checkbox("我已閱讀並同意上述聲明，且確認所填資料無誤。", value=False)
                         
                         c_sub1, c_sub2, c_sub3 = st.columns([1, 2, 1])
@@ -593,7 +655,7 @@ elif st.session_state['current_page'] == 'fuel':
                                         else:
                                             st.warning("⚠️ 無有效資料可寫入。")
 
-    # === Tab 2: 看板 (V68) ===
+    # === Tab 2: 看板 (同 V68) ===
     with tabs[1]:
         st.markdown("### 📊 動態查詢看板 (年度檢視)")
         st.info("請選擇「單位」與「年份」，檢視該年度的用油統計與碳排放分析。")
@@ -710,7 +772,7 @@ elif st.session_state['current_page'] == 'fuel':
         st.markdown('<div class="contact-footer">如有填報疑問，請電洽環安中心林小姐(分機 7137)，謝謝</div>', unsafe_allow_html=True)
 
 # ------------------------------------------
-# 👑 超級管理員專區 (V87.0: HTML Minification & 2-Col Layout)
+# 👑 超級管理員專區 (V87.0: 2-Col Layout)
 # ------------------------------------------
 elif st.session_state['current_page'] == 'admin_dashboard' and username == 'admin':
     st.title("👑 超級管理員後台")
@@ -737,7 +799,7 @@ elif st.session_state['current_page'] == 'admin_dashboard' and username == 'admi
 
     admin_tabs = st.tabs(["📝 全校燃油設備總覽", "🔍 申報資料異動", "📊 動態管理儀表板"])
 
-    # === Tab A: 全校燃油設備總覽 (V87.0: 2-Col Layout + Minified HTML) ===
+    # === Tab A: 全校燃油設備總覽 (V87.0: 2-Col & Minified HTML) ===
     with admin_tabs[0]:
         if not df_records_merged.empty and not df_equip.empty:
             annual_sum = df_records_merged.groupby('設備名稱備註')['加油量'].sum().reset_index()
@@ -769,7 +831,7 @@ elif st.session_state['current_page'] == 'admin_dashboard' and username == 'admi
                     for idx, row in cat_df.reset_index().iterrows():
                         col = cols[idx % 2] 
                         with col:
-                            # 狀態判斷
+                            # 狀態判斷 (保留異常警示，正常則留白)
                             last_date = row['日期格式']
                             if pd.isna(last_date):
                                 status_html = '<span class="status-badge status-warn">⚠️ 尚無紀錄</span>'
@@ -784,9 +846,8 @@ elif st.session_state['current_page'] == 'admin_dashboard' and username == 'admi
                             
                             fuel_type = "⛽" if "汽油" in str(row['原燃物料名稱']) else "🚛"
                             
-                            # V87.0: Minified HTML (No indentation inside string to fix </div> bug)
+                            # V87.0: Minified HTML String to prevent </div> render bug
                             card_html = f"""<div class="equip-card"><div class="equip-header" style="background-color: {header_color};"><div class="equip-title-group"><div class="equip-code">{row.get('設備編號','-')}</div><div class="equip-name">{row.get('設備名稱備註','-')}</div></div><div class="equip-fuel-group"><div class="equip-vol">{row['年度用油量']:,.2f}</div><span class="equip-fuel-type">{fuel_type} {row.get('原燃物料名稱','')} (公升)</span></div></div><div class="equip-body"><div class="equip-info">🏢 部門: {row.get('設備所屬單位/部門','-')} | 👤 保管人: {row.get('保管人','-')}<br>📍 位置: {row.get('設備詳細位置/樓層','-')} | 📊 數量: {row.get('設備數量','-')}</div><div class="equip-footer"><div class="last-date">最後申報日期: {last_date_str}</div><div style="display:flex; align-items:center;"><span class="count-text">申報次數: <b>{row['申報次數']}</b></span>{status_html}</div></div></div></div>"""
-                            
                             st.markdown(card_html, unsafe_allow_html=True)
         else:
             st.warning("尚無資料可供統計。")
@@ -891,4 +952,4 @@ elif st.session_state['current_page'] == 'admin_dashboard' and username == 'admi
             else: st.warning("在此篩選條件下無資料。")
         else: st.info("尚無該年度資料，無法顯示儀表板。")
 
-    st.markdown('<div class="contact-footer">管理員系統版本 V87.0 (Clean Card & No Usage Range)</div>', unsafe_allow_html=True)
+    st.markdown('<div class="contact-footer">管理員系統版本 V89.0 (Complete Fix)</div>', unsafe_allow_html=True)
