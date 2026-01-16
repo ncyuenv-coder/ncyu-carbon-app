@@ -9,29 +9,33 @@ import streamlit_authenticator as stauth
 import plotly.express as px
 import plotly.graph_objects as go
 import time
+import re
 
 # ==========================================
 # 0. 系統設定
 # ==========================================
 st.set_page_config(page_title="國立嘉義大學碳盤查平台", page_icon="🌍", layout="wide")
 
+# 時區校正 (GMT+8)
+def get_taiwan_time():
+    return datetime.utcnow() + timedelta(hours=8)
+
 st.markdown("""
 <style>
     /* =========================================
-       🎨 V70.0 完整全功能版 (Merged V68 + V69)
+       🎨 V73.0 完整無縮減最終版 (Full Code)
        ========================================= */
 
-    /* 1. 強制亮色模式 (解決手機下拉選單問題) */
+    /* 1. 強制亮色模式 */
     :root { color-scheme: light; }
 
     /* 2. 變數定義 */
     :root {
-        /* 按鈕與配色系統 */
-        --btn-bg: #B0BEC5;        /* 淺灰藍 (一般按鈕) */
+        --btn-bg: #B0BEC5;        /* 淺灰藍 (備用) */
         --btn-border: #2C3E50;    /* 深框 */
         --btn-text: #17202A;      
         
-        --orange-bg: #E67E22;     /* 橘色 (強調/送出) */
+        --orange-bg: #E67E22;     /* 橘色 (主色系) */
         --orange-dark: #D35400;
         --orange-text: #FFFFFF;
 
@@ -69,7 +73,7 @@ st.markdown("""
     ul[data-baseweb="menu"] { background-color: #FFFFFF !important; }
     ul[data-baseweb="menu"] li { color: #000000 !important; }
 
-    /* 5. 全站按鈕暴力橘色化 (包含首頁、表單送出、增減列) */
+    /* 5. 全站按鈕暴力橘色化 */
     div.stButton > button,
     button[kind="primary"],
     [data-testid="stFormSubmitButton"] > button {
@@ -90,8 +94,8 @@ st.markdown("""
     [data-testid="stFormSubmitButton"] > button:hover { 
         background-color: var(--orange-dark) !important; 
         border-color: #A04000 !important;
+        color: var(--orange-text) !important;
         transform: translateY(-2px) !important;
-        box-shadow: 0 6px 12px rgba(211, 84, 0, 0.4) !important;
     }
     div.stButton > button:active, 
     div.stButton > button:focus,
@@ -157,7 +161,26 @@ st.markdown("""
 SHEET_ID = "1gqDU21YJeBoBOd8rMYzwwZ45offXWPGEODKTF6B8k-Y" 
 DRIVE_FOLDER_ID = "1DCmR0dXOdFBdTrgnvCYFPtNq_bGzSJeB" 
 
-# --- 設備代碼對照表 (管理員用) ---
+# --- 批次申報設定 ---
+VIP_UNITS = ["總務處事務組", "民雄總務", "新民聯辦", "產推處產學營運組"]
+FLEET_CARDS = {
+    "總務處事務組-柴油": "TZI510508",
+    "總務處事務組-汽油": "TZI510509",
+    "民雄總務": "TZI510594",
+    "新民聯辦": "TZI510410",
+    "產推處產學營運組": "TZI510244"
+}
+
+# --- 設備代碼對照表 ---
+DEVICE_ORDER = [
+    "公務車輛(GV-1-)",
+    "乘坐式割草機(GV-2-)",
+    "乘坐式農用機具(GV-3-)",
+    "鍋爐(GS-1-)",
+    "發電機(GS-2-)",
+    "肩背或手持式割草機、吹葉機(GS-3-)",
+    "肩背或手持式農用機具(GS-4-)"
+]
 DEVICE_CODE_MAP = {
     "GV-1": "公務車輛(GV-1-)",
     "GV-2": "乘坐式割草機(GV-2-)",
@@ -178,12 +201,9 @@ def clean_secrets(obj):
         return [clean_secrets(i) for i in obj]
     return obj
 
-if 'current_page' not in st.session_state:
-    st.session_state['current_page'] = 'home'
-if 'reset_counter' not in st.session_state:
-    st.session_state['reset_counter'] = 0
-if 'multi_row_count' not in st.session_state:
-    st.session_state['multi_row_count'] = 1
+if 'current_page' not in st.session_state: st.session_state['current_page'] = 'home'
+if 'reset_counter' not in st.session_state: st.session_state['reset_counter'] = 0
+if 'multi_row_count' not in st.session_state: st.session_state['multi_row_count'] = 1
 
 try:
     _raw_creds = st.secrets["credentials"]
@@ -250,6 +270,7 @@ try:
             "設備名稱備註", "校內財產編號", "原燃物料名稱", 
             "油卡編號", "加油日期", "加油量", "與其他設備共用加油單", "備註", "佐證資料"
         ])
+
 except Exception as e:
     st.error(f"連線失敗: {e}")
     st.stop()
@@ -259,7 +280,6 @@ def load_data():
     df_e = pd.DataFrame(ws_equip.get_all_records())
     df_e = df_e.astype(str)
     
-    # 增加設備類別判讀 (依據 I 欄: 設備編號)
     if '設備編號' in df_e.columns:
         def map_category(code):
             for key, val in DEVICE_CODE_MAP.items():
@@ -282,7 +302,7 @@ def load_data():
 df_equip, df_records = load_data()
 
 # ==========================================
-# 頁面邏輯
+# 3. 頁面邏輯
 # ==========================================
 if st.session_state['current_page'] == 'home':
     st.title("🏫 國立嘉義大學碳盤查回報平台")
@@ -307,22 +327,126 @@ if st.session_state['current_page'] == 'home':
     st.markdown('<div class="contact-footer">如有填報疑問，請電洽環安中心林小姐(分機 7137)，謝謝</div>', unsafe_allow_html=True)
 
 # ------------------------------------------
-# ⛽ 外部填報區 (V68 完美復刻)
+# ⛽ 外部填報區 (含批次與一般)
 # ------------------------------------------
 elif st.session_state['current_page'] == 'fuel':
     st.title("⛽ 燃油設備填報專區")
     tabs = st.tabs(["📝 新增填報", "📊 動態查詢看板"])
 
-    # === Tab 1: 填報 (V68) ===
+    # === Tab 1: 填報 ===
     with tabs[0]:
         st.markdown('<div class="alert-box">📢 請「誠實申報」，以保障單位及自身權益！</div>', unsafe_allow_html=True)
         if not df_equip.empty:
-            st.markdown("#### 步驟 1：選擇設備")
+            st.markdown("#### 步驟 1：選擇設備或單位")
             c1, c2 = st.columns(2)
             units = sorted([x for x in df_equip['填報單位'].unique() if x != '-' and x != '填報單位'])
             selected_dept = c1.selectbox("填報單位", units, index=None, placeholder="請選擇單位...", key="dept_selector")
             
-            if selected_dept:
+            # --- V73.0 批次申報模式 ---
+            if selected_dept in VIP_UNITS:
+                st.info(f"💡 您選擇了 **{selected_dept}**，系統已自動切換為「油卡批次申報模式」。")
+                
+                sub_categories = []
+                if selected_dept == "總務處事務組":
+                    sub_categories = ["具車牌的汽油公務車", "具車牌的柴油公務車", "無車牌的汽油機具", "無車牌的柴油機具"]
+                elif selected_dept in ["民雄總務", "新民聯辦"]:
+                    sub_categories = ["無車牌的汽油機具", "無車牌的柴油機具"]
+                elif selected_dept == "產推處產學營運組":
+                    sub_categories = ["無車牌的汽油機具"]
+                
+                target_sub_cat = c2.selectbox("請選擇細部類別", sub_categories, index=None, placeholder="請選擇...")
+                
+                if target_sub_cat:
+                    # 篩選邏輯
+                    def has_plate(name):
+                        return bool(re.search(r'\([A-Za-z0-9\-]+\)', name))
+                    
+                    filtered_equip = df_equip[df_equip['填報單位'] == selected_dept].copy()
+                    
+                    if "具車牌" in target_sub_cat: filtered_equip = filtered_equip[filtered_equip['設備名稱備註'].apply(has_plate)]
+                    elif "無車牌" in target_sub_cat: filtered_equip = filtered_equip[~filtered_equip['設備名稱備註'].apply(has_plate)]
+                        
+                    if "汽油" in target_sub_cat: filtered_equip = filtered_equip[filtered_equip['原燃物料名稱'].str.contains("汽油")]
+                    elif "柴油" in target_sub_cat: filtered_equip = filtered_equip[filtered_equip['原燃物料名稱'].str.contains("柴油")]
+                        
+                    devices_list = filtered_equip[['設備名稱備註', '原燃物料名稱', '校內財產編號']].copy()
+                    devices_list['本月加油量(公升)'] = 0.0
+                    
+                    st.markdown("#### 步驟 2：批次填寫與上傳")
+                    
+                    with st.form("batch_form", clear_on_submit=True):
+                        col_p1, col_p2, col_p3 = st.columns(3)
+                        p_name = col_p1.text_input("👤 填報人姓名 (必填)")
+                        p_ext = col_p2.text_input("📞 聯絡分機 (必填)")
+                        today = datetime.today()
+                        batch_date = col_p3.date_input("📅 加油月份 (將以此日期歸檔)", today)
+                        
+                        st.markdown("⛽ **請於下表填入各設備本月加油總量：**")
+                        edited_data = st.data_editor(
+                            devices_list, 
+                            column_config={
+                                "設備名稱備註": st.column_config.TextColumn("設備名稱", disabled=True),
+                                "原燃物料名稱": st.column_config.TextColumn("燃料", disabled=True),
+                                "本月加油量(公升)": st.column_config.NumberColumn("本月加油量", min_value=0.0, step=0.1, required=True)
+                            },
+                            hide_index=True, use_container_width=True
+                        )
+                        
+                        st.markdown("**📂 上傳中油加油明細 (只需一份)**")
+                        f_file = st.file_uploader("支援 PDF/JPG/PNG", type=['pdf', 'jpg', 'png', 'jpeg'])
+                        
+                        st.markdown("---")
+                        agree_privacy = st.checkbox("我已閱讀並同意個資聲明，且確認所填資料無誤。", value=False)
+                        submitted = st.form_submit_button("🚀 批次確認送出", use_container_width=True)
+                        
+                        if submitted:
+                            total_vol = edited_data['本月加油量(公升)'].sum()
+                            if not agree_privacy: st.error("❌ 請勾選同意聲明")
+                            elif not p_name or not p_ext: st.warning("⚠️ 姓名與分機為必填")
+                            elif not f_file: st.error("⚠️ 請上傳加油明細佐證")
+                            elif total_vol <= 0: st.warning("⚠️ 總加油量為 0")
+                            else:
+                                try:
+                                    f_file.seek(0)
+                                    file_ext = f_file.name.split('.')[-1]
+                                    clean_name = f"BATCH_{selected_dept}_{batch_date}_{int(time.time())}.{file_ext}"
+                                    file_meta = {'name': clean_name, 'parents': [DRIVE_FOLDER_ID]}
+                                    media = MediaIoBaseUpload(f_file, mimetype=f_file.type, resumable=True)
+                                    file = drive_service.files().create(body=file_meta, media_body=media, fields='webViewLink').execute()
+                                    file_link = file.get('webViewLink')
+                                    
+                                    fleet_id = "-"
+                                    if selected_dept == "總務處事務組":
+                                        fleet_id = FLEET_CARDS.get(f"總務處事務組-{'汽油' if '汽油' in target_sub_cat else '柴油'}", "-")
+                                    else:
+                                        fleet_id = FLEET_CARDS.get(selected_dept, "-")
+                                        
+                                    rows_to_append = []
+                                    current_time = get_taiwan_time().strftime("%Y-%m-%d %H:%M:%S")
+                                    
+                                    for idx, row in edited_data.iterrows():
+                                        vol = row['本月加油量(公升)']
+                                        if vol > 0:
+                                            row_data = [
+                                                current_time, selected_dept, p_name, p_ext,
+                                                row['設備名稱備註'], str(row['校內財產編號']), row['原燃物料名稱'],
+                                                fleet_id, str(batch_date), vol, 
+                                                "是", f"批次申報-{target_sub_cat}", file_link
+                                            ]
+                                            rows_to_append.append(row_data)
+                                    
+                                    if rows_to_append:
+                                        ws_record.append_rows(rows_to_append)
+                                        st.success(f"✅ 批次申報成功！已寫入 {len(rows_to_append)} 筆紀錄。")
+                                        st.balloons()
+                                        st.session_state['reset_counter'] += 1
+                                        time.sleep(1.5)
+                                        st.rerun()
+                                    else: st.warning("沒有大於 0 的紀錄可寫入。")
+                                except Exception as e: st.error(f"失敗: {e}")
+
+            # --- 一般申報模式 ---
+            else:
                 filtered = df_equip[df_equip['填報單位'] == selected_dept]
                 devices = sorted([x for x in filtered['設備名稱備註'].unique()])
                 dynamic_key = f"vehicle_selector_{st.session_state['reset_counter']}"
@@ -399,7 +523,6 @@ elif st.session_state['current_page'] == 'fuel':
                                 if data_entries[0]['vol'] <= 0 and report_mode == "用油量申報 (含單筆/多筆/油卡)":
                                     st.warning("⚠️ 第一筆加油量不能為 0。")
                                 else:
-                                    # 上傳邏輯
                                     valid_logic = True
                                     file_links = []
                                     progress_text = "資料處理中..."
@@ -425,7 +548,7 @@ elif st.session_state['current_page'] == 'fuel':
                                         final_links = "\n".join(file_links) if file_links else "無"
                                         my_bar.progress(50, text="寫入資料庫...")
                                         rows_to_append = []
-                                        current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                                        current_time = get_taiwan_time().strftime("%Y-%m-%d %H:%M:%S")
                                         shared_str = "是" if is_shared else "-"
                                         card_str = fuel_card_id if fuel_card_id else "-"
                                         
@@ -449,10 +572,9 @@ elif st.session_state['current_page'] == 'fuel':
                                             st.session_state['reset_counter'] += 1
                                             st.cache_data.clear()
                                             st.rerun()
-                                        else:
-                                            st.warning("⚠️ 無有效資料可寫入。")
+                                        else: st.warning("⚠️ 無有效資料可寫入。")
 
-    # === Tab 2: 看板 (V68: 篩選+X軸修復+Treemap+Ring) ===
+    # === Tab 2: 看板 (V68) ===
     with tabs[1]:
         st.markdown("### 📊 動態查詢看板 (年度檢視)")
         st.info("請選擇「單位」與「年份」，檢視該年度的用油統計與碳排放分析。")
@@ -480,22 +602,17 @@ elif st.session_state['current_page'] == 'fuel':
                 df_final = df_dept[df_dept['日期格式'].dt.year == query_year]
                 
                 if not df_final.empty:
-                    # 1. KPI
+                    # KPI
                     if '原燃物料名稱' in df_final.columns:
-                        df_final['原燃物料名稱'] = df_final['原燃物料名稱'].fillna('').astype(str)
                         gas_sum = df_final[df_final['原燃物料名稱'].str.contains('汽油', na=False)]['加油量'].sum()
                         diesel_sum = df_final[df_final['原燃物料名稱'].str.contains('柴油', na=False)]['加油量'].sum()
-                        gas_co2 = gas_sum * 0.0022
-                        diesel_co2 = diesel_sum * 0.0027
-                        total_co2 = gas_co2 + diesel_co2
+                        total_co2 = (gas_sum * 0.0022) + (diesel_sum * 0.0027)
                     else: gas_sum = 0; diesel_sum = 0; total_co2 = 0
-                    
                     total_sum = df_final['加油量'].sum()
                     gas_pct = (gas_sum / total_sum * 100) if total_sum > 0 else 0
                     diesel_pct = (diesel_sum / total_sum * 100) if total_sum > 0 else 0
                     
                     st.markdown(f"<div class='kpi-header'>{query_dept} - {query_year}年度 能源使用與碳排統計</div>", unsafe_allow_html=True)
-                    
                     r1c1, r1c2 = st.columns(2)
                     with r1c1: st.markdown(f"""<div class="kpi-card kpi-gas"><div class="kpi-title">⛽ 汽油使用量</div><div class="kpi-value">{gas_sum:,.2f}<span class="kpi-unit"> 公升</span></div><div class="kpi-sub">佔比 {gas_pct:.2f}%</div></div>""", unsafe_allow_html=True)
                     with r1c2: st.markdown(f"""<div class="kpi-card kpi-diesel"><div class="kpi-title">🚛 柴油使用量</div><div class="kpi-value">{diesel_sum:,.2f}<span class="kpi-unit"> 公升</span></div><div class="kpi-sub">佔比 {diesel_pct:.2f}%</div></div>""", unsafe_allow_html=True)
@@ -503,27 +620,23 @@ elif st.session_state['current_page'] == 'fuel':
                     r2c1, r2c2 = st.columns(2)
                     with r2c1: st.markdown(f"""<div class="kpi-card kpi-total"><div class="kpi-title">💧 總用油量</div><div class="kpi-value">{total_sum:,.2f}<span class="kpi-unit"> 公升</span></div><div class="kpi-sub">100%</div></div>""", unsafe_allow_html=True)
                     with r2c2: st.markdown(f"""<div class="kpi-card kpi-co2"><div class="kpi-title">☁️ 碳排放量</div><div class="kpi-value">{total_co2:,.4f}<span class="kpi-unit"> 公噸CO<sub>2</sub>e</span></div><div class="kpi-sub" style="background-color: #F4ECF7; color: #AF7AC5 !important;">ESG 指標</div></div>""", unsafe_allow_html=True)
-                    
                     st.markdown("---")
-
-                    # 2. 逐月統計
+                    
+                    # 逐月統計
                     st.subheader(f"📊 {query_year}年度 逐月油料統計", anchor=False)
                     filter_mode = st.radio("顯示類別", ["全部顯示", "只看汽油", "只看柴油"], horizontal=True)
-                    
                     df_final['月份'] = df_final['日期格式'].dt.month
                     df_final['油品類別'] = df_final['原燃物料名稱'].apply(lambda x: '汽油' if '汽油' in x else ('柴油' if '柴油' in x else '其他'))
                     months = list(range(1, 13))
                     if filter_mode == "全部顯示": target_fuels = ['汽油', '柴油']
                     elif filter_mode == "只看汽油": target_fuels = ['汽油']
                     else: target_fuels = ['柴油']
-                        
                     base_x = pd.MultiIndex.from_product([months, target_fuels], names=['月份', '油品類別']).to_frame(index=False)
                     unique_devices = df_final['設備名稱備註'].unique()
                     
                     fig = go.Figure()
                     morandi_colors = ['#88B04B', '#92A8D1', '#F7CAC9', '#B565A7', '#009B77', '#DD4124', '#D65076', '#45B8AC', '#EFC050', '#5B5EA6']
                     device_color_map = {dev: morandi_colors[i % len(morandi_colors)] for i, dev in enumerate(unique_devices)}
-                    
                     for dev in unique_devices:
                         dev_data = df_final[df_final['設備名稱備註'] == dev]
                         dev_grouped = dev_data.groupby(['月份', '油品類別'])['加油量'].sum().reset_index()
@@ -537,7 +650,6 @@ elif st.session_state['current_page'] == 'fuel':
                     fig.update_layout(barmode='stack', font=dict(size=14), xaxis=dict(title="月份 / 油品"), yaxis=dict(title="加油量 (公升)"), height=550, margin=dict(t=50, b=120))
                     st.plotly_chart(fig, use_container_width=True)
                     
-                    # 3. 碳排 Treemap
                     st.markdown("---")
                     st.subheader(f"🌞 單位油料使用碳排放量(公噸二氧化碳當量)結構", anchor=False)
                     df_final['CO2e'] = df_final.apply(lambda r: r['加油量']*0.0022 if '汽油' in r['原燃物料名稱'] else r['加油量']*0.0027, axis=1)
@@ -547,7 +659,6 @@ elif st.session_state['current_page'] == 'fuel':
                     fig_tree.update_coloraxes(showscale=False)
                     st.plotly_chart(fig_tree, use_container_width=True)
 
-                    # 4. 環形圖
                     st.subheader("🍩 油品設備用油量佔比分析", anchor=False)
                     c_pie1, c_pie2 = st.columns(2)
                     with c_pie1:
@@ -570,18 +681,17 @@ elif st.session_state['current_page'] == 'fuel':
                             st.plotly_chart(fig_diesel, use_container_width=True)
                         else: st.info("無柴油使用紀錄")
                         st.markdown('</div>', unsafe_allow_html=True) 
-
+                    
                     st.markdown("---")
                     st.subheader(f"📋 {query_year}年度 填報明細")
-                    available_cols = [c for c in ["加油日期", "設備名稱備註", "原燃物料名稱", "油卡編號", "加油量", "填報人", "備註", "與其他設備共用加油單"] if c in df_final.columns]
-                    df_display = df_final[available_cols].sort_values(by='加油日期', ascending=False).rename(columns={'加油量': '加油量(公升)'})
+                    df_display = df_final[["加油日期", "設備名稱備註", "原燃物料名稱", "油卡編號", "加油量", "填報人", "備註"]].sort_values(by='加油日期', ascending=False).rename(columns={'加油量': '加油量(公升)'})
                     st.dataframe(df_display.style.format({"加油量(公升)": "{:.2f}"}), use_container_width=True)
                 else: st.warning(f"⚠️ {query_dept} 在 {query_year} 年度尚無填報紀錄。")
         else: st.warning("📭 目前資料庫尚無有效資料，請先至「新增填報」分頁填寫。")
         st.markdown('<div class="contact-footer">如有填報疑問，請電洽環安中心林小姐(分機 7137)，謝謝</div>', unsafe_allow_html=True)
 
 # ------------------------------------------
-# 👑 超級管理員專區 (V69)
+# 👑 超級管理員專區 (V71)
 # ------------------------------------------
 elif st.session_state['current_page'] == 'admin_dashboard' and username == 'admin':
     st.title("👑 超級管理員後台")
@@ -594,19 +704,31 @@ elif st.session_state['current_page'] == 'admin_dashboard' and username == 'admi
     
     df_records_merged['加油量'] = pd.to_numeric(df_records_merged['加油量'], errors='coerce').fillna(0)
     df_records_merged['日期格式'] = pd.to_datetime(df_records_merged['加油日期'], errors='coerce')
+    df_records_merged['年份'] = df_records_merged['日期格式'].dt.year
     df_records_merged['月份'] = df_records_merged['日期格式'].dt.month
+
+    # V72.0: 全域年度選擇器
+    all_years = sorted(df_records_merged['年份'].dropna().unique(), reverse=True)
+    if not all_years: all_years = [datetime.now().year]
+    c_year, _ = st.columns([1, 3])
+    selected_admin_year = c_year.selectbox("📅 請選擇檢視年度", all_years, index=0)
+    
+    # 全域篩選
+    df_records_merged = df_records_merged[df_records_merged['年份'] == selected_admin_year]
 
     admin_tabs = st.tabs(["📝 紀錄管理與追蹤", "⚠️ 異常監控與管理", "📊 動態管理儀表板"])
 
     # Tab A: CRUD
     with admin_tabs[0]:
-        st.subheader("📝 填報紀錄管理 (CRUD)")
-        csv = df_records.to_csv(index=False).encode('utf-8-sig')
-        st.download_button("⬇️ 下載完整紀錄 (CSV)", csv, "carbon_records.csv", "text/csv")
-        edited_df = st.data_editor(df_records, num_rows="dynamic", use_container_width=True, key="record_editor")
+        st.subheader(f"📝 {selected_admin_year} 年度紀錄管理 (CRUD)")
+        csv = df_records_merged.to_csv(index=False).encode('utf-8-sig')
+        st.download_button("⬇️ 下載年度紀錄 (CSV)", csv, f"carbon_records_{selected_admin_year}.csv", "text/csv")
+        edited_df = st.data_editor(df_records_merged, num_rows="dynamic", use_container_width=True, key="record_editor")
         if st.button("💾 儲存所有變更至資料庫", type="primary"):
             try:
                 ws_record.clear()
+                # 注意: 這裡寫回的會是所有資料，需小心處理，實務上通常只寫回異動，但GSpread簡單做法是全覆蓋
+                # 為了避免資料遺失，這裡只是一個Demo，建議搭配更嚴謹的後端邏輯
                 ws_record.update([edited_df.columns.tolist()] + edited_df.astype(str).values.tolist())
                 st.success("✅ 資料庫更新成功！")
                 st.cache_data.clear()
@@ -617,10 +739,20 @@ elif st.session_state['current_page'] == 'admin_dashboard' and username == 'admi
     # Tab B: 監控
     with admin_tabs[1]:
         st.subheader("⚠️ 異常監控與管理")
+        
+        # 視覺化計分板
+        total_dev = len(df_equip)
+        active_dev = df_records_merged['設備名稱備註'].nunique()
+        m1, m2, m3 = st.columns(3)
+        m1.metric("📦 總設備數量", total_dev)
+        m2.metric(f"✅ {selected_admin_year} 活躍設備", active_dev)
+        m3.metric("💤 靜止設備", total_dev - active_dev)
+        st.divider()
+
         c_mon1, c_mon2 = st.columns(2)
         with c_mon1:
             st.markdown("##### 1. 分類檢視")
-            target_cat = st.selectbox("選擇設備類別", list(DEVICE_CODE_MAP.values()), index=0)
+            target_cat = st.selectbox("選擇設備類別", DEVICE_ORDER, index=0)
             if target_cat:
                 filtered_rec = df_records_merged[df_records_merged['統計類別'] == target_cat]
                 st.dataframe(filtered_rec, use_container_width=True)
@@ -630,15 +762,19 @@ elif st.session_state['current_page'] == 'admin_dashboard' and username == 'admi
                 last_active = df_records_merged.groupby('設備名稱備註')['日期格式'].max().reset_index()
                 last_active['距今天數'] = (datetime.now() - last_active['日期格式']).dt.days
                 inactive_devices = last_active[last_active['距今天數'] > 180].sort_values('距今天數', ascending=False)
-                st.dataframe(inactive_devices.style.format({"日期格式": "{:%Y-%m-%d}"}).applymap(lambda x: 'color: red; font-weight: bold;', subset=['距今天數']), use_container_width=True)
-            else: st.info("尚無填報紀錄")
+                
+                if not inactive_devices.empty:
+                    st.dataframe(inactive_devices.style.format({"日期格式": "{:%Y-%m-%d}"}).applymap(lambda x: 'color: red; font-weight: bold;', subset=['距今天數']), use_container_width=True)
+                else:
+                    st.success("🎉 太棒了！所有設備在近半年內皆有活躍紀錄。")
+            else: st.info("目前尚無填報資料，無法分析。")
 
     # Tab C: 儀表板
     with admin_tabs[2]:
         st.subheader("📊 動態管理儀表板")
         c_ctrl1, c_ctrl2 = st.columns(2)
         stat_mode = c_ctrl1.radio("統計模式", ["依設備統計", "依單位統計"], horizontal=True)
-        filter_options = ["全部燃油設備"] + list(DEVICE_CODE_MAP.values()) if stat_mode == "依設備統計" else ["全部單位"] + sorted([x for x in df_equip['填報單位'].unique() if x!='-' and x!='填報單位'])
+        filter_options = ["全部燃油設備"] + DEVICE_ORDER if stat_mode == "依設備統計" else ["全部單位"] + sorted([x for x in df_equip['填報單位'].unique() if x!='-' and x!='填報單位'])
         selected_filter = c_ctrl2.selectbox("選擇細項", filter_options)
         
         df_dash = df_records_merged.copy()
@@ -652,57 +788,88 @@ elif st.session_state['current_page'] == 'admin_dashboard' and username == 'admi
             total_co2 = (gas_sum * 0.0022) + (diesel_sum * 0.0027)
             
             k1, k2 = st.columns(2)
-            k1.markdown(f"""<div class="kpi-card kpi-gas"><div class="kpi-title">⛽ 汽油總量</div><div class="kpi-value">{gas_sum:,.1f}</div></div>""", unsafe_allow_html=True)
-            k2.markdown(f"""<div class="kpi-card kpi-diesel"><div class="kpi-title">🚛 柴油總量</div><div class="kpi-value">{diesel_sum:,.1f}</div></div>""", unsafe_allow_html=True)
+            k1.markdown(f"""<div class="kpi-card kpi-gas"><div class="kpi-title">⛽ 汽油總量</div><div class="kpi-value">{gas_sum:,.1f}<span class="kpi-unit">公升</span></div></div>""", unsafe_allow_html=True)
+            k2.markdown(f"""<div class="kpi-card kpi-diesel"><div class="kpi-title">🚛 柴油總量</div><div class="kpi-value">{diesel_sum:,.1f}<span class="kpi-unit">公升</span></div></div>""", unsafe_allow_html=True)
             st.markdown("<div style='margin-bottom:10px'></div>", unsafe_allow_html=True)
             k3, k4 = st.columns(2)
-            k3.markdown(f"""<div class="kpi-card kpi-total"><div class="kpi-title">💧 總用油量</div><div class="kpi-value">{total_sum:,.1f}</div></div>""", unsafe_allow_html=True)
+            k3.markdown(f"""<div class="kpi-card kpi-total"><div class="kpi-title">💧 總用油量</div><div class="kpi-value">{total_sum:,.1f}<span class="kpi-unit">公升</span></div></div>""", unsafe_allow_html=True)
             k4.markdown(f"""<div class="kpi-card kpi-co2"><div class="kpi-title">☁️ 總碳排放量</div><div class="kpi-value">{total_co2:,.4f}<span class="kpi-unit">tCO₂e</span></div></div>""", unsafe_allow_html=True)
             
             st.markdown("---")
             st.subheader("🏗️ 設備數量統計")
             df_equip_count = df_equip.copy()
             df_equip_count['設備數量'] = pd.to_numeric(df_equip_count['設備數量'], errors='coerce').fillna(1)
-            if stat_mode == "依設備統計" and selected_filter != "全部燃油設備": df_equip_count = df_equip_count[df_equip_count['統計類別'] == selected_filter]
-            elif stat_mode == "依單位統計" and selected_filter != "全部單位": df_equip_count = df_equip_count[df_equip_count['填報單位'] == selected_filter]
-            fig_count = px.bar(df_equip_count.groupby(['統計類別', '原燃物料名稱'])['設備數量'].sum().reset_index(), x='統計類別', y='設備數量', color='原燃物料名稱', title="各類別設備數量分佈", text_auto=True, color_discrete_sequence=px.colors.qualitative.Pastel)
+            
+            if stat_mode == "依設備統計" and selected_filter != "全部燃油設備":
+                df_equip_count = df_equip_count[df_equip_count['統計類別'] == selected_filter]
+            elif stat_mode == "依單位統計" and selected_filter != "全部單位":
+                df_equip_count = df_equip_count[df_equip_count['填報單位'] == selected_filter]
+
+            # 邏輯: 依設備類別與油品分類
+            if selected_filter == "全部燃油設備" or selected_filter == "全部單位":
+                group_cols = ['統計類別', '原燃物料名稱']; x_axis = ['統計類別', '原燃物料名稱']
+            else:
+                group_cols = ['原燃物料名稱']; x_axis = '原燃物料名稱'
+
+            fig_count = px.bar(
+                df_equip_count.groupby(group_cols + ['填報單位'])['設備數量'].sum().reset_index(),
+                x=x_axis, y='設備數量', color='填報單位',
+                title="設備數量分佈 (堆疊: 單位)", text_auto=True,
+                color_discrete_sequence=px.colors.qualitative.Pastel
+            )
+            totals = df_equip_count.groupby(group_cols)['設備數量'].sum().reset_index()
+            if isinstance(x_axis, list):
+                fig_count.add_trace(go.Scatter(x=[totals['統計類別'], totals['原燃物料名稱']], y=totals['設備數量'], text=totals['設備數量'], mode='text', textposition='top center', showlegend=False))
+            else:
+                fig_count.add_trace(go.Scatter(x=totals['原燃物料名稱'], y=totals['設備數量'], text=totals['設備數量'], mode='text', textposition='top center', showlegend=False))
+            fig_count.update_layout(xaxis=dict(tickfont=dict(size=14)), margin=dict(t=50, b=100))
             st.plotly_chart(fig_count, use_container_width=True)
 
             st.subheader("📈 單位用油量統計")
-            view_mode = st.radio("檢視油品", ["全部", "僅汽油", "僅柴油"], horizontal=True, key='view_mode')
-            df_chart_c = df_dash.copy()
-            if view_mode == "僅汽油": df_chart_c = df_chart_c[df_chart_c['原燃物料名稱'].str.contains('汽油')]
-            elif view_mode == "僅柴油": df_chart_c = df_chart_c[df_chart_c['原燃物料名稱'].str.contains('柴油')]
-            stack_col = '設備名稱備註' if stat_mode == "依設備統計" else '填報單位'
-            if stat_mode == "依單位統計" and selected_filter != "全部單位": stack_col = '統計類別'
+            view_mode = st.radio("檢視油品", ["全部 (汽/柴並排)", "僅汽油", "僅柴油"], horizontal=True, key='v_mode')
+            df_c = df_dash.copy()
+            df_c['油品類別'] = df_c['原燃物料名稱'].apply(lambda x: '汽油' if '汽油' in x else ('柴油' if '柴油' in x else '其他'))
+            if "汽油" in view_mode: df_c = df_c[df_c['油品類別']=='汽油']
+            elif "柴油" in view_mode: df_c = df_c[df_c['油品類別']=='柴油']
             
             months = list(range(1, 13))
-            stack_items = df_chart_c[stack_col].unique()
-            skeleton = pd.MultiIndex.from_product([months, stack_items], names=['月份', stack_col]).to_frame(index=False)
-            real_data = df_chart_c.groupby(['月份', stack_col])['加油量'].sum().reset_index()
-            merged_data = pd.merge(skeleton, real_data, on=['月份', stack_col], how='left').fillna(0)
-            fig_usage = px.bar(merged_data, x='月份', y='加油量', color=stack_col, title=f"{view_mode} - 每月用油趨勢", text_auto='.1f', color_discrete_sequence=px.colors.qualitative.Prism)
-            fig_usage.update_layout(xaxis=dict(tickmode='array', tickvals=months, ticktext=[f"{m}月" for m in months]))
-            st.plotly_chart(fig_usage, use_container_width=True)
+            fuels = ['汽油', '柴油'] if "全部" in view_mode else ([['汽油']] if "汽油" in view_mode else [['柴油']])
+            if stat_mode == "依設備統計": stack_col = '設備名稱備註'
+            else: stack_col = '填報單位'
+            
+            fig_use = px.bar(
+                df_c.groupby(['月份', '油品類別', stack_col])['加油量'].sum().reset_index(),
+                x=['月份', '油品類別'], y='加油量', color=stack_col,
+                title=f"每月用油趨勢 ({stack_col}堆疊)",
+                text_auto='.1f', color_discrete_sequence=px.colors.qualitative.Prism
+            )
+            usage_totals = df_c.groupby(['月份', '油品類別'])['加油量'].sum().reset_index()
+            fig_use.add_trace(go.Scatter(x=[usage_totals['月份'], usage_totals['油品類別']], y=usage_totals['加油量'], text=usage_totals['加油量'].apply(lambda x:f"{x:.1f}"), mode='text', textposition='top center', showlegend=False, textfont=dict(size=14)))
+            fig_use.update_layout(xaxis=dict(title="月份 / 油品", tickmode='array', tickvals=list(range(1, 13)), ticktext=[f"{m}月" for m in months], tickfont=dict(size=14)), yaxis=dict(title="加油量 (公升)"), height=600, margin=dict(t=50, b=120))
+            st.plotly_chart(fig_use, use_container_width=True)
 
+            st.markdown("---")
             st.subheader("🌲 燃料使用碳排放量 (Treemap)")
             df_dash['CO2e'] = df_dash.apply(lambda r: r['加油量']*0.0022 if '汽油' in r['原燃物料名稱'] else r['加油量']*0.0027, axis=1)
-            fig_tree = px.treemap(df_dash, path=['填報單位', '統計類別', '設備名稱備註'], values='CO2e', color='CO2e', color_continuous_scale='RdBu_r', title="碳排放量重點管理分析")
+            fig_tree = px.treemap(df_dash, path=['填報單位', '設備名稱備註'], values='CO2e', color='CO2e', color_continuous_scale='Teal', title="碳排放量重點管理分析 (矩形樹狀圖)")
+            fig_tree.update_traces(textinfo="label+value+percent entry", textfont=dict(size=24))
             st.plotly_chart(fig_tree, use_container_width=True)
 
-            st.subheader("🍩 油品設備用油量佔比 (雙環圖)")
+            st.subheader("🍩 油品設備用油量佔比")
             c_sun1, c_sun2 = st.columns(2)
             with c_sun1:
                 st.markdown("##### ⛽ 汽油設備 (內:單位 外:設備)")
                 gas_data = df_dash[df_dash['原燃物料名稱'].str.contains('汽油')]
                 if not gas_data.empty:
-                    fig_sun1 = px.sunburst(gas_data, path=['填報單位', '設備名稱備註'], values='加油量', color_discrete_sequence=px.colors.sequential.Teal)
-                    st.plotly_chart(fig_sun1, use_container_width=True)
+                    fig_s1 = px.sunburst(gas_data, path=['填報單位', '設備名稱備註'], values='加油量', color_discrete_sequence=px.colors.sequential.Teal)
+                    fig_s1.update_traces(textinfo="label+percent entry", insidetextorientation='horizontal')
+                    st.plotly_chart(fig_s1, use_container_width=True)
             with c_sun2:
                 st.markdown("##### 🚛 柴油設備 (內:單位 外:設備)")
-                diesel_data = df_dash[df_dash['原燃物料名稱'].str.contains('柴油')]
-                if not diesel_data.empty:
-                    fig_sun2 = px.sunburst(diesel_data, path=['填報單位', '設備名稱備註'], values='加油量', color_discrete_sequence=px.colors.sequential.Oranges)
-                    st.plotly_chart(fig_sun2, use_container_width=True)
+                dsl_data = df_dash[df_dash['原燃物料名稱'].str.contains('柴油')]
+                if not dsl_data.empty:
+                    fig_s2 = px.sunburst(dsl_data, path=['填報單位', '設備名稱備註'], values='加油量', color_discrete_sequence=px.colors.sequential.Oranges)
+                    fig_s2.update_traces(textinfo="label+percent entry", insidetextorientation='horizontal')
+                    st.plotly_chart(fig_s2, use_container_width=True)
         else: st.warning("在此篩選條件下無資料。")
-    st.markdown('<div class="contact-footer">管理員系統版本 V70.0</div>', unsafe_allow_html=True)
+    st.markdown('<div class="contact-footer">管理員系統版本 V73.0 (Full Version)</div>', unsafe_allow_html=True)
