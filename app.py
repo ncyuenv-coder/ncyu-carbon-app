@@ -23,7 +23,7 @@ def get_taiwan_time():
 st.markdown("""
 <style>
     /* =========================================
-       🎨 V84.0 終極修復與美學升級版 (True Morandi & HTML Fix)
+       🎨 V85.0 終極除錯版 (Clean HTML & Text Count)
        ========================================= */
 
     /* 1. 強制亮色模式 */
@@ -121,7 +121,7 @@ st.markdown("""
         color: #2E86C1 !important; 
     }
 
-    /* 7. 卡片樣式 */
+    /* 7. 卡片樣式 (Fix HTML issues) */
     .batch-card, .equip-card {
         background-color: #FFFFFF; border: 1px solid #BDC3C7;
         border-radius: 10px; margin-bottom: 15px;
@@ -130,7 +130,7 @@ st.markdown("""
     }
     .batch-card { padding: 15px; border-left: 5px solid #E67E22; }
     
-    /* V84: 設備卡片 - 標題區 (顏色由 Python 控制) */
+    /* V85: 設備卡片 - 標題區 */
     .equip-header {
         padding: 12px 15px;
         border-bottom: 1px solid #BDC3C7;
@@ -148,7 +148,7 @@ st.markdown("""
     .equip-body { padding: 15px; display: flex; flex-direction: column; gap: 8px; }
     .equip-info { font-size: 0.9rem; line-height: 1.5; color: #34495E; }
     
-    /* 底部欄 (次數與日期) */
+    /* V85: 底部欄 (純文字次數) */
     .equip-footer { 
         margin-top: 10px; padding-top: 10px; border-top: 1px dashed #D7DBDD;
         display: flex; justify-content: space-between; align-items: center;
@@ -156,7 +156,7 @@ st.markdown("""
     .status-badge { display: inline-block; padding: 4px 10px; border-radius: 12px; font-size: 0.8rem; font-weight: bold; }
     .status-warn { background-color: #FADBD8; color: #943126; border: 1px solid #F1948A;}
     .last-date { font-size: 0.85rem; color: #7F8C8D; font-style: italic;}
-    .count-tag { font-size: 0.85rem; color: #2C3E50; font-weight: bold; background-color: #F2F3F4; padding: 2px 8px; border-radius: 4px; border: 1px solid #D7DBDD;}
+    .count-text { font-size: 0.9rem; color: #2C3E50; font-weight: 800; margin-right: 8px; }
 
     /* 8. KPI 卡片 */
     .kpi-header { font-size: 1.5rem; font-weight: 800; color: var(--text-main) !important; margin-bottom: 20px; text-align: center; background-color: #D6DBDF; padding: 10px; border-radius: 12px; }
@@ -206,7 +206,7 @@ DEVICE_CODE_MAP = {
     "GS-1": "鍋爐(GS-1-)", "GS-2": "發電機(GS-2-)", "GS-3": "肩背或手持式割草機、吹葉機(GS-3-)", "GS-4": "肩背或手持式農用機具(GS-4-)"
 }
 
-# --- V84: 正統莫蘭迪色卡 (True Morandi) ---
+# --- V85: 正統莫蘭迪色卡 ---
 MORANDI_COLORS = {
     "公務車輛(GV-1-)": "#D6DBDF",       # 霧灰藍
     "乘坐式割草機(GV-2-)": "#E5E8E8",     # 雲霧白
@@ -703,7 +703,7 @@ elif st.session_state['current_page'] == 'fuel':
         st.markdown('<div class="contact-footer">如有填報疑問，請電洽環安中心林小姐(分機 7137)，謝謝</div>', unsafe_allow_html=True)
 
 # ------------------------------------------
-# 👑 超級管理員專區 (V84.0: 終極修復版)
+# 👑 超級管理員專區 (V85.0: 終極除錯版)
 # ------------------------------------------
 elif st.session_state['current_page'] == 'admin_dashboard' and username == 'admin':
     st.title("👑 超級管理員後台")
@@ -716,7 +716,6 @@ elif st.session_state['current_page'] == 'admin_dashboard' and username == 'admi
     
     df_records_merged['加油量'] = pd.to_numeric(df_records_merged['加油量'], errors='coerce').fillna(0)
     df_records_merged['日期格式'] = pd.to_datetime(df_records_merged['加油日期'], errors='coerce')
-    # V84: 強制轉為整數年份，去除小數點
     df_records_merged['年份'] = df_records_merged['日期格式'].dt.year.fillna(0).astype(int)
     df_records_merged['月份'] = df_records_merged['日期格式'].dt.month
 
@@ -731,7 +730,7 @@ elif st.session_state['current_page'] == 'admin_dashboard' and username == 'admi
 
     admin_tabs = st.tabs(["📝 全校燃油設備總覽", "🔍 申報資料異動", "📊 動態管理儀表板"])
 
-    # === Tab A: 全校燃油設備總覽 (V84.0: HTML 修復 + 莫蘭迪色升級) ===
+    # === Tab A: 全校燃油設備總覽 (V85.0: HTML Fix) ===
     with admin_tabs[0]:
         if not df_records_merged.empty and not df_equip.empty:
             annual_sum = df_records_merged.groupby('設備名稱備註')['加油量'].sum().reset_index()
@@ -779,7 +778,8 @@ elif st.session_state['current_page'] == 'admin_dashboard' and username == 'admi
                             
                             fuel_type = "⛽" if "汽油" in str(row['原燃物料名稱']) else "🚛"
                             
-                            # V84: HTML 結構與閉合檢查
+                            # V85.0: HTML 結構平面化，根除亂碼
+                            # 申報次數改為純文字 (text-only count)
                             st.markdown(f"""
                             <div class="equip-card">
                                 <div class="equip-header" style="background-color: {header_color};">
@@ -799,8 +799,8 @@ elif st.session_state['current_page'] == 'admin_dashboard' and username == 'admi
                                     </div>
                                     <div class="equip-footer">
                                         <div class="last-date">最後申報日期: {last_date_str}</div>
-                                        <div style="display:flex; align-items:center; gap:5px;">
-                                            <span class="count-tag">次數: {row['申報次數']}</span>
+                                        <div style="display:flex; align-items:center;">
+                                            <span class="count-text">申報次數: {row['申報次數']}</span>
                                             {status_html}
                                         </div>
                                     </div>
@@ -828,7 +828,7 @@ elif st.session_state['current_page'] == 'admin_dashboard' and username == 'admi
                 },
                 num_rows="dynamic", 
                 use_container_width=True, 
-                key="record_editor_v84"
+                key="record_editor_v85"
             )
             
             if st.button("💾 儲存變更", type="primary"):
@@ -845,7 +845,7 @@ elif st.session_state['current_page'] == 'admin_dashboard' and username == 'admi
         else:
             st.info(f"{selected_admin_year} 年度尚無資料。")
 
-    # === Tab C: 儀表板 (V84.0: 型別安全修復) ===
+    # === Tab C: 儀表板 (同 V84) ===
     with admin_tabs[2]:
         st.subheader("📊 動態管理儀表板")
         if not df_records_merged.empty:
@@ -861,7 +861,6 @@ elif st.session_state['current_page'] == 'admin_dashboard' and username == 'admi
                 df_dash = df_dash[df_dash['填報單位'] == selected_filter]
 
             if not df_dash.empty:
-                # KPI
                 gas_sum = df_dash[df_dash['原燃物料名稱'].str.contains('汽油', na=False)]['加油量'].sum()
                 diesel_sum = df_dash[df_dash['原燃物料名稱'].str.contains('柴油', na=False)]['加油量'].sum()
                 total_sum = df_dash['加油量'].sum()
@@ -872,11 +871,10 @@ elif st.session_state['current_page'] == 'admin_dashboard' and username == 'admi
                 k2.markdown(f"""<div class="kpi-card kpi-diesel"><div class="kpi-title">🚛 柴油總量</div><div class="kpi-value">{diesel_sum:,.2f}<span class="kpi-unit">公升</span></div></div>""", unsafe_allow_html=True)
                 st.markdown("<div style='margin-bottom:10px'></div>", unsafe_allow_html=True)
                 k3, k4 = st.columns(2)
-                k3.markdown(f"""<div class="kpi-card kpi-total"><div class="kpi-title">💧 總用油量</div><div class="kpi-value">{total_sum:,.2f}<span class="kpi-unit">公升</span></div></div>""", unsafe_allow_html=True)
+                k3.markdown(f"""<div class="kpi-card kpi-total"><div class="kpi-title">💧 總用油量</div><div class="kpi-value">{total_sum:,.1f}<span class="kpi-unit">公升</span></div></div>""", unsafe_allow_html=True)
                 k4.markdown(f"""<div class="kpi-card kpi-co2"><div class="kpi-title">☁️ 總碳排放量</div><div class="kpi-value">{total_co2:,.4f}<span class="kpi-unit">tCO₂e</span></div></div>""", unsafe_allow_html=True)
                 
                 st.markdown("---")
-                # Chart B
                 st.subheader("🏗️ 設備數量統計")
                 df_equip_count = df_equip.copy()
                 df_equip_count['設備數量'] = pd.to_numeric(df_equip_count['設備數量'], errors='coerce').fillna(1)
@@ -891,7 +889,6 @@ elif st.session_state['current_page'] == 'admin_dashboard' and username == 'admi
                 fig_count = px.bar(df_equip_count.groupby(group_cols + ['填報單位'])['設備數量'].sum().reset_index(), x=x_axis, y='設備數量', color='填報單位', title="設備數量分佈 (堆疊: 單位)", text_auto=True, color_discrete_sequence=px.colors.qualitative.Pastel)
                 st.plotly_chart(fig_count, use_container_width=True)
 
-                # Chart C
                 st.subheader("📈 單位用油量統計")
                 view_mode = st.radio("檢視油品", ["全部 (汽/柴並排)", "僅汽油", "僅柴油"], horizontal=True, key='v_mode')
                 df_c = df_dash.copy()
@@ -902,7 +899,6 @@ elif st.session_state['current_page'] == 'admin_dashboard' and username == 'admi
                 if stat_mode == "依設備統計": stack_col = '設備名稱備註'
                 else: stack_col = '填報單位'
                 
-                # V84: 強制轉型 (Type Casting)
                 df_c[stack_col] = df_c[stack_col].fillna("未分類").astype(str)
                 df_c['月份'] = df_c['月份'].fillna(0).astype(int)
                 df_c['油品類別'] = df_c['油品類別'].fillna("其他").astype(str)
@@ -917,7 +913,6 @@ elif st.session_state['current_page'] == 'admin_dashboard' and username == 'admi
                 st.plotly_chart(fig_use, use_container_width=True)
 
                 st.markdown("---")
-                # Chart D & E
                 st.subheader("🌲 燃料使用碳排放量 (Treemap)")
                 df_dash['CO2e'] = df_dash.apply(lambda r: r['加油量']*0.0022 if '汽油' in r['原燃物料名稱'] else r['加油量']*0.0027, axis=1)
                 fig_tree = px.treemap(df_dash, path=['填報單位', '設備名稱備註'], values='CO2e', color='CO2e', color_continuous_scale='Teal', title="碳排放量重點管理分析 (矩形樹狀圖)")
@@ -945,4 +940,4 @@ elif st.session_state['current_page'] == 'admin_dashboard' and username == 'admi
         else:
             st.info("尚無該年度資料，無法顯示儀表板。")
 
-    st.markdown('<div class="contact-footer">管理員系統版本 V84.0 (The Final Fix)</div>', unsafe_allow_html=True)
+    st.markdown('<div class="contact-footer">管理員系統版本 V85.0 (Clean HTML Fix)</div>', unsafe_allow_html=True)
