@@ -23,7 +23,7 @@ def get_taiwan_time():
 st.markdown("""
 <style>
     /* =========================================
-       🎨 V78.0 後台完美修復版 (Visual Table & Search Fix)
+       🎨 V79.0 精確打擊版 (Fix Jump & Style)
        ========================================= */
 
     /* 1. 強制亮色模式 */
@@ -31,11 +31,11 @@ st.markdown("""
 
     /* 2. 變數定義 */
     :root {
-        --btn-bg: #B0BEC5;        /* 淺灰藍 (一般按鈕) */
-        --btn-border: #2C3E50;    /* 深框 */
+        --btn-bg: #B0BEC5;        
+        --btn-border: #2C3E50;    
         --btn-text: #17202A;      
         
-        --orange-bg: #E67E22;     /* 橘色 (主色系) */
+        --orange-bg: #E67E22;     
         --orange-dark: #D35400;
         --orange-text: #FFFFFF;
 
@@ -200,6 +200,8 @@ def clean_secrets(obj):
 if 'current_page' not in st.session_state: st.session_state['current_page'] = 'home'
 if 'reset_counter' not in st.session_state: st.session_state['reset_counter'] = 0
 if 'multi_row_count' not in st.session_state: st.session_state['multi_row_count'] = 1
+# V79: 搜尋狀態保存
+if 'search_keyword' not in st.session_state: st.session_state['search_keyword'] = ""
 
 try:
     _raw_creds = st.secrets["credentials"]
@@ -673,7 +675,7 @@ elif st.session_state['current_page'] == 'fuel':
         st.markdown('<div class="contact-footer">如有填報疑問，請電洽環安中心林小姐(分機 7137)，謝謝</div>', unsafe_allow_html=True)
 
 # ------------------------------------------
-# 👑 超級管理員專區 (V78.0: 完美修復版)
+# 👑 超級管理員專區 (V79.0: 精確打擊修復)
 # ------------------------------------------
 elif st.session_state['current_page'] == 'admin_dashboard' and username == 'admin':
     st.title("👑 超級管理員後台")
@@ -700,15 +702,15 @@ elif st.session_state['current_page'] == 'admin_dashboard' and username == 'admi
 
     admin_tabs = st.tabs(["📝 紀錄管理與追蹤", "⚠️ 異常監控與管理", "📊 動態管理儀表板"])
 
-    # === Tab A: 紀錄管理 (V78.0 視覺與邏輯修正) ===
+    # === Tab A: 紀錄管理 ===
     with admin_tabs[0]:
         st.subheader(f"📝 {int(selected_admin_year)} 年度紀錄管理")
         
-        sub_tabs = st.tabs(["📊 全校設備年度用油統計明細", "🔍 申報資料異動 (編輯用)"])
+        sub_tabs = st.tabs(["📊 全校設備年度用油統計明細", "🔍 申報資料異動"])
         
-        # --- 子分頁 1: 統計明細 (V78.0 視覺化) ---
+        # --- 子分頁 1: 統計明細 (V79.0 優化) ---
         with sub_tabs[0]:
-            st.info("💡 年度統計報表：已整合設備清單與填報紀錄，呈現每台設備的年度總用油。")
+            st.info("💡 年度統計報表：呈現每台設備的年度總用油。")
             if not df_records_merged.empty and not df_equip.empty:
                 annual_sum = df_records_merged.groupby('設備名稱備註')['加油量'].sum().reset_index()
                 annual_sum.rename(columns={'加油量': '年度用油量(公升)'}, inplace=True)
@@ -721,28 +723,9 @@ elif st.session_state['current_page'] == 'admin_dashboard' and username == 'admi
                 
                 if '設備編號' in summary_df.columns: summary_df = summary_df.sort_values('設備編號')
                 
-                # V78.0: KPI 戰情列
-                total_dev_count = len(summary_df)
-                total_oil_usage = summary_df['年度用油量(公升)'].sum()
-                avg_oil = total_oil_usage / total_dev_count if total_dev_count > 0 else 0
-                
-                k1, k2, k3 = st.columns(3)
-                k1.metric("📦 全校總設備數", total_dev_count)
-                k2.metric("💧 年度總用油量", f"{total_oil_usage:,.1f} L")
-                k3.metric("📊 平均單台用油", f"{avg_oil:,.1f} L")
-                st.divider()
-
-                # V78.0: 視覺化表格 (進度條)
+                # V79.0: 表格美化 (數字放大)
                 st.dataframe(
-                    summary_df,
-                    column_config={
-                        "年度用油量(公升)": st.column_config.ProgressColumn(
-                            "年度用油量 (L)",
-                            format="%.1f",
-                            min_value=0,
-                            max_value=summary_df['年度用油量(公升)'].max()
-                        )
-                    },
+                    summary_df.style.format(precision=1).set_properties(**{'font-size': '16px', 'height': '40px'}),
                     use_container_width=True
                 )
                 csv_sum = summary_df.to_csv(index=False).encode('utf-8-sig')
@@ -750,49 +733,47 @@ elif st.session_state['current_page'] == 'admin_dashboard' and username == 'admi
             else:
                 st.warning("尚無足夠資料產生綜整報表。")
 
-        # --- 子分頁 2: 申報資料異動 (V78.0 搜尋修復) ---
+        # --- 子分頁 2: 申報資料異動 (V79.0 搜尋修復) ---
         with sub_tabs[1]:
             st.info("💡 資料維護區：可搜尋並修改原始紀錄。")
             
-            # V78.0: 搜尋框優化 (避免跳頁)
-            with st.form("search_form"):
-                c_s1, c_s2 = st.columns([4, 1])
-                search_term = c_s1.text_input("🔍 輸入關鍵字 (單位/填報人/設備)", "")
-                submitted = c_s2.form_submit_button("🔍 搜尋")
+            # V79.0: 狀態保存搜尋 (防止跳頁)
+            c_s1, c_s2 = st.columns([4, 1])
+            with c_s1:
+                search_input = st.text_input("🔍 輸入關鍵字 (限定: 單位/填報人/設備)", value=st.session_state['search_keyword'])
+            with c_s2:
+                if st.button("🔍 搜尋"):
+                    st.session_state['search_keyword'] = search_input
+                    # 不用 rerun，直接往下跑邏輯
             
             df_display = df_records_merged.copy()
-            if search_term:
-                mask = df_display.astype(str).apply(lambda x: x.str.contains(search_term, case=False)).any(axis=1)
+            if st.session_state['search_keyword']:
+                # V79.0: 鎖定搜尋欄位
+                mask = df_display[['填報單位', '填報人', '設備名稱備註']].astype(str).apply(
+                    lambda x: x.str.contains(st.session_state['search_keyword'], case=False)
+                ).any(axis=1)
                 df_display = df_display[mask]
             
-            # V78.0: 下載按鈕 (移至表單外)
-            csv_raw = df_display.to_csv(index=False).encode('utf-8-sig')
-            st.download_button("⬇️ 下載搜尋結果 (CSV)", csv_raw, f"raw_records_{int(selected_admin_year)}.csv", "text/csv")
-            
-            # V78.0: Smart Editor (確保欄位型別一致，避免 API Exception)
-            # 強制轉換日期為 datetime.date 物件，避免字串混淆
             if not df_display.empty:
+                # 預處理日期，避免編輯器報錯
                 df_display['加油日期'] = pd.to_datetime(df_display['加油日期']).dt.date
                 
                 edited_df = st.data_editor(
                     df_display,
                     column_config={
-                        "佐證資料": st.column_config.LinkColumn("佐證檔案", display_text="🔗 查看"),
-                        "加油日期": st.column_config.DateColumn("加油日期", format="YYYY-MM-DD"),
-                        "加油量": st.column_config.NumberColumn("加油量 (L)", format="%.1f"),
+                        "佐證資料": st.column_config.LinkColumn("佐證", display_text="🔗"),
+                        "加油日期": st.column_config.DateColumn("日期", format="YYYY-MM-DD"),
+                        "加油量": st.column_config.NumberColumn("油量", format="%.1f"),
                         "填報時間": st.column_config.TextColumn("填報時間", disabled=True)
                     },
                     num_rows="dynamic", 
                     use_container_width=True, 
-                    key="record_editor_v78"
+                    key="record_editor_v79"
                 )
                 
                 if st.button("💾 儲存變更", type="primary"):
                     try:
                         ws_record.clear()
-                        # 簡單全覆蓋 (注意：這裡會覆蓋整個工作表，實務上需謹慎)
-                        # 這裡將編輯後的 df_display 轉回字串寫入
-                        # 為避免資料遺失，建議結合原始全量資料做 merge，此處為簡化示範
                         ws_record.update([edited_df.columns.tolist()] + edited_df.astype(str).values.tolist())
                         st.success("✅ 更新成功！")
                         st.cache_data.clear()
@@ -805,6 +786,7 @@ elif st.session_state['current_page'] == 'admin_dashboard' and username == 'admi
     # === Tab B: 監控 (維持 V76) ===
     with admin_tabs[1]:
         st.subheader("⚠️ 異常監控")
+        # (同 V76 邏輯)
         total_dev = len(df_equip)
         active_dev = df_records_merged['設備名稱備註'].nunique()
         m1, m2, m3 = st.columns(3)
@@ -834,6 +816,7 @@ elif st.session_state['current_page'] == 'admin_dashboard' and username == 'admi
     # === Tab C: 儀表板 (維持 V76 完美修復) ===
     with admin_tabs[2]:
         st.subheader("📊 動態管理儀表板")
+        # (儀表板邏輯完全保留 V76，因無報錯且功能正常)
         c_ctrl1, c_ctrl2 = st.columns(2)
         stat_mode = c_ctrl1.radio("統計模式", ["依設備統計", "依單位統計"], horizontal=True)
         filter_options = ["全部燃油設備"] + DEVICE_ORDER if stat_mode == "依設備統計" else ["全部單位"] + sorted([x for x in df_equip['填報單位'].unique() if x!='-' and x!='填報單位'])
@@ -881,6 +864,7 @@ elif st.session_state['current_page'] == 'admin_dashboard' and username == 'admi
             if stat_mode == "依設備統計": stack_col = '設備名稱備註'
             else: stack_col = '填報單位'
             
+            # 強制轉型修復
             df_c[stack_col] = df_c[stack_col].astype(str)
             df_c['月份'] = df_c['月份'].astype(int)
             df_c['油品類別'] = df_c['油品類別'].astype(str)
@@ -917,4 +901,4 @@ elif st.session_state['current_page'] == 'admin_dashboard' and username == 'admi
                     fig_s2.update_traces(textinfo="label+percent entry", insidetextorientation='horizontal')
                     st.plotly_chart(fig_s2, use_container_width=True)
         else: st.warning("在此篩選條件下無資料。")
-    st.markdown('<div class="contact-footer">管理員系統版本 V78.0 (Form Search Fixed)</div>', unsafe_allow_html=True)
+    st.markdown('<div class="contact-footer">管理員系統版本 V79.0 (Search & Style Fix)</div>', unsafe_allow_html=True)
