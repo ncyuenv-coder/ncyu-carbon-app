@@ -23,7 +23,7 @@ def get_taiwan_time():
 st.markdown("""
 <style>
     /* =========================================
-       🎨 V79.0 精確打擊版 (Fix Jump & Style)
+       🎨 V80.0 超級管理員旗艦整合版 (Card View + Fixes)
        ========================================= */
 
     /* 1. 強制亮色模式 */
@@ -45,11 +45,9 @@ st.markdown("""
         --text-sub: #566573;
         --border-color: #BDC3C7;
         
-        /* KPI 配色 */
-        --kpi-gas-border: #52BE80;
-        --kpi-diesel-border: #F4D03F;
-        --kpi-total-border: #5DADE2;
-        --kpi-co2-border: #AF7AC5;
+        /* 莫蘭迪標題色 (依照設備分組用) */
+        --header-blue: #90A4AE;
+        --header-green: #A5D6A7;
     }
 
     /* 3. 全域設定 */
@@ -118,27 +116,40 @@ st.markdown("""
         color: #2E86C1 !important; 
     }
 
-    /* 7. 批次申報卡片樣式 */
-    .batch-card {
+    /* 7. 批次申報 & 設備統計卡片樣式 (V80.0) */
+    .batch-card, .equip-card {
         background-color: #FFFFFF; border: 1px solid #BDC3C7;
-        border-radius: 10px; padding: 15px; margin-bottom: 15px;
-        border-left: 5px solid #E67E22; box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        border-radius: 10px; margin-bottom: 15px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        overflow: hidden;
     }
-    .batch-title { font-size: 1.2rem; font-weight: bold; color: #2C3E50; margin-bottom: 5px; }
-    .batch-info { font-size: 0.95rem; color: #566573; margin-bottom: 2px; }
-    .batch-tag { background-color: #FDEBD0; color: #E67E22; padding: 2px 8px; border-radius: 10px; font-size: 0.85rem; font-weight: bold; }
+    .batch-card { padding: 15px; border-left: 5px solid #E67E22; }
+    
+    /* V80.0: 設備卡片標題區 */
+    .equip-header {
+        background-color: #CFD8DC; /* 莫蘭迪灰藍 */
+        padding: 15px;
+        border-bottom: 1px solid #BDC3C7;
+        display: flex; justify-content: space-between; align-items: center;
+    }
+    .equip-title-group { display: flex; flex-direction: column; }
+    .equip-code { font-size: 1.1rem; font-weight: bold; color: #37474F; }
+    .equip-name { font-size: 1.0rem; color: #546E7A; }
+    
+    .equip-fuel-group { text-align: right; }
+    .equip-vol { font-size: 1.8rem; font-weight: 900; color: #E67E22; } /* 油量大字 */
+    .equip-fuel-type { font-size: 0.9rem; color: #566573; font-weight: bold; background: #FFF; padding: 2px 6px; border-radius: 4px; margin-left: 5px;}
+
+    .equip-body { padding: 15px; display: flex; justify-content: space-between; flex-wrap: wrap; }
+    .equip-info { flex: 2; font-size: 0.95rem; line-height: 1.6; color: #2C3E50; }
+    .equip-status { flex: 1; text-align: right; border-left: 2px solid #EAEDED; padding-left: 15px; }
+    .status-badge { display: inline-block; padding: 4px 12px; border-radius: 15px; font-size: 0.85rem; font-weight: bold; }
+    .status-ok { background-color: #D5F5E3; color: #196F3D; }
+    .status-warn { background-color: #FADBD8; color: #943126; }
 
     /* 8. KPI 卡片 */
-    .kpi-header {
-        font-size: 1.5rem; font-weight: 800; color: var(--text-main) !important;
-        margin-bottom: 20px; text-align: center; background-color: #D6DBDF;
-        padding: 10px; border-radius: 12px;
-    }
-    .kpi-card {
-        padding: 20px; border-radius: 15px; text-align: center;
-        background-color: var(--card-bg); box-shadow: 0 4px 10px rgba(0,0,0,0.1);
-        border: 1px solid var(--border-color); height: 100%;
-    }
+    .kpi-header { font-size: 1.5rem; font-weight: 800; color: var(--text-main) !important; margin-bottom: 20px; text-align: center; background-color: #D6DBDF; padding: 10px; border-radius: 12px; }
+    .kpi-card { padding: 20px; border-radius: 15px; text-align: center; background-color: var(--card-bg); box-shadow: 0 4px 10px rgba(0,0,0,0.1); border: 1px solid var(--border-color); height: 100%; }
     .kpi-card:hover { transform: translateY(-5px); box-shadow: 0 10px 20px rgba(0,0,0,0.15); }
     .kpi-gas { border-bottom: 6px solid var(--kpi-gas-border); }   
     .kpi-diesel { border-bottom: 6px solid var(--kpi-diesel-border); } 
@@ -147,10 +158,7 @@ st.markdown("""
     .kpi-title { font-size: 1.1rem; font-weight: bold; opacity: 0.8; color: var(--text-sub) !important; }
     .kpi-value { font-size: 2.5rem; font-weight: 800; color: var(--text-main) !important; margin: 5px 0;}
     .kpi-unit { font-size: 0.9rem; font-weight: normal; color: var(--text-sub) !important; margin-left: 2px;}
-    .kpi-sub { 
-        font-size: 0.9rem; color: #C0392B !important; font-weight: 700; 
-        background-color: rgba(192, 57, 43, 0.1); padding: 2px 10px; border-radius: 20px; display: inline-block;
-    }
+    .kpi-sub { font-size: 0.9rem; color: #C0392B !important; font-weight: 700; background-color: rgba(192, 57, 43, 0.1); padding: 2px 10px; border-radius: 20px; display: inline-block; }
 
     /* 9. 其他樣式 */
     .device-info-box { background-color: var(--card-bg); border: 2px solid #5DADE2; border-radius: 10px; padding: 20px; margin-bottom: 20px; }
@@ -162,7 +170,8 @@ st.markdown("""
     button[data-baseweb="tab"] div p { font-size: 1.6rem !important; font-weight: 900 !important; color: var(--text-sub); }
     button[data-baseweb="tab"][aria-selected="true"] div p { color: #E67E22 !important; border-bottom: 3px solid #E67E22; }
     
-    .search-container { background-color: #FFFFFF; padding: 15px; border-radius: 10px; border: 1px solid #BDC3C7; margin-bottom: 10px; }
+    /* V80: 搜尋框放大優化 */
+    input[aria-label="搜尋框"] { height: 50px !important; font-size: 1.2rem !important; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -200,7 +209,6 @@ def clean_secrets(obj):
 if 'current_page' not in st.session_state: st.session_state['current_page'] = 'home'
 if 'reset_counter' not in st.session_state: st.session_state['reset_counter'] = 0
 if 'multi_row_count' not in st.session_state: st.session_state['multi_row_count'] = 1
-# V79: 搜尋狀態保存
 if 'search_keyword' not in st.session_state: st.session_state['search_keyword'] = ""
 
 try:
@@ -675,7 +683,7 @@ elif st.session_state['current_page'] == 'fuel':
         st.markdown('<div class="contact-footer">如有填報疑問，請電洽環安中心林小姐(分機 7137)，謝謝</div>', unsafe_allow_html=True)
 
 # ------------------------------------------
-# 👑 超級管理員專區 (V79.0: 精確打擊修復)
+# 👑 超級管理員專區 (V80.0: 卡片整合版)
 # ------------------------------------------
 elif st.session_state['current_page'] == 'admin_dashboard' and username == 'admin':
     st.title("👑 超級管理員後台")
@@ -688,11 +696,11 @@ elif st.session_state['current_page'] == 'admin_dashboard' and username == 'admi
     
     df_records_merged['加油量'] = pd.to_numeric(df_records_merged['加油量'], errors='coerce').fillna(0)
     df_records_merged['日期格式'] = pd.to_datetime(df_records_merged['加油日期'], errors='coerce')
-    df_records_merged['年份'] = df_records_merged['日期格式'].dt.year
+    df_records_merged['年份'] = df_records_merged['日期格式'].dt.year.fillna(0).astype(int) # V80.0 修復年份小數點
     df_records_merged['月份'] = df_records_merged['日期格式'].dt.month
 
     # 年度選擇器
-    all_years = sorted(df_records_merged['年份'].dropna().unique(), reverse=True)
+    all_years = sorted(df_records_merged['年份'][df_records_merged['年份']>0].unique(), reverse=True)
     if not all_years: all_years = [datetime.now().year]
     c_year, _ = st.columns([1, 3])
     selected_admin_year = c_year.selectbox("📅 請選擇檢視年度", all_years, index=0)
@@ -700,123 +708,145 @@ elif st.session_state['current_page'] == 'admin_dashboard' and username == 'admi
     # 全域篩選
     df_records_merged = df_records_merged[df_records_merged['年份'] == selected_admin_year]
 
-    admin_tabs = st.tabs(["📝 紀錄管理與追蹤", "⚠️ 異常監控與管理", "📊 動態管理儀表板"])
+    admin_tabs = st.tabs(["📝 紀錄管理與追蹤 (含監控)", "🔍 申報資料異動", "📊 動態管理儀表板"])
 
-    # === Tab A: 紀錄管理 ===
+    # === Tab A: 紀錄管理 (V80.0 整合版) ===
     with admin_tabs[0]:
-        st.subheader(f"📝 {int(selected_admin_year)} 年度紀錄管理")
+        st.subheader(f"📊 全校設備年度用油統計明細 ({selected_admin_year})")
+        st.info("💡 卡片式管理：整合了設備清單、年度累計油量、以及申報監控狀態。")
         
-        sub_tabs = st.tabs(["📊 全校設備年度用油統計明細", "🔍 申報資料異動"])
-        
-        # --- 子分頁 1: 統計明細 (V79.0 優化) ---
-        with sub_tabs[0]:
-            st.info("💡 年度統計報表：呈現每台設備的年度總用油。")
-            if not df_records_merged.empty and not df_equip.empty:
-                annual_sum = df_records_merged.groupby('設備名稱備註')['加油量'].sum().reset_index()
-                annual_sum.rename(columns={'加油量': '年度用油量(公升)'}, inplace=True)
-                
-                target_cols = ['設備編號', '設備名稱備註', '原燃物料名稱', '設備數量', '設備所屬單位/部門', '保管人']
-                existing_cols = [c for c in target_cols if c in df_equip.columns]
-                
-                summary_df = pd.merge(df_equip[existing_cols], annual_sum, on='設備名稱備註', how='left')
-                summary_df['年度用油量(公升)'] = summary_df['年度用油量(公升)'].fillna(0)
-                
-                if '設備編號' in summary_df.columns: summary_df = summary_df.sort_values('設備編號')
-                
-                # V79.0: 表格美化 (數字放大)
-                st.dataframe(
-                    summary_df.style.format(precision=1).set_properties(**{'font-size': '16px', 'height': '40px'}),
-                    use_container_width=True
-                )
-                csv_sum = summary_df.to_csv(index=False).encode('utf-8-sig')
-                st.download_button("⬇️ 下載統計報表 (CSV)", csv_sum, f"summary_report_{int(selected_admin_year)}.csv", "text/csv")
-            else:
-                st.warning("尚無足夠資料產生綜整報表。")
+        if not df_records_merged.empty and not df_equip.empty:
+            # 計算年度加總
+            annual_sum = df_records_merged.groupby('設備名稱備註')['加油量'].sum().reset_index()
+            annual_sum.rename(columns={'加油量': '年度用油量'}, inplace=True)
+            
+            # 計算申報次數 & 最後時間
+            last_report = df_records_merged.groupby('設備名稱備註')['日期格式'].max().reset_index()
+            report_count = df_records_merged.groupby('設備名稱備註').size().reset_index(name='申報次數')
+            
+            # 合併資料
+            target_cols = ['設備編號', '設備名稱備註', '原燃物料名稱', '設備數量', '設備所屬單位/部門', '保管人', '設備詳細位置/樓層', '統計類別']
+            existing_cols = [c for c in target_cols if c in df_equip.columns]
+            
+            summary_df = pd.merge(df_equip[existing_cols], annual_sum, on='設備名稱備註', how='left')
+            summary_df = pd.merge(summary_df, last_report, on='設備名稱備註', how='left')
+            summary_df = pd.merge(summary_df, report_count, on='設備名稱備註', how='left')
+            
+            summary_df['年度用油量'] = summary_df['年度用油量'].fillna(0)
+            summary_df['申報次數'] = summary_df['申報次數'].fillna(0).astype(int)
+            
+            # 下載按鈕
+            c_dl, _ = st.columns([1,4])
+            csv_sum = summary_df.to_csv(index=False).encode('utf-8-sig')
+            c_dl.download_button("⬇️ 下載完整統計報表 (CSV)", csv_sum, f"summary_{selected_admin_year}.csv", "text/csv")
+            
+            # V80.0: 分區塊卡片顯示
+            for category in DEVICE_ORDER:
+                cat_df = summary_df[summary_df['統計類別'] == category]
+                if not cat_df.empty:
+                    st.markdown(f"### 📂 {category}")
+                    for idx, row in cat_df.iterrows():
+                        # 計算狀態
+                        last_date = row['日期格式']
+                        if pd.isna(last_date):
+                            status_html = '<span class="status-badge status-warn">⚠️ 尚無紀錄</span>'
+                            last_date_str = "無"
+                        else:
+                            days_diff = (datetime.now() - last_date).days
+                            if days_diff > 180:
+                                status_html = f'<span class="status-badge status-warn">⚠️ 已 {days_diff} 天未填</span>'
+                            else:
+                                status_html = '<span class="status-badge status-ok">✅ 活躍中</span>'
+                            last_date_str = last_date.strftime("%Y-%m-%d")
+                        
+                        fuel_type = "⛽" if "汽油" in str(row['原燃物料名稱']) else "🚛"
+                        
+                        st.markdown(f"""
+                        <div class="equip-card">
+                            <div class="equip-header">
+                                <div class="equip-title-group">
+                                    <div class="equip-code">{row.get('設備編號','-')}</div>
+                                    <div class="equip-name">{row.get('設備名稱備註','-')}</div>
+                                </div>
+                                <div class="equip-fuel-group">
+                                    <div class="equip-vol">{row['年度用油量']:,.1f}</div>
+                                    <span class="equip-fuel-type">{fuel_type} {row.get('原燃物料名稱','')} (L)</span>
+                                </div>
+                            </div>
+                            <div class="equip-body">
+                                <div class="equip-info">
+                                    🏢 部門: {row.get('設備所屬單位/部門','-')} | 👤 保管人: {row.get('保管人','-')}<br>
+                                    📍 位置: {row.get('設備詳細位置/樓層','-')} | 📊 數量: {row.get('設備數量','-')}
+                                </div>
+                                <div class="equip-status">
+                                    {status_html}<br>
+                                    <small>申報次數: {row['申報次數']} | 最後: {last_date_str}</small>
+                                </div>
+                            </div>
+                        </div>
+                        """, unsafe_allow_html=True)
+        else:
+            st.warning("尚無資料可供統計。")
 
-        # --- 子分頁 2: 申報資料異動 (V79.0 搜尋修復) ---
-        with sub_tabs[1]:
-            st.info("💡 資料維護區：可搜尋並修改原始紀錄。")
-            
-            # V79.0: 狀態保存搜尋 (防止跳頁)
-            c_s1, c_s2 = st.columns([4, 1])
-            with c_s1:
-                search_input = st.text_input("🔍 輸入關鍵字 (限定: 單位/填報人/設備)", value=st.session_state['search_keyword'])
-            with c_s2:
-                if st.button("🔍 搜尋"):
-                    st.session_state['search_keyword'] = search_input
-                    # 不用 rerun，直接往下跑邏輯
-            
-            df_display = df_records_merged.copy()
-            if st.session_state['search_keyword']:
-                # V79.0: 鎖定搜尋欄位
-                mask = df_display[['填報單位', '填報人', '設備名稱備註']].astype(str).apply(
-                    lambda x: x.str.contains(st.session_state['search_keyword'], case=False)
-                ).any(axis=1)
-                df_display = df_display[mask]
-            
-            if not df_display.empty:
-                # 預處理日期，避免編輯器報錯
-                df_display['加油日期'] = pd.to_datetime(df_display['加油日期']).dt.date
-                
-                edited_df = st.data_editor(
-                    df_display,
-                    column_config={
-                        "佐證資料": st.column_config.LinkColumn("佐證", display_text="🔗"),
-                        "加油日期": st.column_config.DateColumn("日期", format="YYYY-MM-DD"),
-                        "加油量": st.column_config.NumberColumn("油量", format="%.1f"),
-                        "填報時間": st.column_config.TextColumn("填報時間", disabled=True)
-                    },
-                    num_rows="dynamic", 
-                    use_container_width=True, 
-                    key="record_editor_v79"
-                )
-                
-                if st.button("💾 儲存變更", type="primary"):
-                    try:
-                        ws_record.clear()
-                        ws_record.update([edited_df.columns.tolist()] + edited_df.astype(str).values.tolist())
-                        st.success("✅ 更新成功！")
-                        st.cache_data.clear()
-                        time.sleep(1)
-                        st.rerun()
-                    except Exception as e: st.error(f"更新失敗: {e}")
-            else:
-                st.warning("查無符合條件的資料。")
-
-    # === Tab B: 監控 (維持 V76) ===
+    # === Tab B: 申報資料異動 (V80.0 搜尋優化) ===
     with admin_tabs[1]:
-        st.subheader("⚠️ 異常監控")
-        # (同 V76 邏輯)
-        total_dev = len(df_equip)
-        active_dev = df_records_merged['設備名稱備註'].nunique()
-        m1, m2, m3 = st.columns(3)
-        m1.metric("📦 總設備數量", total_dev)
-        m2.metric(f"✅ {int(selected_admin_year)} 活躍設備", active_dev)
-        m3.metric("💤 靜止設備", total_dev - active_dev)
-        st.divider()
+        st.subheader("🔍 申報資料異動")
+        st.info("💡 資料維護區：可搜尋並修改原始紀錄。")
+        
+        # V80.0: 搜尋框放大 & 按鈕對齊
+        with st.form("search_form"):
+            c_s1, c_s2 = st.columns([4, 1])
+            search_input = c_s1.text_input("🔍 輸入關鍵字 (限定: 單位/填報人/設備)", value=st.session_state['search_keyword'], label_visibility="collapsed", placeholder="請輸入關鍵字...")
+            # 使用空白 spacer 讓按鈕往下對齊 (簡單解法)
+            submitted = c_s2.form_submit_button("🔍 搜尋")
+            if submitted:
+                st.session_state['search_keyword'] = search_input
+        
+        df_display = df_records_merged.copy()
+        if st.session_state['search_keyword']:
+            mask = df_display[['填報單位', '填報人', '設備名稱備註']].astype(str).apply(
+                lambda x: x.str.contains(st.session_state['search_keyword'], case=False)
+            ).any(axis=1)
+            df_display = df_display[mask]
+        
+        if not df_display.empty:
+            # 確保型別正確
+            df_display['加油日期'] = pd.to_datetime(df_display['加油日期']).dt.date
+            
+            edited_df = st.data_editor(
+                df_display,
+                column_config={
+                    "佐證資料": st.column_config.LinkColumn("佐證", display_text="🔗"),
+                    "加油日期": st.column_config.DateColumn("日期", format="YYYY-MM-DD"),
+                    "加油量": st.column_config.NumberColumn("油量", format="%.1f"),
+                    "填報時間": st.column_config.TextColumn("填報時間", disabled=True)
+                },
+                num_rows="dynamic", 
+                use_container_width=True, 
+                key="record_editor_v80"
+            )
+            
+            if st.button("💾 儲存變更", type="primary"):
+                try:
+                    ws_record.clear()
+                    # 簡易全量更新 (實務建議優化)
+                    # 這裡為了避免欄位錯位，重新組合
+                    export_df = edited_df.copy()
+                    # 日期轉字串
+                    export_df['加油日期'] = export_df['加油日期'].astype(str)
+                    ws_record.update([export_df.columns.tolist()] + export_df.astype(str).values.tolist())
+                    st.success("✅ 更新成功！")
+                    st.cache_data.clear()
+                    time.sleep(1)
+                    st.rerun()
+                except Exception as e: st.error(f"更新失敗: {e}")
+        else:
+            st.warning("查無符合條件的資料。")
 
-        c_mon1, c_mon2 = st.columns(2)
-        with c_mon1:
-            st.markdown("##### 1. 分類檢視")
-            target_cat = st.selectbox("選擇設備類別", DEVICE_ORDER, index=0)
-            if target_cat:
-                filtered_rec = df_records_merged[df_records_merged['統計類別'] == target_cat]
-                st.dataframe(filtered_rec, use_container_width=True)
-        with c_mon2:
-            st.markdown("##### 2. 未填報警示 (近半年無紀錄)")
-            if not df_records_merged.empty:
-                last_active = df_records_merged.groupby('設備名稱備註')['日期格式'].max().reset_index()
-                last_active['距今天數'] = (datetime.now() - last_active['日期格式']).dt.days
-                inactive_devices = last_active[last_active['距今天數'] > 180].sort_values('距今天數', ascending=False)
-                if not inactive_devices.empty:
-                    st.dataframe(inactive_devices.style.format({"日期格式": "{:%Y-%m-%d}"}).applymap(lambda x: 'color: red; font-weight: bold;', subset=['距今天數']), use_container_width=True)
-                else: st.success("🎉 太棒了！所有設備在近半年內皆有活躍紀錄。")
-            else: st.info("目前尚無填報資料，無法分析。")
-
-    # === Tab C: 儀表板 (維持 V76 完美修復) ===
+    # === Tab C: 儀表板 (同 V79) ===
     with admin_tabs[2]:
         st.subheader("📊 動態管理儀表板")
-        # (儀表板邏輯完全保留 V76，因無報錯且功能正常)
+        # (完全保留 V79 的儀表板程式碼，功能與外觀皆穩定，直接貼上)
         c_ctrl1, c_ctrl2 = st.columns(2)
         stat_mode = c_ctrl1.radio("統計模式", ["依設備統計", "依單位統計"], horizontal=True)
         filter_options = ["全部燃油設備"] + DEVICE_ORDER if stat_mode == "依設備統計" else ["全部單位"] + sorted([x for x in df_equip['填報單位'].unique() if x!='-' and x!='填報單位'])
@@ -864,7 +894,6 @@ elif st.session_state['current_page'] == 'admin_dashboard' and username == 'admi
             if stat_mode == "依設備統計": stack_col = '設備名稱備註'
             else: stack_col = '填報單位'
             
-            # 強制轉型修復
             df_c[stack_col] = df_c[stack_col].astype(str)
             df_c['月份'] = df_c['月份'].astype(int)
             df_c['油品類別'] = df_c['油品類別'].astype(str)
@@ -901,4 +930,4 @@ elif st.session_state['current_page'] == 'admin_dashboard' and username == 'admi
                     fig_s2.update_traces(textinfo="label+percent entry", insidetextorientation='horizontal')
                     st.plotly_chart(fig_s2, use_container_width=True)
         else: st.warning("在此篩選條件下無資料。")
-    st.markdown('<div class="contact-footer">管理員系統版本 V79.0 (Search & Style Fix)</div>', unsafe_allow_html=True)
+    st.markdown('<div class="contact-footer">管理員系統版本 V80.0 (Admin Integrated)</div>', unsafe_allow_html=True)
