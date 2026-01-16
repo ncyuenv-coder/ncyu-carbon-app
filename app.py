@@ -23,7 +23,7 @@ def get_taiwan_time():
 st.markdown("""
 <style>
     /* =========================================
-       🎨 V90.0 油卡批次強制填報版 (Batch Mode Strict)
+       🎨 V93.0 絕對完整無刪減版 (Full Code Restore)
        ========================================= */
 
     /* 1. 強制亮色模式 */
@@ -130,7 +130,7 @@ st.markdown("""
     }
     .batch-card { padding: 15px; border-left: 5px solid #E67E22; }
     
-    /* V88: 設備卡片 - 標題區 (顏色由 Python 控制) */
+    /* 設備卡片 - 標題區 */
     .equip-header {
         padding: 12px 15px;
         border-bottom: 1px solid #BDC3C7;
@@ -141,14 +141,13 @@ st.markdown("""
     .equip-name { font-size: 0.95rem; color: #455A64; font-weight: 600;}
     
     .equip-fuel-group { text-align: right; }
-    /* 莫蘭迪紅 */
     .equip-vol { font-size: 1.6rem; font-weight: 900; color: var(--morandi-red); line-height: 1.2;} 
     .equip-fuel-type { font-size: 0.85rem; color: #566573; font-weight: bold; background: rgba(255,255,255,0.6); padding: 2px 6px; border-radius: 4px; margin-left: 5px;}
 
     .equip-body { padding: 15px; display: flex; flex-direction: column; gap: 8px; }
     .equip-info { font-size: 0.9rem; line-height: 1.5; color: #34495E; }
     
-    /* V88: 底部欄 */
+    /* 底部欄 */
     .equip-footer { 
         margin-top: 10px; padding-top: 10px; border-top: 1px dashed #D7DBDD;
         display: flex; justify-content: space-between; align-items: center;
@@ -158,7 +157,7 @@ st.markdown("""
     .last-date { font-size: 0.85rem; color: #7F8C8D; }
     .count-text { font-size: 0.85rem; color: #2C3E50; font-weight: 800; margin-right: 8px; }
     
-    /* V88: 個資聲明樣式 */
+    /* 個資聲明樣式 */
     .privacy-box {
         background-color: #F8F9F9;
         border: 1px solid #BDC3C7;
@@ -197,8 +196,6 @@ st.markdown("""
     .setting-box { background-color: var(--card-bg); border: 2px dashed var(--border-color); padding: 15px; border-radius: 10px; margin-bottom: 20px; text-align: center; }
     button[data-baseweb="tab"] div p { font-size: 1.6rem !important; font-weight: 900 !important; color: var(--text-sub); }
     button[data-baseweb="tab"][aria-selected="true"] div p { color: #E67E22 !important; border-bottom: 3px solid #E67E22; }
-    
-    input[aria-label="搜尋框"] { height: 50px !important; font-size: 1.2rem !important; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -223,7 +220,7 @@ DEVICE_CODE_MAP = {
     "GS-1": "鍋爐(GS-1-)", "GS-2": "發電機(GS-2-)", "GS-3": "肩背或手持式割草機、吹葉機(GS-3-)", "GS-4": "肩背或手持式農用機具(GS-4-)"
 }
 
-# --- V88: 高級莫蘭迪色卡 ---
+# --- 高級莫蘭迪色卡 ---
 MORANDI_COLORS = {
     "公務車輛(GV-1-)": "#B0C4DE",       # 淺鋼藍
     "乘坐式割草機(GV-2-)": "#BDC3C7",     # 銀灰
@@ -257,12 +254,13 @@ try:
         credentials_login, cookie_cfg["name"], cookie_cfg["key"], cookie_cfg["expiry_days"],
     )
     
+    # 解決 F5 登出問題
+    authenticator.login('main')
+    
     if st.session_state["authentication_status"] is not True:
         st.markdown('<div class="login-header">🏫 國立嘉義大學碳盤查<br>油料使用及冷媒填充回報平台</div>', unsafe_allow_html=True)
         st.markdown("<h3 style='text-align: center;'>登入系統 (Login)</h3>", unsafe_allow_html=True)
         st.markdown("---")
-    
-    authenticator.login('main')
     
     if st.session_state["authentication_status"] is False:
         st.error('❌ 帳號或密碼錯誤 (Username/Password Incorrect)')
@@ -370,7 +368,7 @@ if st.session_state['current_page'] == 'home':
     st.markdown('<div class="contact-footer">如有填報疑問，請電洽環安中心林小姐(分機 7137)，謝謝</div>', unsafe_allow_html=True)
 
 # ------------------------------------------
-# ⛽ 外部填報區 (V90.0: 油卡批次強制填報 + 完整個資)
+# ⛽ 外部填報區 (V93: 完整個資 + V90 邏輯)
 # ------------------------------------------
 elif st.session_state['current_page'] == 'fuel':
     st.title("⛽ 燃油設備填報專區")
@@ -385,7 +383,7 @@ elif st.session_state['current_page'] == 'fuel':
             units = sorted([x for x in df_equip['填報單位'].unique() if x != '-' and x != '填報單位'])
             selected_dept = c1.selectbox("填報單位", units, index=None, placeholder="請選擇單位...", key="dept_selector")
             
-            # V88.0: 完整個資聲明 HTML
+            # 完整個資聲明 HTML
             privacy_html = """
             <div class="privacy-box">
                 <div class="privacy-title">📜 個人資料蒐集、處理及利用告知聲明</div>
@@ -398,7 +396,7 @@ elif st.session_state['current_page'] == 'fuel':
             </div>
             """
 
-            # --- V90.0 批次申報 (無切換模式，強制表格) ---
+            # --- 批次申報模式 (V90 強制表格) ---
             if selected_dept in VIP_UNITS:
                 st.info(f"💡 您選擇了 **{selected_dept}**，系統已自動切換為「油卡批次申報模式」。")
                 sub_categories = []
@@ -633,7 +631,7 @@ elif st.session_state['current_page'] == 'fuel':
                                         else:
                                             st.warning("⚠️ 無有效資料可寫入。")
 
-    # === Tab 2: 看板 (同 V68) ===
+    # === Tab 2: 看板 (V68 完整邏輯補完) ===
     with tabs[1]:
         st.markdown("### 📊 動態查詢看板 (年度檢視)")
         st.info("請選擇「單位」與「年份」，檢視該年度的用油統計與碳排放分析。")
@@ -750,7 +748,7 @@ elif st.session_state['current_page'] == 'fuel':
         st.markdown('<div class="contact-footer">如有填報疑問，請電洽環安中心林小姐(分機 7137)，謝謝</div>', unsafe_allow_html=True)
 
 # ------------------------------------------
-# 👑 超級管理員專區 (V87.0: 完美後台)
+# 👑 超級管理員專區 (V87/V92 融合完整版)
 # ------------------------------------------
 elif st.session_state['current_page'] == 'admin_dashboard' and username == 'admin':
     st.title("👑 超級管理員後台")
@@ -803,7 +801,6 @@ elif st.session_state['current_page'] == 'admin_dashboard' and username == 'admi
                 if not cat_df.empty:
                     header_color = MORANDI_COLORS.get(category, "#CFD8DC")
                     st.markdown(f"### 📂 {category}")
-                    
                     cols = st.columns(2)
                     for idx, row in cat_df.reset_index().iterrows():
                         col = cols[idx % 2] 
@@ -824,8 +821,7 @@ elif st.session_state['current_page'] == 'admin_dashboard' and username == 'admi
                             
                             card_html = f"""<div class="equip-card"><div class="equip-header" style="background-color: {header_color};"><div class="equip-title-group"><div class="equip-code">{row.get('設備編號','-')}</div><div class="equip-name">{row.get('設備名稱備註','-')}</div></div><div class="equip-fuel-group"><div class="equip-vol">{row['年度用油量']:,.2f}</div><span class="equip-fuel-type">{fuel_type} {row.get('原燃物料名稱','')} (公升)</span></div></div><div class="equip-body"><div class="equip-info">🏢 部門: {row.get('設備所屬單位/部門','-')} | 👤 保管人: {row.get('保管人','-')}<br>📍 位置: {row.get('設備詳細位置/樓層','-')} | 📊 數量: {row.get('設備數量','-')}</div><div class="equip-footer"><div class="last-date">最後申報日期: {last_date_str}</div><div style="display:flex; align-items:center;"><span class="count-text">申報次數: <b>{row['申報次數']}</b></span>{status_html}</div></div></div></div>"""
                             st.markdown(card_html, unsafe_allow_html=True)
-        else:
-            st.warning("尚無資料可供統計。")
+        else: st.warning("尚無資料可供統計。")
 
     # === Tab B: 申報資料異動 ===
     with admin_tabs[1]:
@@ -833,7 +829,7 @@ elif st.session_state['current_page'] == 'admin_dashboard' and username == 'admi
         df_display = df_records_merged.copy()
         if not df_display.empty:
             df_display['加油日期'] = pd.to_datetime(df_display['加油日期']).dt.date
-            edited_df = st.data_editor(df_display, column_config={"佐證資料": st.column_config.LinkColumn("佐證", display_text="🔗"), "加油日期": st.column_config.DateColumn("日期", format="YYYY-MM-DD"), "加油量": st.column_config.NumberColumn("油量", format="%.2f"), "填報時間": st.column_config.TextColumn("填報時間", disabled=True)}, num_rows="dynamic", use_container_width=True, key="record_editor_v90")
+            edited_df = st.data_editor(df_display, column_config={"佐證資料": st.column_config.LinkColumn("佐證", display_text="🔗"), "加油日期": st.column_config.DateColumn("日期", format="YYYY-MM-DD"), "加油量": st.column_config.NumberColumn("油量", format="%.2f"), "填報時間": st.column_config.TextColumn("填報時間", disabled=True)}, num_rows="dynamic", use_container_width=True, key="record_editor_v93")
             if st.button("💾 儲存變更", type="primary"):
                 try:
                     ws_record.clear()
@@ -847,7 +843,7 @@ elif st.session_state['current_page'] == 'admin_dashboard' and username == 'admi
                 except Exception as e: st.error(f"更新失敗: {e}")
         else: st.info(f"{selected_admin_year} 年度尚無資料。")
 
-    # === Tab C: 儀表板 ===
+    # === Tab C: 儀表板 (V71 邏輯回歸) ===
     with admin_tabs[2]:
         st.subheader("📊 動態管理儀表板")
         if not df_records_merged.empty:
@@ -855,6 +851,7 @@ elif st.session_state['current_page'] == 'admin_dashboard' and username == 'admi
             stat_mode = c_ctrl1.radio("統計模式", ["依設備統計", "依單位統計"], horizontal=True)
             filter_options = ["全部燃油設備"] + DEVICE_ORDER if stat_mode == "依設備統計" else ["全部單位"] + sorted([x for x in df_equip['填報單位'].unique() if x!='-' and x!='填報單位'])
             selected_filter = c_ctrl2.selectbox("選擇細項", filter_options)
+            
             df_dash = df_records_merged.copy()
             if stat_mode == "依設備統計" and selected_filter != "全部燃油設備": df_dash = df_dash[df_dash['統計類別'] == selected_filter]
             elif stat_mode == "依單位統計" and selected_filter != "全部單位": df_dash = df_dash[df_dash['填報單位'] == selected_filter]
@@ -871,6 +868,7 @@ elif st.session_state['current_page'] == 'admin_dashboard' and username == 'admi
                 k3, k4 = st.columns(2)
                 k3.markdown(f"""<div class="kpi-card kpi-total"><div class="kpi-title">💧 總用油量</div><div class="kpi-value">{total_sum:,.1f}<span class="kpi-unit">公升</span></div></div>""", unsafe_allow_html=True)
                 k4.markdown(f"""<div class="kpi-card kpi-co2"><div class="kpi-title">☁️ 總碳排放量</div><div class="kpi-value">{total_co2:,.4f}<span class="kpi-unit">tCO₂e</span></div></div>""", unsafe_allow_html=True)
+                
                 st.markdown("---")
                 st.subheader("🏗️ 設備數量統計")
                 df_equip_count = df_equip.copy()
@@ -927,4 +925,4 @@ elif st.session_state['current_page'] == 'admin_dashboard' and username == 'admi
             else: st.warning("在此篩選條件下無資料。")
         else: st.info("尚無該年度資料，無法顯示儀表板。")
 
-    st.markdown('<div class="contact-footer">管理員系統版本 V90.0 (Batch Fix)</div>', unsafe_allow_html=True)
+    st.markdown('<div class="contact-footer">管理員系統版本 V93.0 (Absolute Full Version)</div>', unsafe_allow_html=True)
