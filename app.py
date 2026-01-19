@@ -21,7 +21,7 @@ def get_taiwan_time():
     return datetime.utcnow() + timedelta(hours=8)
 
 # ==========================================
-# 1. CSS 樣式表 (完全展開，無壓縮，包含 V108 視覺修正)
+# 1. CSS 樣式表 (完全展開，無壓縮，確保樣式穩定)
 # ==========================================
 st.markdown("""
 <style>
@@ -51,6 +51,7 @@ st.markdown("""
         --kpi-co2: #AF7AC5;
     }
 
+    /* 容器背景 */
     [data-testid="stAppViewContainer"] {
         background-color: var(--bg-color);
         color: var(--text-main);
@@ -89,7 +90,7 @@ st.markdown("""
         color: #000000 !important;
     }
 
-    /* 按鈕樣式 */
+    /* 按鈕樣式 (一致性橘色) */
     div.stButton > button,
     button[kind="primary"],
     [data-testid="stFormSubmitButton"] > button {
@@ -120,7 +121,7 @@ st.markdown("""
         color: #FFFFFF !important;
     }
 
-    /* 檔案上傳區 (淺藍色背景回歸) */
+    /* 檔案上傳區 (淺藍色背景) */
     [data-testid="stFileUploaderDropzone"] {
         background-color: #EBF5FB !important; 
         border: 2px dashed #AED6F1 !important; 
@@ -136,7 +137,7 @@ st.markdown("""
     .batch-card-final {
         background-color: #FFFFFF;
         border: 1px solid #BDC3C7;
-        border-radius: 10px;
+        border-radius: 12px;
         overflow: hidden;
         box-shadow: 0 2px 5px rgba(0,0,0,0.1);
         height: 100%;
@@ -146,8 +147,7 @@ st.markdown("""
         margin-bottom: 5px;
     }
     .batch-header-final {
-        /* 增加 Padding 以對齊右側 Input */
-        padding: 14px 15px;
+        padding: 14px 15px; /* 加大 Padding 對齊右側輸入框 */
         font-weight: 800;
         color: #2C3E50;
         display: flex;
@@ -156,23 +156,28 @@ st.markdown("""
         border-bottom: 1px solid rgba(0,0,0,0.1);
         font-size: 1.15rem;
     }
+    .batch-title-text {
+        font-size: 1.2rem;
+        font-weight: 800;
+    }
     .batch-qty-badge {
-        font-size: 0.95rem;
-        background-color: rgba(255,255,255,0.6);
+        font-size: 1rem;
+        background-color: rgba(255,255,255,0.7);
         padding: 2px 10px;
         border-radius: 12px;
         border: 1px solid rgba(0,0,0,0.1);
         color: #2C3E50;
+        font-weight: bold;
     }
     .batch-body-final {
         background-color: #FFFFFF;
-        padding: 12px 15px;
-        font-size: 1rem;
+        padding: 15px;
+        font-size: 1.05rem; /* 字體放大 */
         color: #566573;
         line-height: 1.6;
         flex-grow: 1;
     }
-    /* 兩列資訊排版 */
+    /* 兩列資訊排版 (Grid) */
     .batch-row {
         display: flex;
         justify-content: space-between;
@@ -183,10 +188,10 @@ st.markdown("""
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
-        margin-right: 5px;
+        margin-right: 10px;
     }
 
-    /* --- 後台 - 統計模式專用卡片 --- */
+    /* --- 後台：統計模式專用卡片 --- */
     .stat-card-v106 {
         background-color: #FFFFFF;
         border: 1px solid #BDC3C7;
@@ -197,35 +202,35 @@ st.markdown("""
         height: 100%;
     }
     .stat-header {
-        padding: 12px 20px;
+        padding: 15px 25px; /* 加大標題區 */
         display: flex;
         justify-content: space-between;
         align-items: center;
         border-bottom: 1px solid rgba(0,0,0,0.1);
     }
     .stat-title {
-        font-size: 1.15rem;
+        font-size: 1.25rem;
         font-weight: 800;
         color: #2C3E50;
     }
     .stat-count {
-        font-size: 1.8rem;
+        font-size: 2rem; /* 數量超大字 */
         font-weight: 900;
         color: var(--morandi-red);
     }
     .stat-body {
-        padding: 15px 20px;
-        font-size: 0.95rem;
+        padding: 20px 25px;
+        font-size: 1.05rem;
         color: #566573;
         display: flex;
         flex-direction: column;
-        gap: 8px;
+        gap: 12px;
     }
     .stat-row {
         display: flex;
         justify-content: space-between;
         border-bottom: 1px dashed #EAEDED;
-        padding-bottom: 5px;
+        padding-bottom: 8px;
     }
     .stat-row:last-child {
         border-bottom: none;
@@ -234,29 +239,30 @@ st.markdown("""
         color: #2C3E50;
     }
 
-    /* --- 後台 - 重點資訊卡 (Top KPI) --- */
+    /* --- 後台：重點資訊卡 (Top KPI with Icon) --- */
     .top-kpi-card {
         background-color: #FFFFFF;
         border-radius: 12px;
-        padding: 20px;
+        padding: 25px;
         text-align: center;
         box-shadow: 0 4px 10px rgba(0,0,0,0.1);
         border: 1px solid #BDC3C7;
         margin-bottom: 10px;
     }
     .top-kpi-title {
-        font-size: 1.1rem;
+        font-size: 1.15rem;
         color: #7F8C8D;
         font-weight: bold;
         margin-bottom: 5px;
     }
     .top-kpi-value {
-        font-size: 2.5rem;
+        font-size: 3.5rem; /* 3.5rem 視覺衝擊 */
         color: #2C3E50;
         font-weight: 900;
+        line-height: 1.1;
     }
 
-    /* 一般設備卡片 (後台明細用) */
+    /* 一般設備卡片 (後台明細用 - 標題放大) */
     .equip-card {
         background-color: #FFFFFF;
         border: 1px solid #BDC3C7;
@@ -267,7 +273,7 @@ st.markdown("""
         box-shadow: 0 2px 5px rgba(0,0,0,0.05);
     }
     .equip-header {
-        padding: 10px 15px;
+        padding: 12px 18px;
         display: flex;
         justify-content: space-between;
         align-items: center;
@@ -278,12 +284,12 @@ st.markdown("""
         flex-direction: column;
     }
     .equip-code {
-        font-size: 1.05rem;
+        font-size: 1.25rem; /* 放大 */
         font-weight: 800;
         color: #2C3E50;
     }
     .equip-name {
-        font-size: 0.95rem;
+        font-size: 1.1rem; /* 放大 */
         color: #455A64;
         font-weight: 600;
     }
@@ -312,7 +318,7 @@ st.markdown("""
         gap: 8px;
     }
     .equip-info {
-        font-size: 0.9rem;
+        font-size: 0.95rem;
         line-height: 1.5;
         color: #34495E;
     }
@@ -347,7 +353,7 @@ st.markdown("""
         margin-right: 8px;
     }
 
-    /* KPI 卡片 (外部看板用) */
+    /* KPI 卡片 (外部看板用 - 恢復彩色邊框) */
     .kpi-card {
         padding: 20px;
         border-radius: 15px;
@@ -479,7 +485,7 @@ st.markdown("""
         height: 50px !important;
         font-size: 1.2rem !important;
     }
-    /* 餅圖區塊 */
+    /* 圓餅圖區塊 */
     .pie-chart-box {
         background-color: var(--card-bg);
         border: 2px solid var(--border-color);
@@ -546,7 +552,7 @@ try:
         credentials_login, cookie_cfg["name"], cookie_cfg["key"], cookie_cfg["expiry_days"],
     )
     
-    # 標題強制置頂 (V95.0)
+    # 標題強制置頂
     if st.session_state["authentication_status"] is not True:
         st.markdown('<div class="login-header">🏫 國立嘉義大學碳盤查<br>油料使用及冷媒填充回報平台</div>', unsafe_allow_html=True)
         st.markdown("<h3 style='text-align: center;'>登入系統 (Login)</h3>", unsafe_allow_html=True)
@@ -744,7 +750,7 @@ elif st.session_state['current_page'] == 'fuel':
                                 </div>
                                 """, unsafe_allow_html=True)
                             with c_val:
-                                st.write("") # Spacer for visual alignment
+                                st.write("") 
                                 st.write("") 
                                 vol = st.number_input(f"加油量 (公升)", min_value=0.0, step=0.1, key=f"b_v_{row['校內財產編號']}_{idx}", label_visibility="collapsed")
                                 batch_inputs[idx] = vol
@@ -844,20 +850,14 @@ elif st.session_state['current_page'] == 'fuel':
                         
                         if report_mode == "用油量申報 (含單筆/多筆/油卡)":
                             fuel_card_id = st.text_input("💳 油卡編號 (選填)")
-                            st.divider()
-                            st.markdown("⛽ **加油明細區 (必填)**")
                             for i in range(st.session_state['multi_row_count']):
                                 c_d, c_v = st.columns(2)
                                 _date = c_d.date_input(f"📅 日期 {i+1}", datetime.today(), key=f"d_{i}")
                                 _vol = c_v.number_input(f"💧 油量 {i+1}", min_value=0.0, step=0.1, key=f"v_{i}")
                                 data_entries.append({"date": _date, "vol": _vol})
-                            st.markdown("---")
                             is_shared = st.checkbox("與其他設備共用加油單")
-                            st.markdown("**🧾 備註 (選填)**")
-                            st.caption("若一張發票加多台設備，請填寫相同發票號碼以便核對。")
                             note_input = st.text_input("備註內容")
-                            st.markdown("**📂 上傳佐證資料 (必填)**")
-                            f_files = st.file_uploader("支援 png, jpg, jpeg, pdf (最多 5 個)", type=['png', 'jpg', 'jpeg', 'pdf'], accept_multiple_files=True)
+                            f_files = st.file_uploader("上傳佐證", accept_multiple_files=True)
                         else:
                             # 無使用區間
                             st.info("ℹ️ 您選擇了「無使用」，請選擇無使用的期間。")
@@ -962,7 +962,7 @@ elif st.session_state['current_page'] == 'fuel':
                 df_final = df_dept[df_dept['日期格式'].dt.year == query_year]
                 
                 if not df_final.empty:
-                    # HTML KPI 卡片
+                    # HTML KPI 卡片 (復刻 V68)
                     if '原燃物料名稱' in df_final.columns:
                         gas_sum = df_final[df_final['原燃物料名稱'].str.contains('汽油', na=False)]['加油量'].sum()
                         diesel_sum = df_final[df_final['原燃物料名稱'].str.contains('柴油', na=False)]['加油量'].sum()
@@ -1090,38 +1090,44 @@ elif st.session_state['current_page'] == 'admin_dashboard' and username == 'admi
                 diesel_eq = len(df_equip[df_equip['原燃物料名稱'].str.contains('柴油', na=False)])
                 
                 k1, k2, k3 = st.columns(3)
-                k1.markdown(f"""<div class="top-kpi-card"><div class="top-kpi-title">🔥 全校燃油設備總數</div><div class="top-kpi-value">{total_eq}</div></div>""", unsafe_allow_html=True)
+                k1.markdown(f"""<div class="top-kpi-card"><div class="top-kpi-title">🚜 全校燃油設備總數</div><div class="top-kpi-value">{total_eq}</div></div>""", unsafe_allow_html=True)
                 k2.markdown(f"""<div class="top-kpi-card"><div class="top-kpi-title">⛽ 全校汽油設備數</div><div class="top-kpi-value">{gas_eq}</div></div>""", unsafe_allow_html=True)
                 k3.markdown(f"""<div class="top-kpi-card"><div class="top-kpi-title">🚛 全校柴油設備數</div><div class="top-kpi-value">{diesel_eq}</div></div>""", unsafe_allow_html=True)
                 st.markdown("---")
 
                 # 2. 7大類統計卡 (V109.0: 格式修正)
                 st.subheader("📂 各類設備用油統計")
-                cols = st.columns(3)
+                
+                # 統計邏輯: 數量看 df_equip (資產), 用油看 df_year (使用)
                 eq_counts = df_equip.groupby('統計類別').size()
                 fuel_sums = df_year.groupby(['統計類別', '油品大類'])['加油量'].sum().unstack(fill_value=0)
                 
-                for idx, category in enumerate(DEVICE_ORDER):
-                    with cols[idx % 3]:
-                        count = eq_counts.get(category, 0)
-                        gas_vol = fuel_sums.loc[category, '汽油'] if category in fuel_sums.index and '汽油' in fuel_sums.columns else 0
-                        diesel_vol = fuel_sums.loc[category, '柴油'] if category in fuel_sums.index and '柴油' in fuel_sums.columns else 0
-                        total_vol = gas_vol + diesel_vol
-                        header_color = MORANDI_COLORS.get(category, "#CFD8DC")
-                        
-                        st.markdown(f"""
-                        <div class="stat-card-v106">
-                            <div class="stat-header" style="background-color: {header_color};">
-                                <span class="stat-title">{category}</span>
-                                <span class="stat-count">{count}</span>
-                            </div>
-                            <div class="stat-body">
-                                <div class="stat-row"><span>⛽ 汽油用量(公升)</span><span>{gas_vol:,.1f}</span></div>
-                                <div class="stat-row"><span>🚛 柴油用量(公升)</span><span>{diesel_vol:,.1f}</span></div>
-                                <div class="stat-row"><span>💧 總計用量(公升)</span><span>{total_vol:,.1f}</span></div>
-                            </div>
-                        </div>
-                        """, unsafe_allow_html=True)
+                # V110: 每列 2 張卡片
+                for i in range(0, len(DEVICE_ORDER), 2):
+                    cols = st.columns(2)
+                    for j in range(2):
+                        if i + j < len(DEVICE_ORDER):
+                            category = DEVICE_ORDER[i + j]
+                            with cols[j]:
+                                count = eq_counts.get(category, 0)
+                                gas_vol = fuel_sums.loc[category, '汽油'] if category in fuel_sums.index and '汽油' in fuel_sums.columns else 0
+                                diesel_vol = fuel_sums.loc[category, '柴油'] if category in fuel_sums.index and '柴油' in fuel_sums.columns else 0
+                                total_vol = gas_vol + diesel_vol
+                                header_color = MORANDI_COLORS.get(category, "#CFD8DC")
+                                
+                                st.markdown(f"""
+                                <div class="stat-card-v106">
+                                    <div class="stat-header" style="background-color: {header_color};">
+                                        <span class="stat-title">{category}</span>
+                                        <span class="stat-count">{count}</span>
+                                    </div>
+                                    <div class="stat-body">
+                                        <div class="stat-row"><span>⛽ 汽油用量(公升)</span><span>{gas_vol:,.1f}</span></div>
+                                        <div class="stat-row"><span>🚛 柴油用量(公升)</span><span>{diesel_vol:,.1f}</span></div>
+                                        <div class="stat-row"><span>💧 總計用量(公升)</span><span>{total_vol:,.1f}</span></div>
+                                    </div>
+                                </div>
+                                """, unsafe_allow_html=True)
                 
                 st.markdown("---")
                 # 3. 環形圖分析 (V109.0: 強制 7 色)
@@ -1134,20 +1140,22 @@ elif st.session_state['current_page'] == 'admin_dashboard' and username == 'admi
                     "肩背或手持式割草機、吹葉機(GS-3-)": "#A3E4D7", "肩背或手持式農用機具(GS-4-)": "#F9E79F"
                 }
 
-                gas_data = df_year[df_year['油品大類'] == '汽油'].groupby('統計類別')['加油量'].sum().reset_index()
+                # 汽油 (只取 7 大類)
+                gas_data = df_year[(df_year['油品大類'] == '汽油') & (df_year['統計類別'].isin(DEVICE_ORDER))].groupby('統計類別')['加油量'].sum().reset_index()
                 if not gas_data.empty:
                     fig_g = px.pie(gas_data, values='加油量', names='統計類別', title='⛽ 汽油用量佔比', hole=0.4, color='統計類別', color_discrete_map=color_map)
                     c_pie1.plotly_chart(fig_g, use_container_width=True)
                 else: c_pie1.info("無汽油數據")
                 
-                dsl_data = df_year[df_year['油品大類'] == '柴油'].groupby('統計類別')['加油量'].sum().reset_index()
+                # 柴油 (只取 7 大類)
+                dsl_data = df_year[(df_year['油品大類'] == '柴油') & (df_year['統計類別'].isin(DEVICE_ORDER))].groupby('統計類別')['加油量'].sum().reset_index()
                 if not dsl_data.empty:
                     fig_d = px.pie(dsl_data, values='加油量', names='統計類別', title='🚛 柴油用量佔比', hole=0.4, color='統計類別', color_discrete_map=color_map)
                     c_pie2.plotly_chart(fig_d, use_container_width=True)
                 else: c_pie2.info("無柴油數據")
             else: st.warning("尚無資料可供統計。")
 
-        else: # 明細檢視
+        else: # 明細檢視模式 (原功能)
             with st.expander("🔍 篩選未申報名單 (點擊展開)", expanded=False):
                 c_f1, c_f2 = st.columns(2)
                 d_start = c_f1.date_input("查詢起始日", date(selected_admin_year, 1, 1))
@@ -1155,15 +1163,17 @@ elif st.session_state['current_page'] == 'admin_dashboard' and username == 'admi
                 
                 if st.button("開始篩選未申報單位"):
                     if not df_clean.empty:
-                        mask = (df_clean['日期格式'].dt.date >= d_start) & (df_clean['日期格式'].dt.date <= d_end)
-                        reported = set(df_clean[mask]['設備名稱備註'].unique())
-                        df_eq_copy = df_equip.copy()
-                        df_eq_copy['已申報'] = df_eq_copy['設備名稱備註'].apply(lambda x: x in reported)
-                        unreported = df_eq_copy[~df_eq_copy['已申報']]
+                        # 使用 datetime.date 進行比較
+                        mask_period = (df_clean['日期格式'].dt.date >= d_start) & (df_clean['日期格式'].dt.date <= d_end)
+                        reported_equip = set(df_clean[mask_period]['設備名稱備註'].unique())
                         
-                        if not unreported.empty:
-                            st.error(f"🚩 期間 [{d_start} ~ {d_end}] 共有 {len(unreported)} 台設備未申報！")
-                            for idx, (unit, group) in enumerate(unreported.groupby('填報單位')):
+                        all_equip_df = df_equip.copy()
+                        all_equip_df['是否有報'] = all_equip_df['設備名稱備註'].apply(lambda x: x in reported_equip)
+                        unreported_df = all_equip_df[~all_equip_df['是否有報']]
+                        
+                        if not unreported_df.empty:
+                            st.error(f"🚩 期間 [{d_start} ~ {d_end}] 共有 {len(unreported_df)} 台設備未申報！")
+                            for idx, (unit, group) in enumerate(unreported_df.groupby('填報單位')):
                                 bg_color = UNREPORTED_COLORS[idx % len(UNREPORTED_COLORS)]
                                 st.markdown(f"""<div class="unreported-block" style="background-color: {bg_color};"><div class="unreported-title">🏢 {unit} (未申報數: {len(group)})</div></div>""", unsafe_allow_html=True)
                                 st.dataframe(group[['設備名稱備註', '保管人', '校內財產編號']], use_container_width=True)
@@ -1215,7 +1225,7 @@ elif st.session_state['current_page'] == 'admin_dashboard' and username == 'admi
                 except Exception as e: st.error(f"更新失敗: {e}")
         else: st.info(f"{selected_admin_year} 年度尚無資料。")
 
-    # === Tab C: 儀表板 (暫時留白) ===
+    # === Tab C: 儀表板 (留白) ===
     with admin_tabs[2]:
         st.info("🚧 動態管理儀表板 - 等待架構重設指令")
 
