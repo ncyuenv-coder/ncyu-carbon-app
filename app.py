@@ -21,7 +21,7 @@ def get_taiwan_time():
     return datetime.utcnow() + timedelta(hours=8)
 
 # ==========================================
-# 1. CSS 樣式表 (V126: 最終定案樣式)
+# 1. CSS 樣式表 (V128: 樣式全數鎖定)
 # ==========================================
 st.markdown("""
 <style>
@@ -346,7 +346,7 @@ if st.session_state['current_page'] == 'home':
     st.markdown('<div class="contact-footer">如有填報疑問，請電洽環安中心林小姐(分機 7137)，謝謝</div>', unsafe_allow_html=True)
 
 # ------------------------------------------
-# ⛽ 外部填報區 (V126.0: 定案)
+# ⛽ 外部填報區 (V128.0: 移除自動 Rerun, 確保訊息停留)
 # ------------------------------------------
 elif st.session_state['current_page'] == 'fuel':
     st.title("⛽ 燃油設備填報專區")
@@ -406,7 +406,7 @@ elif st.session_state['current_page'] == 'fuel':
                         st.markdown("⛽ **請填入各設備該月份之加油總量(公升)，若該月份無使用請填0：**")
                         batch_inputs = {}
                         for idx, row in filtered_equip.iterrows():
-                            # V121: 7:3 佈局, 間距加大
+                            # V120: 7:3 佈局, 間距加大
                             c_card, c_val = st.columns([7, 3]) 
                             with c_card:
                                 header_color = MORANDI_COLORS.get(row.get('統計類別'), '#D5DBDB')
@@ -474,8 +474,11 @@ elif st.session_state['current_page'] == 'fuel':
                                         row = filtered_equip.loc[idx]
                                         rows_to_append.append([current_time, selected_dept, p_name, p_ext, row['設備名稱備註'], str(row.get('校內財產編號','-')), row['原燃物料名稱'], fleet_id, str(batch_date), vol, "是", f"批次申報-{target_sub_cat} | {note_val}", file_link])
                                     if rows_to_append:
-                                        ws_record.append_rows(rows_to_append); st.success(f"✅ 批次申報成功！已寫入 {len(rows_to_append)} 筆紀錄。")
-                                        st.balloons(); st.session_state['reset_counter'] += 1; time.sleep(1.5); st.rerun()
+                                        ws_record.append_rows(rows_to_append)
+                                        # V128: 移除 Rerun，保留成功訊息
+                                        st.success(f"✅ 批次申報成功！已寫入 {len(rows_to_append)} 筆紀錄。")
+                                        st.balloons()
+                                        st.session_state['reset_counter'] += 1
                                     else: st.warning("系統錯誤：無法產生寫入資料。")
                                 except Exception as e: st.error(f"失敗: {e}")
 
@@ -568,10 +571,21 @@ elif st.session_state['current_page'] == 'fuel':
                                         shared_str = "是" if is_shared else "-"; card_str = fuel_card_id if fuel_card_id else "-"
                                         for e in data_entries:
                                             rows.append([now_str, selected_dept, p_name, p_ext, selected_device, str(row.get('校內財產編號','-')), str(row.get('原燃物料名稱','-')), card_str, str(e['date']), e['vol'], shared_str, note_input, final_link])
-                                        if rows: ws_record.append_rows(rows); st.success("✅ 申報成功！"); st.balloons(); st.session_state['reset_counter'] += 1; st.cache_data.clear(); st.rerun()
+                                        if rows:
+                                            ws_record.append_rows(rows)
+                                            # V128: 移除 Rerun，保留成功訊息
+                                            st.success("✅ 申報成功！")
+                                            st.balloons()
+                                            st.session_state['reset_counter'] += 1
+                                            st.cache_data.clear()
                             elif report_mode == "無使用":
                                 rows = [[get_taiwan_time().strftime("%Y-%m-%d %H:%M:%S"), selected_dept, p_name, p_ext, selected_device, str(row.get('校內財產編號','-')), str(row.get('原燃物料名稱','-')), "-", str(data_entries[0]['date']), 0.0, "-", note_input, "無"]]
-                                ws_record.append_rows(rows); st.success("✅ 申報成功！"); st.balloons(); st.session_state['reset_counter'] += 1; st.cache_data.clear(); st.rerun()
+                                ws_record.append_rows(rows)
+                                # V128: 移除 Rerun，保留成功訊息
+                                st.success("✅ 申報成功！")
+                                st.balloons()
+                                st.session_state['reset_counter'] += 1
+                                st.cache_data.clear()
 
     # === Tab 2: 看板 (V122: 環形圖標籤 inside) ===
     with tabs[1]:
