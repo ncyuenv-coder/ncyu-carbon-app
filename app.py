@@ -21,20 +21,34 @@ def get_taiwan_time():
     return datetime.utcnow() + timedelta(hours=8)
 
 # ==========================================
-# 1. CSS 樣式表 (V121: 針對 Login, 按鈕, 儀表板, 統計卡片 全面優化)
+# 1. CSS 樣式表 (V122: 針對新需求微調)
 # ==========================================
 st.markdown("""
 <style>
     /* 全域設定 */
     :root {
         color-scheme: light;
-        --btn-bg: #B0BEC5; --btn-border: #2C3E50; --btn-text: #17202A;      
-        --orange-bg: #E67E22; --orange-dark: #D35400; --orange-text: #FFFFFF;
-        --bg-color: #EAEDED; --card-bg: #FFFFFF; --text-main: #2C3E50;
-        --text-sub: #566573; --border-color: #BDC3C7; --morandi-red: #A93226; 
+        --btn-bg: #B0BEC5;        
+        --btn-border: #2C3E50;    
+        --btn-text: #17202A;      
+        
+        --orange-bg: #E67E22;     
+        --orange-dark: #D35400;
+        --orange-text: #FFFFFF;
+
+        --bg-color: #EAEDED;
+        --card-bg: #FFFFFF;
+        --text-main: #2C3E50;
+        --text-sub: #566573;
+        --border-color: #BDC3C7;
+        
+        --morandi-red: #A93226; 
         
         /* KPI 配色 */
-        --kpi-gas: #52BE80; --kpi-diesel: #F4D03F; --kpi-total: #5DADE2; --kpi-co2: #AF7AC5;
+        --kpi-gas: #52BE80;
+        --kpi-diesel: #F4D03F;
+        --kpi-total: #5DADE2;
+        --kpi-co2: #AF7AC5;
     }
 
     [data-testid="stAppViewContainer"] { background-color: var(--bg-color); color: var(--text-main); }
@@ -49,26 +63,43 @@ st.markdown("""
     div[data-baseweb="select"] > div { border-color: #BDC3C7 !important; background-color: #FFFFFF !important; }
     ul[data-baseweb="menu"] { background-color: #FFFFFF !important; }
 
-    /* --- V121: 按鈕樣式 (強制橘底白字 + 置中) --- */
+    /* 按鈕樣式 (橘底白字 + 置中) */
     div.stButton > button, 
     button[kind="primary"], 
     [data-testid="stFormSubmitButton"] > button {
         background-color: var(--orange-bg) !important; 
-        color: #FFFFFF !important; /* 強制白字 */
+        color: #FFFFFF !important; /* 白字 */
         border: 2px solid var(--orange-dark) !important; 
         border-radius: 12px !important;
         font-size: 1.3rem !important; 
         font-weight: 800 !important; 
         padding: 0.7rem 1.5rem !important;
         box-shadow: 0 4px 6px rgba(230, 126, 34, 0.3) !important;
-        display: flex; justify-content: center; align-items: center; /* V121: 文字置中 */
-        width: 100%; /* 確保填滿容器 */
+        display: flex; justify-content: center; align-items: center; 
+        width: 100%; 
     }
-    
-    div.stButton > button p { color: #FFFFFF !important; } /* 強制覆蓋內部文字顏色 */
-    
+    div.stButton > button p { color: #FFFFFF !important; } 
     div.stButton > button:hover, [data-testid="stFormSubmitButton"] > button:hover { 
         background-color: var(--orange-dark) !important; transform: translateY(-2px) !important; color: #FFFFFF !important;
+    }
+
+    /* V122: Tab 字體縮小 */
+    button[data-baseweb="tab"] div p { font-size: 1.3rem !important; font-weight: 900 !important; color: var(--text-sub); }
+    button[data-baseweb="tab"][aria-selected="true"] div p { color: #E67E22 !important; border-bottom: 3px solid #E67E22; }
+
+    /* V122: 申報類型選單樣式優化 (針對 Radio Options) */
+    /* 這裡透過 CSS 選擇器針對特定的 Radio 群組樣式 */
+    .stRadio div[role="radiogroup"] label {
+        background-color: #E8DAEF !important; /* 莫蘭迪紫底 */
+        border: 1px solid #C39BD3 !important;
+        border-radius: 8px !important;
+        padding: 10px 15px !important;
+        margin-right: 10px !important;
+    }
+    .stRadio div[role="radiogroup"] label p {
+        font-size: 1.2rem !important; /* 大字 */
+        font-weight: 800 !important;
+        color: #5B2C6F !important;
     }
 
     /* 檔案上傳區 */
@@ -79,26 +110,20 @@ st.markdown("""
         color: #2E86C1 !important; 
     }
 
-    /* --- V121: 申報類型強調區塊 (莫蘭迪紫) --- */
-    .report-type-box {
-        background-color: #D7BDE2; padding: 15px 20px; border-radius: 12px; margin-bottom: 20px;
-        color: #4A235A; font-weight: 900; font-size: 1.3rem; border: 1px solid #8E44AD;
-    }
-    
-    /* V121: 黑色備註文字 */
-    .note-text-black { color: #000000 !important; font-weight: bold; font-size: 1.05rem; margin-top: 5px; margin-bottom: 15px; }
+    /* V122: 深灰色說明文字 */
+    .note-text-darkgray { color: #566573 !important; font-weight: bold; font-size: 1rem; margin-top: 5px; margin-bottom: 15px; }
 
-    /* V121: 勾選框優化 (針對 Checkbox label) */
+    /* V119: 勾選框優化 */
     div[data-testid="stCheckbox"] label p {
         font-size: 1.2rem !important; color: #1F618D !important; font-weight: 900 !important;
     }
 
-    /* 批次申報卡片 (V119: 增加間距) */
+    /* 批次申報卡片 */
     .batch-card-final {
         background-color: #FFFFFF; border: 1px solid #BDC3C7; border-radius: 10px; overflow: hidden;
         box-shadow: 0 2px 5px rgba(0,0,0,0.1); height: 100%; display: flex; flex-direction: column;
         border-left: 5px solid #E67E22;
-        margin-bottom: 25px; /* V121: 間距加大 */
+        margin-bottom: 25px; 
     }
     .batch-header-final {
         padding: 14px 15px; font-weight: 800; color: #2C3E50; display: flex; justify-content: space-between; align-items: center;
@@ -114,7 +139,7 @@ st.markdown("""
     .batch-row { display: flex; justify-content: space-between; margin-bottom: 5px; }
     .batch-item { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-right: 5px; }
 
-    /* --- V121: 後台 - 統計模式專用卡片 (左右分欄) --- */
+    /* 後台 - 統計模式專用卡片 */
     .stat-card-v119 {
         background-color: #FFFFFF; border: 1px solid #BDC3C7; border-radius: 12px; overflow: hidden;
         box-shadow: 0 3px 6px rgba(0,0,0,0.08); margin-bottom: 15px; height: 100%;
@@ -175,7 +200,7 @@ st.markdown("""
         font-size: 1.6rem; font-weight: 900; margin-bottom: 12px; border-bottom: 2px solid rgba(0,0,0,0.1); padding-bottom: 8px;
     }
 
-    /* 通用 */
+    /* 其他 */
     .device-info-box { background-color: var(--card-bg); border: 2px solid #5DADE2; border-radius: 10px; padding: 20px; margin-bottom: 20px; }
     .alert-box { background-color: #FCF3CF; border: 2px solid #F1C40F; padding: 15px; border-radius: 10px; margin-bottom: 20px; color: #9A7D0A !important; font-weight: bold; text-align: center; }
     .login-header {
@@ -184,8 +209,7 @@ st.markdown("""
     }
     .privacy-box { background-color: #F8F9F9; border: 1px solid #BDC3C7; padding: 15px; border-radius: 10px; font-size: 0.9rem; color: #566573; margin-bottom: 10px; }
     .privacy-title { font-weight: bold; color: #2C3E50; margin-bottom: 5px; font-size: 1rem; }
-    button[data-baseweb="tab"] div p { font-size: 1.6rem !important; font-weight: 900 !important; color: var(--text-sub); }
-    button[data-baseweb="tab"][aria-selected="true"] div p { color: #E67E22 !important; border-bottom: 3px solid #E67E22; }
+    
     input[aria-label="搜尋框"] { height: 50px !important; font-size: 1.2rem !important; }
     .pie-chart-box { background-color: var(--card-bg); border: 2px solid var(--border-color); border-radius: 15px; padding: 10px; }
     .dashboard-main-title {
@@ -218,7 +242,6 @@ FLEET_CARDS = {"總務處事務組-柴油": "TZI510508", "總務處事務組-汽
 DEVICE_ORDER = ["公務車輛(GV-1-)", "乘坐式割草機(GV-2-)", "乘坐式農用機具(GV-3-)", "鍋爐(GS-1-)", "發電機(GS-2-)", "肩背或手持式割草機、吹葉機(GS-3-)", "肩背或手持式農用機具(GS-4-)"]
 DEVICE_CODE_MAP = {"GV-1": "公務車輛(GV-1-)", "GV-2": "乘坐式割草機(GV-2-)", "GV-3": "乘坐式農用機具(GV-3-)", "GS-1": "鍋爐(GS-1-)", "GS-2": "發電機(GS-2-)", "GS-3": "肩背或手持式割草機、吹葉機(GS-3-)", "GS-4": "肩背或手持式農用機具(GS-4-)"}
 
-# 高級莫蘭迪色卡
 MORANDI_COLORS = {
     "公務車輛(GV-1-)": "#B0C4DE", "乘坐式割草機(GV-2-)": "#F5CBA7", "乘坐式農用機具(GV-3-)": "#D7BDE2",
     "鍋爐(GS-1-)": "#E6B0AA", "發電機(GS-2-)": "#A9CCE3",
@@ -302,14 +325,14 @@ if st.session_state['current_page'] == 'home':
         if st.button("前往「燃油設備填報區」", use_container_width=True, type="primary"): st.session_state['current_page'] = 'fuel'; st.rerun()
     with col2:
         st.info("❄️ 冷氣/冰水主機")
-        st.button("前往「冷媒類設備填報區」", use_container_width=True, disabled=True)
+        st.button("前往「冷媒類設備填報區」 (建置中)", use_container_width=True, disabled=True)
     if username == 'admin':
         st.markdown("---"); st.markdown("### 👑 超級管理員專區")
         if st.button("進入「管理員後台」", use_container_width=True): st.session_state['current_page'] = 'admin_dashboard'; st.rerun()
     st.markdown('<div class="contact-footer">如有填報疑問，請電洽環安中心林小姐(分機 7137)，謝謝</div>', unsafe_allow_html=True)
 
 # ------------------------------------------
-# ⛽ 外部填報區
+# ⛽ 外部填報區 (V122.0: 一般申報UI/文字修正)
 # ------------------------------------------
 elif st.session_state['current_page'] == 'fuel':
     st.title("⛽ 燃油設備填報專區")
@@ -324,7 +347,7 @@ elif st.session_state['current_page'] == 'fuel':
             units = sorted([x for x in df_equip['填報單位'].unique() if x != '-' and x != '填報單位'])
             selected_dept = c1.selectbox("填報單位", units, index=None, placeholder="請選擇單位...", key="dept_selector")
             
-            # V119: 完整個資聲明文字 (不刪減)
+            # V119: 完整個資聲明文字
             privacy_html = """
             <div class="privacy-box">
                 <div class="privacy-title">📜 個人資料蒐集、處理及利用告知聲明</div>
@@ -337,8 +360,8 @@ elif st.session_state['current_page'] == 'fuel':
             </div>
             """
             
-            # V119: 黑色備註文字
-            typo_note = '<div class="note-text-black">如有資料誤繕情形，請重新登錄1次資訊，並於備註欄填寫：「前筆資料誤繕，請刪除。」，管理單位將協助刪除誤打資訊</div>'
+            # V122: 深灰色備註文字 (通用)
+            typo_note = '<div class="note-text-darkgray">如有資料誤繕情形，請重新登錄1次資訊，並於備註欄填寫：「前筆資料誤繕，請刪除。」，管理單位將協助刪除誤打資訊</div>'
 
             # --- 批次申報 ---
             if selected_dept in VIP_UNITS:
@@ -368,7 +391,7 @@ elif st.session_state['current_page'] == 'fuel':
                         st.markdown("⛽ **請填入各設備該月份之加油總量(公升)，若該月份無使用請填0：**")
                         batch_inputs = {}
                         for idx, row in filtered_equip.iterrows():
-                            # V121: 7:3 佈局, 間距加大
+                            # V120: 7:3 佈局, 間距加大
                             c_card, c_val = st.columns([7, 3]) 
                             with c_card:
                                 header_color = MORANDI_COLORS.get(row.get('統計類別'), '#D5DBDB')
@@ -401,9 +424,8 @@ elif st.session_state['current_page'] == 'fuel':
                         f_file = st.file_uploader("支援 PDF/JPG/PNG", type=['pdf', 'jpg', 'png', 'jpeg'])
                         st.markdown("---")
                         
-                        # V119: 新增備註欄位
-                        st.markdown("**備註說明**")
-                        st.text_input("備註內容 (選填)", key="batch_note")
+                        # V122: 備註與說明文字
+                        st.text_input("備註 (選填)", key="batch_note")
                         st.markdown(typo_note, unsafe_allow_html=True)
                         st.write("")
 
@@ -441,7 +463,7 @@ elif st.session_state['current_page'] == 'fuel':
                                     else: st.warning("系統錯誤：無法產生寫入資料。")
                                 except Exception as e: st.error(f"失敗: {e}")
 
-            # --- 一般申報模式 ---
+            # --- 一般申報模式 (V122: 標題、選單、欄位文字更新) ---
             else:
                 filtered = df_equip[df_equip['填報單位'] == selected_dept]
                 devices = sorted([x for x in filtered['設備名稱備註'].unique()])
@@ -452,11 +474,11 @@ elif st.session_state['current_page'] == 'fuel':
                     info_html = f"""<div class="device-info-box"><div style="border-bottom: 1px solid #BDC3C7; padding-bottom: 10px; margin-bottom: 10px; font-weight: bold; font-size: 1.2rem; color: #5DADE2;">📋 設備詳細資料</div><div><strong>🏢 部門：</strong>{row.get('設備所屬單位/部門', '-')}</div><div><strong>👤 保管人：</strong>{row.get('保管人', '-')}</div><div><strong>🔢 財產編號：</strong>{row.get('校內財產編號', '-')}</div><div><strong>📍 位置：</strong>{row.get('設備詳細位置/樓層', '-')}</div><div><strong>⛽ 燃料：</strong>{row.get('原燃物料名稱', '-')}</div><div><strong>📊 數量：</strong>{row.get('設備數量', '-')}</div></div>"""
                     st.markdown(info_html, unsafe_allow_html=True)
                     
-                    # V119: 標題修正
                     st.markdown("#### 步驟2：填報設備加油資訊")
                     
-                    # V119: 申報類型強調區塊
-                    st.markdown('<div class="report-type-box">請選擇申報類型：</div>', unsafe_allow_html=True)
+                    # V122: 申報類型標題小字橘色
+                    st.markdown('<p style="color:#E67E22; font-size:1rem; font-weight:bold; margin-bottom:-10px;">請選擇申報類型：</p>', unsafe_allow_html=True)
+                    # V122: 選項樣式由 CSS .stRadio div[role="radiogroup"] label 控制
                     report_mode = st.radio("類型選擇", ["用油量申報 (含單筆/多筆/油卡)", "無使用"], horizontal=True, label_visibility="collapsed")
                     
                     if report_mode == "用油量申報 (含單筆/多筆/油卡)":
@@ -465,6 +487,8 @@ elif st.session_state['current_page'] == 'fuel':
                             if st.button("➕ 增加一列"): st.session_state['multi_row_count'] += 1
                         with c_btn2: 
                             if st.button("➖ 減少一列") and st.session_state['multi_row_count'] > 1: st.session_state['multi_row_count'] -= 1
+                        # V122: 增減列說明
+                        st.caption("填報前請先設定申報筆數，至多10筆")
 
                     with st.form("entry_form", clear_on_submit=True):
                         col_p1, col_p2 = st.columns(2)
@@ -476,21 +500,19 @@ elif st.session_state['current_page'] == 'fuel':
                             fuel_card_id = st.text_input("💳 油卡編號 (選填)")
                             for i in range(st.session_state['multi_row_count']):
                                 c_d, c_v = st.columns(2)
-                                # V119: 欄位名稱修正
-                                _date = c_d.date_input(f"📅 加油日期 {i+1}", datetime.today(), key=f"d_{i}")
-                                _vol = c_v.number_input(f"💧 加油量(公升) {i+1}", min_value=0.0, step=0.1, key=f"v_{i}")
+                                # V122: 欄位文字更新
+                                _date = c_d.date_input(f"📅 加油日期 填報序號 {i+1}", datetime.today(), key=f"d_{i}")
+                                _vol = c_v.number_input(f"💧 加油量(公升) 填報序號 {i+1}", min_value=0.0, step=0.1, key=f"v_{i}")
                                 data_entries.append({"date": _date, "vol": _vol})
                             
-                            # V119: 勾選框樣式
                             st.markdown("---")
-                            is_shared = st.checkbox("🚩 與其他設備共用加油單 (請勾選)") 
+                            is_shared = st.checkbox("與其他設備共用加油單") 
                             
-                            st.markdown("**🧾 備註 (選填)**")
-                            note_input = st.text_input("備註內容")
-                            st.markdown(typo_note, unsafe_allow_html=True) # V119: 黑色提示
+                            note_input = st.text_input("備註", placeholder="")
+                            st.markdown(typo_note, unsafe_allow_html=True)
                             
-                            st.markdown("**📂 上傳佐證資料 (必填)**")
-                            f_files = st.file_uploader("支援 png, jpg, jpeg, pdf (最多 5 個)", type=['png', 'jpg', 'jpeg', 'pdf'], accept_multiple_files=True)
+                            # V122: 檔案上傳文字更新
+                            f_files = st.file_uploader("上傳佐證資料 (必填) - 支援 png, jpg, jpeg, pdf (單檔最多3MB，最多 可上傳10 個檔案)", type=['png', 'jpg', 'jpeg', 'pdf'], accept_multiple_files=True)
                         else:
                             st.info("ℹ️ 您選擇了「無使用」，請選擇無使用的期間。")
                             c_s, c_e = st.columns(2)
@@ -508,10 +530,12 @@ elif st.session_state['current_page'] == 'fuel':
                         if submitted:
                             if not agree: st.error("❌ 請務必勾選同意聲明！")
                             elif not p_name or not p_ext: st.warning("⚠️ 姓名與分機為必填！")
-                            elif report_mode == "用油量申報 (含單筆/多筆/油卡)" and not f_files: st.error("⚠️ 請上傳佐證資料！")
-                            else:
-                                if data_entries[0]['vol'] <= 0 and report_mode == "用油量申報 (含單筆/多筆/油卡)": st.warning("⚠️ 第一筆加油量不能為 0。")
+                            elif report_mode == "用油量申報 (含單筆/多筆/油卡)":
+                                if not f_files: st.error("⚠️ 請上傳佐證資料！")
+                                elif len(f_files) > 10: st.error("⚠️ 最多只能上傳 10 個檔案！")
+                                elif data_entries[0]['vol'] <= 0: st.warning("⚠️ 第一筆加油量不能為 0。")
                                 else:
+                                    # Process submission
                                     valid_logic = True; links=[]
                                     if f_files:
                                         for idx, f in enumerate(f_files):
@@ -528,12 +552,14 @@ elif st.session_state['current_page'] == 'fuel':
                                         final_link = "\n".join(links) if links else "無"
                                         shared_str = "是" if is_shared else "-"; card_str = fuel_card_id if fuel_card_id else "-"
                                         for e in data_entries:
-                                            if e['vol']>0 or report_mode=="無使用":
-                                                rows.append([now_str, selected_dept, p_name, p_ext, selected_device, str(row.get('校內財產編號','-')), str(row.get('原燃物料名稱','-')), card_str, str(e['date']), e['vol'], shared_str, note_input, final_link])
+                                            rows.append([now_str, selected_dept, p_name, p_ext, selected_device, str(row.get('校內財產編號','-')), str(row.get('原燃物料名稱','-')), card_str, str(e['date']), e['vol'], shared_str, note_input, final_link])
                                         if rows: ws_record.append_rows(rows); st.success("✅ 申報成功！"); st.balloons(); st.session_state['reset_counter'] += 1; st.cache_data.clear(); st.rerun()
-                                    else: st.warning("⚠️ 無有效資料可寫入。")
+                            elif report_mode == "無使用":
+                                # 無使用直接送出
+                                rows = [[get_taiwan_time().strftime("%Y-%m-%d %H:%M:%S"), selected_dept, p_name, p_ext, selected_device, str(row.get('校內財產編號','-')), str(row.get('原燃物料名稱','-')), "-", str(data_entries[0]['date']), 0.0, "-", note_input, "無"]]
+                                ws_record.append_rows(rows); st.success("✅ 申報成功！"); st.balloons(); st.session_state['reset_counter'] += 1; st.cache_data.clear(); st.rerun()
 
-    # === Tab 2: 看板 ===
+    # === Tab 2: 看板 (V122: 環形圖標籤 inside) ===
     with tabs[1]:
         st.markdown("### 📊 動態查詢看板 (年度檢視)")
         st.info("請選擇「單位」與「年份」，檢視該年度的用油統計與碳排放分析。")
@@ -624,7 +650,8 @@ elif st.session_state['current_page'] == 'fuel':
                         gas_df = df_final[df_final['原燃物料名稱'].str.contains('汽油', na=False)]
                         if not gas_df.empty:
                             fig_gas = px.pie(gas_df, values='加油量', names='設備名稱備註', title='⛽ 汽油設備用油量分析', color_discrete_sequence=px.colors.sequential.Teal, hole=0.5)
-                            fig_gas.update_traces(textinfo='percent+label', textfont_size=18, insidetextorientation='horizontal')
+                            # V122: 標籤 inside
+                            fig_gas.update_traces(textinfo='percent+label', textfont_size=16, textposition='inside', insidetextorientation='horizontal')
                             fig_gas.update_layout(legend=dict(orientation="h", yanchor="top", y=-0.1, xanchor="center", x=0.5), margin=dict(l=40, r=40, t=40, b=40))
                             st.plotly_chart(fig_gas, use_container_width=True)
                         else: st.info("無汽油使用紀錄")
@@ -634,7 +661,8 @@ elif st.session_state['current_page'] == 'fuel':
                         diesel_df = df_final[df_final['原燃物料名稱'].str.contains('柴油', na=False)]
                         if not diesel_df.empty:
                             fig_diesel = px.pie(diesel_df, values='加油量', names='設備名稱備註', title='🚛 柴油設備用油量分析', color_discrete_sequence=px.colors.sequential.Oranges, hole=0.5)
-                            fig_diesel.update_traces(textinfo='percent+label', textfont_size=18, insidetextorientation='horizontal')
+                            # V122: 標籤 inside
+                            fig_diesel.update_traces(textinfo='percent+label', textfont_size=16, textposition='inside', insidetextorientation='horizontal')
                             fig_diesel.update_layout(legend=dict(orientation="h", yanchor="top", y=-0.1, xanchor="center", x=0.5), margin=dict(l=40, r=40, t=40, b=40))
                             st.plotly_chart(fig_diesel, use_container_width=True)
                         else: st.info("無柴油使用紀錄")
@@ -649,7 +677,7 @@ elif st.session_state['current_page'] == 'fuel':
         st.markdown('<div class="contact-footer">如有填報疑問，請電洽環安中心林小姐(分機 7137)，謝謝</div>', unsafe_allow_html=True)
 
 # ------------------------------------------
-# 👑 超級管理員專區 (V121.0: 旗艦完工版)
+# 👑 超級管理員專區 (V122.0: 完工版)
 # ------------------------------------------
 elif st.session_state['current_page'] == 'admin_dashboard' and username == 'admin':
     st.title("👑 超級管理員後台")
@@ -673,7 +701,7 @@ elif st.session_state['current_page'] == 'admin_dashboard' and username == 'admi
     
     df_year = df_clean[df_clean['年份'] == selected_admin_year] if not df_clean.empty else pd.DataFrame()
 
-    # V119/V121: 架構重組 - 4大分頁
+    # V119/V122: 架構重組 - 4大分頁 (異動 -> 未申報 -> 總覽 -> 儀表板)
     admin_tabs = st.tabs(["🔍 申報資料異動", "⚠️ 篩選未申報名單", "📝 全校燃油設備總覽", "📊 全校油料使用儀表板"])
 
     # === Tab 1: 申報資料異動 ===
@@ -681,7 +709,7 @@ elif st.session_state['current_page'] == 'admin_dashboard' and username == 'admi
         st.subheader("🔍 申報資料異動")
         if not df_year.empty:
             df_year['加油日期'] = pd.to_datetime(df_year['加油日期']).dt.date
-            edited = st.data_editor(df_year, column_config={"佐證資料": st.column_config.LinkColumn("佐證", display_text="🔗"), "加油日期": st.column_config.DateColumn("日期", format="YYYY-MM-DD"), "加油量": st.column_config.NumberColumn("油量", format="%.2f"), "填報時間": st.column_config.TextColumn("填報時間", disabled=True)}, num_rows="dynamic", use_container_width=True, key="editor_v121")
+            edited = st.data_editor(df_year, column_config={"佐證資料": st.column_config.LinkColumn("佐證", display_text="🔗"), "加油日期": st.column_config.DateColumn("日期", format="YYYY-MM-DD"), "加油量": st.column_config.NumberColumn("油量", format="%.2f"), "填報時間": st.column_config.TextColumn("填報時間", disabled=True)}, num_rows="dynamic", use_container_width=True, key="editor_v122")
             if st.button("💾 儲存變更", type="primary"):
                 try:
                     ws_record.clear()
@@ -715,7 +743,7 @@ elif st.session_state['current_page'] == 'admin_dashboard' and username == 'admi
                 else: st.success("🎉 太棒了！全數已申報。")
             else: st.warning("無資料可供篩選。")
 
-    # === Tab 3: 全校總覽 (統計模式) ===
+    # === Tab 3: 全校總覽 (各類設備數量及用油統計) ===
     with admin_tabs[2]:
         if not df_year.empty and not df_equip.empty:
             # 1. 關鍵數字 KPI
@@ -729,10 +757,9 @@ elif st.session_state['current_page'] == 'admin_dashboard' and username == 'admi
             k3.markdown(f"""<div class="top-kpi-card"><div class="top-kpi-title">🚛 全校柴油設備數</div><div class="top-kpi-value">{diesel_eq}</div></div>""", unsafe_allow_html=True)
             st.markdown("---")
 
-            # 2. 各類設備用油統計 (V121: 左右分欄卡片)
-            st.subheader("📂 各類設備用油統計")
+            # 2. 各類設備用油統計 (V122: 標題更新)
+            st.subheader("📂 各類設備數量及用油統計")
             eq_sums = df_equip.groupby('統計類別')['設備數量_num'].sum()
-            # 為了計算細項設備數
             eq_gas_sums = df_equip[df_equip['原燃物料名稱'].str.contains('汽油', na=False)].groupby('統計類別')['設備數量_num'].sum()
             eq_dsl_sums = df_equip[df_equip['原燃物料名稱'].str.contains('柴油', na=False)].groupby('統計類別')['設備數量_num'].sum()
             
@@ -755,6 +782,7 @@ elif st.session_state['current_page'] == 'admin_dashboard' and username == 'admi
                             total_vol = gas_vol + diesel_vol
                             header_color = MORANDI_COLORS.get(category, "#CFD8DC")
                             
+                            # V122: 卡片欄位名稱更新
                             st.markdown(f"""
                             <div class="stat-card-v119">
                                 <div class="stat-header" style="background-color: {header_color};">
@@ -763,14 +791,14 @@ elif st.session_state['current_page'] == 'admin_dashboard' and username == 'admi
                                 </div>
                                 <div class="stat-body-split">
                                     <div class="stat-col-left">
-                                        <div class="stat-item"><span class="stat-item-label">⛽ 汽油設備</span><span class="stat-item-val">{count_gas}</span></div>
-                                        <div class="stat-item"><span class="stat-item-label">🚛 柴油設備</span><span class="stat-item-val">{count_dsl}</span></div>
-                                        <div class="stat-item"><span class="stat-item-label">🔥 燃油設備</span><span class="stat-item-val">{count_tot}</span></div>
+                                        <div class="stat-item"><span class="stat-item-label">⛽ 汽油設備數</span><span class="stat-item-val">{count_gas}</span></div>
+                                        <div class="stat-item"><span class="stat-item-label">🚛 柴油設備數</span><span class="stat-item-val">{count_dsl}</span></div>
+                                        <div class="stat-item"><span class="stat-item-label">🔥 燃油設備數</span><span class="stat-item-val">{count_tot}</span></div>
                                     </div>
                                     <div class="stat-col-right">
-                                        <div class="stat-item"><span class="stat-item-label">汽油(L)</span><span class="stat-item-val">{gas_vol:,.1f}</span></div>
-                                        <div class="stat-item"><span class="stat-item-label">柴油(L)</span><span class="stat-item-val">{diesel_vol:,.1f}</span></div>
-                                        <div class="stat-item"><span class="stat-item-label">總油量(L)</span><span class="stat-item-val">{total_vol:,.1f}</span></div>
+                                        <div class="stat-item"><span class="stat-item-label">汽油加油量(公升)</span><span class="stat-item-val">{gas_vol:,.1f}</span></div>
+                                        <div class="stat-item"><span class="stat-item-label">柴油加油量(公升)</span><span class="stat-item-val">{diesel_vol:,.1f}</span></div>
+                                        <div class="stat-item"><span class="stat-item-label">總計加油量(公升)</span><span class="stat-item-val">{total_vol:,.1f}</span></div>
                                     </div>
                                 </div>
                             </div>
@@ -867,4 +895,4 @@ elif st.session_state['current_page'] == 'admin_dashboard' and username == 'admi
             else: st.info("無數據")
         else: st.info("尚無該年度資料，無法顯示儀表板。")
 
-    st.markdown('<div class="contact-footer">管理員系統版本 V121.0 (Final Architecture & Visuals)</div>', unsafe_allow_html=True)
+    st.markdown('<div class="contact-footer">管理員系統版本 V122.0 (Verified Correction)</div>', unsafe_allow_html=True)
