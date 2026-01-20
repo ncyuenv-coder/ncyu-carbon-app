@@ -21,7 +21,7 @@ def get_taiwan_time():
     return datetime.utcnow() + timedelta(hours=8)
 
 # ==========================================
-# 1. CSS 樣式表 (V126: 樣式全數鎖定)
+# 1. CSS 樣式表 (V126: 最終定案樣式)
 # ==========================================
 st.markdown("""
 <style>
@@ -250,7 +250,7 @@ st.markdown("""
 
 # ☁️ 設定區
 SHEET_ID = "1gqDU21YJeBoBOd8rMYzwwZ45offXWPGEODKTF6B8k-Y" 
-DRIVE_FOLDER_ID = "1DCmR0dXOdFBdTrgnvCYFPtNq_bGzSJeB" 
+DRIVE_FOLDER_ID = "1Uryuk3-9FHJ39w5Uo8FYxuh9VOFndeqD" # V127: 更新資料夾 ID
 VIP_UNITS = ["總務處事務組", "民雄總務", "新民聯辦", "產推處產學營運組"]
 FLEET_CARDS = {"總務處事務組-柴油": "TZI510508", "總務處事務組-汽油": "TZI510509", "民雄總務": "TZI510594", "新民聯辦": "TZI510410", "產推處產學營運組": "TZI510244"}
 DEVICE_ORDER = ["公務車輛(GV-1-)", "乘坐式割草機(GV-2-)", "乘坐式農用機具(GV-3-)", "鍋爐(GS-1-)", "發電機(GS-2-)", "肩背或手持式割草機、吹葉機(GS-3-)", "肩背或手持式農用機具(GS-4-)"]
@@ -406,7 +406,7 @@ elif st.session_state['current_page'] == 'fuel':
                         st.markdown("⛽ **請填入各設備該月份之加油總量(公升)，若該月份無使用請填0：**")
                         batch_inputs = {}
                         for idx, row in filtered_equip.iterrows():
-                            # V120: 7:3 佈局
+                            # V121: 7:3 佈局, 間距加大
                             c_card, c_val = st.columns([7, 3]) 
                             with c_card:
                                 header_color = MORANDI_COLORS.get(row.get('統計類別'), '#D5DBDB')
@@ -479,7 +479,7 @@ elif st.session_state['current_page'] == 'fuel':
                                     else: st.warning("系統錯誤：無法產生寫入資料。")
                                 except Exception as e: st.error(f"失敗: {e}")
 
-            # --- 一般申報模式 ---
+            # --- 一般申報模式 (V123: 更新) ---
             else:
                 filtered = df_equip[df_equip['填報單位'] == selected_dept]
                 devices = sorted([x for x in filtered['設備名稱備註'].unique()])
@@ -494,7 +494,7 @@ elif st.session_state['current_page'] == 'fuel':
                     
                     # V123: 申報類型標題小字深灰色
                     st.markdown('<p style="color:#566573; font-size:1rem; font-weight:bold; margin-bottom:-10px;">請選擇申報類型：</p>', unsafe_allow_html=True)
-                    # V123: 選項樣式
+                    # V123: 選項樣式由 CSS .stRadio div[role="radiogroup"] label 控制
                     report_mode = st.radio("類型選擇", ["用油量申報 (含單筆/多筆/油卡)", "無使用"], horizontal=True, label_visibility="collapsed")
                     
                     if report_mode == "用油量申報 (含單筆/多筆/油卡)":
@@ -570,7 +570,6 @@ elif st.session_state['current_page'] == 'fuel':
                                             rows.append([now_str, selected_dept, p_name, p_ext, selected_device, str(row.get('校內財產編號','-')), str(row.get('原燃物料名稱','-')), card_str, str(e['date']), e['vol'], shared_str, note_input, final_link])
                                         if rows: ws_record.append_rows(rows); st.success("✅ 申報成功！"); st.balloons(); st.session_state['reset_counter'] += 1; st.cache_data.clear(); st.rerun()
                             elif report_mode == "無使用":
-                                # 無使用直接送出
                                 rows = [[get_taiwan_time().strftime("%Y-%m-%d %H:%M:%S"), selected_dept, p_name, p_ext, selected_device, str(row.get('校內財產編號','-')), str(row.get('原燃物料名稱','-')), "-", str(data_entries[0]['date']), 0.0, "-", note_input, "無"]]
                                 ws_record.append_rows(rows); st.success("✅ 申報成功！"); st.balloons(); st.session_state['reset_counter'] += 1; st.cache_data.clear(); st.rerun()
 
