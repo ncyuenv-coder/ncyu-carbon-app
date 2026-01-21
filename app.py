@@ -21,7 +21,7 @@ def get_taiwan_time():
     return datetime.utcnow() + timedelta(hours=8)
 
 # ==========================================
-# 1. CSS 樣式表 (V128: 樣式全數鎖定)
+# 1. CSS 樣式表 (V129: 樣式全數鎖定)
 # ==========================================
 st.markdown("""
 <style>
@@ -250,7 +250,7 @@ st.markdown("""
 
 # ☁️ 設定區
 SHEET_ID = "1gqDU21YJeBoBOd8rMYzwwZ45offXWPGEODKTF6B8k-Y" 
-DRIVE_FOLDER_ID = "1Uryuk3-9FHJ39w5Uo8FYxuh9VOFndeqD" # V127: 更新資料夾 ID
+DRIVE_FOLDER_ID = "1Uryuk3-9FHJ39w5Uo8FYxuh9VOFndeqD" # V127
 VIP_UNITS = ["總務處事務組", "民雄總務", "新民聯辦", "產推處產學營運組"]
 FLEET_CARDS = {"總務處事務組-柴油": "TZI510508", "總務處事務組-汽油": "TZI510509", "民雄總務": "TZI510594", "新民聯辦": "TZI510410", "產推處產學營運組": "TZI510244"}
 DEVICE_ORDER = ["公務車輛(GV-1-)", "乘坐式割草機(GV-2-)", "乘坐式農用機具(GV-3-)", "鍋爐(GS-1-)", "發電機(GS-2-)", "肩背或手持式割草機、吹葉機(GS-3-)", "肩背或手持式農用機具(GS-4-)"]
@@ -312,17 +312,45 @@ try:
     if len(ws_record.get_all_values()) == 0: ws_record.append_row(["填報時間", "填報單位", "填報人", "填報人分機", "設備名稱備註", "校內財產編號", "原燃物料名稱", "油卡編號", "加油日期", "加油量", "與其他設備共用加油單", "備註", "佐證資料"])
 except Exception as e: st.error(f"連線失敗: {e}"); st.stop()
 
+# V129: 自動重試機制 (Auto-Retry for 429 Quota Exceeded)
 @st.cache_data(ttl=600)
 def load_data():
-    df_e = pd.DataFrame(ws_equip.get_all_records()).astype(str)
+    max_retries = 3
+    delay = 2 # 初始等待秒數
+    
+    # 讀取設備清單
+    df_e = pd.DataFrame()
+    for attempt in range(max_retries):
+        try:
+            df_e = pd.DataFrame(ws_equip.get_all_records()).astype(str)
+            break
+        except Exception as e:
+            if "429" in str(e) and attempt < max_retries - 1:
+                time.sleep(delay)
+                delay *= 2 # 指數退避 (2s -> 4s -> 8s)
+            else:
+                raise e # 若非429或超過重試次數，則拋出異常
+
     if '設備編號' in df_e.columns:
         df_e['統計類別'] = df_e['設備編號'].apply(lambda c: next((v for k, v in DEVICE_CODE_MAP.items() if str(c).startswith(k)), "其他/未分類"))
     else: df_e['統計類別'] = "未設定I欄"
     # V119: 預處理數字
     df_e['設備數量_num'] = pd.to_numeric(df_e['設備數量'], errors='coerce').fillna(1)
     
-    data = ws_record.get_all_values()
-    df_r = pd.DataFrame(data[1:], columns=data[0]) if len(data) > 1 else pd.DataFrame(columns=data[0])
+    # 讀取填報紀錄
+    df_r = pd.DataFrame()
+    for attempt in range(max_retries):
+        try:
+            data = ws_record.get_all_values()
+            df_r = pd.DataFrame(data[1:], columns=data[0]) if len(data) > 1 else pd.DataFrame(columns=data[0])
+            break
+        except Exception as e:
+            if "429" in str(e) and attempt < max_retries - 1:
+                time.sleep(delay)
+                delay *= 2
+            else:
+                raise e
+
     return df_e, df_r
 
 df_equip, df_records = load_data()
@@ -346,7 +374,7 @@ if st.session_state['current_page'] == 'home':
     st.markdown('<div class="contact-footer">如有填報疑問，請電洽環安中心林小姐(分機 7137)，謝謝</div>', unsafe_allow_html=True)
 
 # ------------------------------------------
-# ⛽ 外部填報區 (V128.0: 移除自動 Rerun, 確保訊息停留)
+# ⛽ 外部填報區 (V129.0: 高穩定性載入)
 # ------------------------------------------
 elif st.session_state['current_page'] == 'fuel':
     st.title("⛽ 燃油設備填報專區")
