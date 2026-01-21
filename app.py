@@ -370,7 +370,7 @@ if st.session_state['current_page'] == 'home':
     st.markdown('<div class="contact-footer">如有填報疑問，請電洽環安中心林小姐(分機 7137)，謝謝</div>', unsafe_allow_html=True)
 
 # ------------------------------------------
-# ⛽ 外部填報區 (V131.0: 批次備註還原+一般上傳顯示優化)
+# ⛽ 外部填報區 (V132.0: 檔名邏輯更新 + V131介面鎖定)
 # ------------------------------------------
 elif st.session_state['current_page'] == 'fuel':
     st.title("⛽ 燃油設備填報專區")
@@ -475,7 +475,10 @@ elif st.session_state['current_page'] == 'fuel':
                             else:
                                 try:
                                     f_file.seek(0); file_ext = f_file.name.split('.')[-1]
-                                    clean_name = f"BATCH_{selected_dept}_{batch_date}_{int(time.time())}.{file_ext}"
+                                    # V132: 批次檔名邏輯
+                                    fuel_rep = filtered_equip.iloc[0]['原燃物料名稱'] if not filtered_equip.empty else "混合油品"
+                                    clean_name = f"{selected_dept}_{target_sub_cat}_{fuel_rep}_{total_vol}.{file_ext}"
+                                    
                                     file_meta = {'name': clean_name, 'parents': [DRIVE_FOLDER_ID]}
                                     media = MediaIoBaseUpload(f_file, mimetype=f_file.type, resumable=True)
                                     file = drive_service.files().create(body=file_meta, media_body=media, fields='webViewLink').execute()
@@ -541,7 +544,7 @@ elif st.session_state['current_page'] == 'fuel':
                             note_input = st.text_input("備註", placeholder="")
                             st.markdown(typo_note, unsafe_allow_html=True)
                             
-                            # V131: 上傳介面優化 - 保留HTML標題，移除collapsed
+                            # V131: 上傳介面優化
                             st.markdown("<h4 style='color: #1A5276;'>📂 上傳佐證資料 (必填)</h4>", unsafe_allow_html=True)
                             st.markdown("""
                             * **A. 請依填報加油日期之順序上傳檔案。**
@@ -573,7 +576,11 @@ elif st.session_state['current_page'] == 'fuel':
                                 else:
                                     valid_logic = True; links=[]
                                     if f_files:
+                                        # V132: 一般申報檔名邏輯
                                         total_report_vol = sum([e['vol'] for e in data_entries])
+                                        fuel_type = row.get('原燃物料名稱', '未知油品')
+                                        shared_tag = "(共用)" if is_shared else ""
+
                                         for idx, f in enumerate(f_files):
                                             try:
                                                 f.seek(0); file_ext = f.name.split('.')[-1]
@@ -582,11 +589,12 @@ elif st.session_state['current_page'] == 'fuel':
                                                 if len(f_files) == len(data_entries):
                                                     c_date = data_entries[idx]['date']
                                                     c_vol = data_entries[idx]['vol']
-                                                    clean_name = f"{selected_dept}_{selected_device}_{c_date}_{c_vol}.{file_ext}"
+                                                    clean_name = f"{selected_dept}_{selected_device}_{fuel_type}_{c_date}_{c_vol}{shared_tag}.{file_ext}"
                                                 elif len(f_files) == 1 and len(data_entries) > 1:
-                                                    clean_name = f"{selected_dept}_{selected_device}_{total_report_vol}.{file_ext}"
+                                                    clean_name = f"{selected_dept}_{selected_device}_{fuel_type}_{total_report_vol}{shared_tag}.{file_ext}"
                                                 else:
-                                                    clean_name = f"{selected_dept}_{selected_device}_{data_entries[0]['date']}_{idx+1}.{file_ext}"
+                                                    # Fallback
+                                                    clean_name = f"{selected_dept}_{selected_device}_{fuel_type}_{data_entries[0]['date']}_{idx+1}{shared_tag}.{file_ext}"
 
                                                 meta = {'name': clean_name, 'parents': [DRIVE_FOLDER_ID]}
                                                 media = MediaIoBaseUpload(f, mimetype=f.type, resumable=True)
