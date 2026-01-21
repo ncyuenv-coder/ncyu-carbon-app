@@ -21,11 +21,11 @@ def get_taiwan_time():
     return datetime.utcnow() + timedelta(hours=8)
 
 # ==========================================
-# 1. CSS 樣式表 (V131: 樣式鎖定)
+# 1. CSS 樣式表 (V134 燃油樣式鎖定 + V200 冷媒新樣式)
 # ==========================================
 st.markdown("""
 <style>
-    /* 全域設定 */
+    /* --- 全域設定 --- */
     :root {
         color-scheme: light;
         --btn-bg: #B0BEC5;        
@@ -102,12 +102,23 @@ st.markdown("""
         color: #154360 !important;
     }
 
-    /* 檔案上傳區 */
-    [data-testid="stFileUploaderDropzone"] {
+    /* 燃油-檔案上傳區 (淺藍虛線) */
+    .fuel-uploader [data-testid="stFileUploaderDropzone"] {
         background-color: #EBF5FB !important; border: 2px dashed #AED6F1 !important; border-radius: 12px; padding: 20px;
     }
-    [data-testid="stFileUploaderDropzone"] div, [data-testid="stFileUploaderDropzone"] span, [data-testid="stFileUploaderDropzone"] small {
-        color: #2E86C1 !important; 
+    
+    /* V200: 冷媒-檔案上傳區 (淺藍底色+深藍字體) */
+    .ref-uploader [data-testid="stFileUploaderDropzone"] {
+        background-color: #D6EAF8 !important; /* 淺藍底色 */
+        border: 2px solid #2E86C1 !important; 
+        border-radius: 12px; 
+        padding: 20px;
+    }
+    .ref-uploader [data-testid="stFileUploaderDropzone"] div, 
+    .ref-uploader [data-testid="stFileUploaderDropzone"] span, 
+    .ref-uploader [data-testid="stFileUploaderDropzone"] small {
+        color: #154360 !important; /* 深藍字體 */
+        font-weight: bold !important;
     }
 
     /* 深灰色說明文字 */
@@ -248,9 +259,13 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# ☁️ 設定區
+# ☁️ 設定區 (V200: 新增冷媒設定)
 SHEET_ID = "1gqDU21YJeBoBOd8rMYzwwZ45offXWPGEODKTF6B8k-Y" 
-DRIVE_FOLDER_ID = "1Uryuk3-9FHJ39w5Uo8FYxuh9VOFndeqD" # V127
+DRIVE_FOLDER_ID = "1Uryuk3-9FHJ39w5Uo8FYxuh9VOFndeqD" # 燃油佐證資料夾
+
+REF_SHEET_ID = "1ZdvMBkprsN9w6EUKeGU_KYC8UKeS0rmX1Nq0yXzESIc" # 冷媒試算表
+REF_FOLDER_ID = "1o0S56OyStDjvC5tgBWiUNqNjrpXuCQMI" # 冷媒佐證資料夾
+
 VIP_UNITS = ["總務處事務組", "民雄總務", "新民聯辦", "產推處產學營運組"]
 FLEET_CARDS = {"總務處事務組-柴油": "TZI510508", "總務處事務組-汽油": "TZI510509", "民雄總務": "TZI510594", "新民聯辦": "TZI510410", "產推處產學營運組": "TZI510244"}
 DEVICE_ORDER = ["公務車輛(GV-1-)", "乘坐式割草機(GV-2-)", "乘坐式農用機具(GV-3-)", "鍋爐(GS-1-)", "發電機(GS-2-)", "肩背或手持式割草機、吹葉機(GS-3-)", "肩背或手持式農用機具(GS-4-)"]
@@ -304,15 +319,40 @@ def init_google():
     return gc, drive
 
 try:
-    gc, drive_service = init_google(); sh = gc.open_by_key(SHEET_ID)
+    gc, drive_service = init_google(); 
+    # V200: 連線到兩個不同的 Sheet
+    sh = gc.open_by_key(SHEET_ID) # 燃油
+    sh_ref = gc.open_by_key(REF_SHEET_ID) # 冷媒
+    
+    # 燃油 Sheets
     try: ws_equip = sh.worksheet("設備清單") 
     except: ws_equip = sh.sheet1 
     try: ws_record = sh.worksheet("填報紀錄")
     except: ws_record = sh.add_worksheet(title="填報紀錄", rows="1000", cols="13")
     if len(ws_record.get_all_values()) == 0: ws_record.append_row(["填報時間", "填報單位", "填報人", "填報人分機", "設備名稱備註", "校內財產編號", "原燃物料名稱", "油卡編號", "加油日期", "加油量", "與其他設備共用加油單", "備註", "佐證資料"])
+
+    # 冷媒 Sheets (全校各單位, 建築物清單, 設備類型, 冷媒係數表, 填報紀錄)
+    # 這裡我們假設 User 已經建好了這些 Sheet
+    try: ws_ref_units = sh_ref.worksheet("全校各單位")
+    except: ws_ref_units = sh_ref.add_worksheet(title="全校各單位", rows="100", cols="5")
+    
+    try: ws_ref_buildings = sh_ref.worksheet("建築物清單")
+    except: ws_ref_buildings = sh_ref.add_worksheet(title="建築物清單", rows="100", cols="3")
+    
+    try: ws_ref_types = sh_ref.worksheet("設備類型")
+    except: ws_ref_types = sh_ref.add_worksheet(title="設備類型", rows="20", cols="2")
+    
+    try: ws_ref_coef = sh_ref.worksheet("冷媒係數表")
+    except: ws_ref_coef = sh_ref.add_worksheet(title="冷媒係數表", rows="50", cols="3")
+    
+    try: ws_ref_records = sh_ref.worksheet("冷媒填報紀錄")
+    except: 
+        ws_ref_records = sh_ref.add_worksheet(title="冷媒填報紀錄", rows="1000", cols="15")
+        ws_ref_records.append_row(["填報時間", "填報人", "填報人分機", "校區", "所屬單位", "填報單位名稱", "建築物名稱", "辦公室編號", "維修日期", "設備類型", "設備品牌型號", "冷媒種類", "冷媒填充量", "備註", "佐證資料"])
+
 except Exception as e: st.error(f"連線失敗: {e}"); st.stop()
 
-# V129: 自動重試機制
+# V129: 自動重試機制 - 燃油資料
 @st.cache_data(ttl=600)
 def load_data():
     max_retries = 3
@@ -349,7 +389,23 @@ def load_data():
 
     return df_e, df_r
 
+# V200: 冷媒資料載入 (使用快取)
+@st.cache_data(ttl=600)
+def load_ref_data():
+    # 讀取基本設定檔
+    df_units = pd.DataFrame(ws_ref_units.get_all_records()).astype(str)
+    df_buildings = pd.DataFrame(ws_ref_buildings.get_all_records()).astype(str)
+    df_types = pd.DataFrame(ws_ref_types.get_all_records()).astype(str)
+    df_coef = pd.DataFrame(ws_ref_coef.get_all_records()).astype(str)
+    
+    # 讀取紀錄檔 (不需要一直讀，但為了Dashboard需要)
+    data = ws_ref_records.get_all_values()
+    df_records = pd.DataFrame(data[1:], columns=data[0]) if len(data) > 1 else pd.DataFrame(columns=data[0])
+    
+    return df_units, df_buildings, df_types, df_coef, df_records
+
 df_equip, df_records = load_data()
+df_ref_units, df_ref_buildings, df_ref_types, df_ref_coef, df_ref_records = load_ref_data()
 
 # ==========================================
 # 3. 頁面邏輯
@@ -363,14 +419,15 @@ if st.session_state['current_page'] == 'home':
         if st.button("前往「燃油設備填報區」", use_container_width=True, type="primary"): st.session_state['current_page'] = 'fuel'; st.rerun()
     with col2:
         st.info("❄️ 冷氣/冰水主機")
-        st.button("前往「冷媒類設備填報區」", use_container_width=True, disabled=True)
+        # V200: 開啟冷媒按鈕
+        if st.button("前往「冷媒類設備填報區」", use_container_width=True, type="primary"): st.session_state['current_page'] = 'refrigerant'; st.rerun()
     if username == 'admin':
         st.markdown("---"); st.markdown("### 👑 超級管理員專區")
         if st.button("進入「管理員後台」", use_container_width=True): st.session_state['current_page'] = 'admin_dashboard'; st.rerun()
     st.markdown('<div class="contact-footer">如有填報疑問，請電洽環安中心林小姐(分機 7137)，謝謝</div>', unsafe_allow_html=True)
 
 # ------------------------------------------
-# ⛽ 外部填報區 (V132.0: V131 + 檔名邏輯)
+# ⛽ 外部填報區 (V134.0: 燃油定案版 - 完全鎖定)
 # ------------------------------------------
 elif st.session_state['current_page'] == 'fuel':
     st.title("⛽ 燃油設備填報專區")
@@ -455,7 +512,9 @@ elif st.session_state['current_page'] == 'fuel':
                                 
                         st.markdown("---")
                         st.markdown("**📂 上傳中油加油明細 (只需一份)**")
+                        st.markdown('<div class="fuel-uploader">', unsafe_allow_html=True)
                         f_file = st.file_uploader("支援 PDF/JPG/PNG", type=['pdf', 'jpg', 'png', 'jpeg'])
+                        st.markdown('</div>', unsafe_allow_html=True)
                         st.markdown("---")
                         
                         # V131: 恢復備註欄位但隱藏Label
@@ -551,7 +610,9 @@ elif st.session_state['current_page'] == 'fuel':
                             * **B. 一次多筆申報時，可採單張油單逐一按時序上傳，或依時序彙整成一個檔案後統一上傳。**
                             * **C. 支援 png, jpg, jpeg, pdf (單檔最多3MB，最多可上傳10個檔案)。**
                             """)
+                            st.markdown('<div class="fuel-uploader">', unsafe_allow_html=True)
                             f_files = st.file_uploader("選擇檔案", type=['png', 'jpg', 'jpeg', 'pdf'], accept_multiple_files=True)
+                            st.markdown('</div>', unsafe_allow_html=True)
                         else:
                             st.info("ℹ️ 您選擇了「無使用」，請選擇無使用的期間。")
                             c_s, c_e = st.columns(2)
@@ -714,8 +775,8 @@ elif st.session_state['current_page'] == 'fuel':
                         gas_df = df_final[df_final['原燃物料名稱'].str.contains('汽油', na=False)]
                         if not gas_df.empty:
                             fig_gas = px.pie(gas_df, values='加油量', names='設備名稱備註', title='⛽ 汽油設備用油量分析', color_discrete_sequence=px.colors.sequential.Teal, hole=0.5)
-                            # V122: 標籤 inside
-                            fig_gas.update_traces(textinfo='percent+label', textfont_size=16, textposition='inside', insidetextorientation='horizontal')
+                            # V134: Tab3 fix (Inside, Size 20)
+                            fig_gas.update_traces(textinfo='percent+label', textfont_size=20, textposition='inside', insidetextorientation='horizontal')
                             fig_gas.update_layout(legend=dict(orientation="h", yanchor="top", y=-0.1, xanchor="center", x=0.5), margin=dict(l=40, r=40, t=40, b=40))
                             st.plotly_chart(fig_gas, use_container_width=True)
                         else: st.info("無汽油使用紀錄")
@@ -725,8 +786,8 @@ elif st.session_state['current_page'] == 'fuel':
                         diesel_df = df_final[df_final['原燃物料名稱'].str.contains('柴油', na=False)]
                         if not diesel_df.empty:
                             fig_diesel = px.pie(diesel_df, values='加油量', names='設備名稱備註', title='🚛 柴油設備用油量分析', color_discrete_sequence=px.colors.sequential.Oranges, hole=0.5)
-                            # V122: 標籤 inside
-                            fig_diesel.update_traces(textinfo='percent+label', textfont_size=16, textposition='inside', insidetextorientation='horizontal')
+                            # V134: Tab3 fix (Inside, Size 20)
+                            fig_diesel.update_traces(textinfo='percent+label', textfont_size=20, textposition='inside', insidetextorientation='horizontal')
                             fig_diesel.update_layout(legend=dict(orientation="h", yanchor="top", y=-0.1, xanchor="center", x=0.5), margin=dict(l=40, r=40, t=40, b=40))
                             st.plotly_chart(fig_diesel, use_container_width=True)
                         else: st.info("無柴油使用紀錄")
@@ -741,7 +802,148 @@ elif st.session_state['current_page'] == 'fuel':
         st.markdown('<div class="contact-footer">如有填報疑問，請電洽環安中心林小姐(分機 7137)，謝謝</div>', unsafe_allow_html=True)
 
 # ------------------------------------------
-# 👑 超級管理員專區 (V133.0: Tab 3 環形圖位置修正)
+# ❄️ 冷媒類設備填報專區 (V200.0: 新增)
+# ------------------------------------------
+elif st.session_state['current_page'] == 'refrigerant':
+    st.title("❄️ 冷媒/冰水主機填報專區")
+    
+    ref_tabs = st.tabs(["📝 新增填報", "📊 動態查詢看板"])
+    
+    # === Tab 1: 新增填報 ===
+    with ref_tabs[0]:
+        st.markdown('<div class="alert-box">📢 請「誠實申報」，以保障單位及自身權益！</div>', unsafe_allow_html=True)
+        
+        with st.form("ref_entry_form", clear_on_submit=True):
+            st.markdown("#### (1) 填報人基本資料區")
+            c1, c2, c3 = st.columns(3)
+            
+            # 連動選單: 校區 -> 所屬單位 -> 填報單位名稱
+            # 1. 校區
+            campuses = sorted(df_ref_units['校區'].dropna().unique())
+            selected_campus = c1.selectbox("A. 校區", campuses, index=None, placeholder="請選擇校區...", key="ref_campus")
+            
+            # 2. 所屬單位
+            depts = []
+            if selected_campus:
+                depts = sorted(df_ref_units[df_ref_units['校區'] == selected_campus]['所屬單位'].dropna().unique())
+            selected_dept = c2.selectbox("B. 所屬單位", depts, index=None, placeholder="請先選擇校區...", key="ref_dept")
+            
+            # 3. 填報單位名稱
+            units = []
+            if selected_dept:
+                units = sorted(df_ref_units[(df_ref_units['校區'] == selected_campus) & (df_ref_units['所屬單位'] == selected_dept)]['填報單位名稱'].dropna().unique())
+            selected_unit_name = c3.selectbox("C. 填報單位名稱", units, index=None, placeholder="請先選擇所屬單位...", key="ref_unit_name")
+            
+            c4, c5 = st.columns(2)
+            reporter_name = c4.text_input("D. 填報人")
+            reporter_ext = c5.text_input("E. 填報人分機")
+            
+            st.markdown("---")
+            st.markdown("#### (2) 詳細位置資訊區")
+            c6, c7 = st.columns(2)
+            
+            # 連動選單: 校區 -> 建築物
+            buildings = []
+            if selected_campus:
+                # 假設建築物清單 Sheet 裡有 '校區' 和 '建築物名稱' 欄位
+                if '校區' in df_ref_buildings.columns and '建築物名稱' in df_ref_buildings.columns:
+                    buildings = sorted(df_ref_buildings[df_ref_buildings['校區'] == selected_campus]['建築物名稱'].dropna().unique())
+                else:
+                    st.error("建築物清單欄位錯誤，請檢查資料庫")
+            
+            selected_building = c6.selectbox("A. 建築物名稱", buildings, index=None, placeholder="請先選擇上方校區...", key="ref_building")
+            office_no = c7.text_input("B. 辦公室編號", placeholder="例如：404辦公室或213研究室")
+            
+            st.markdown("---")
+            st.markdown("#### (3) 設備修繕冷媒填充資訊區")
+            c8, c9 = st.columns(2)
+            repair_date = c8.date_input("A. 維修日期 (統一填寫發票日期)", datetime.today())
+            
+            # 設備類型下拉
+            equip_types = sorted(df_ref_types.iloc[:,0].dropna().unique()) if not df_ref_types.empty else []
+            equip_type = c9.selectbox("B. 設備類型", equip_types, index=None, placeholder="請選擇...")
+            
+            c10, c11 = st.columns(2)
+            equip_model = c10.text_input("C. 設備品牌型號", placeholder="例如：國際 CS-100FL+CU-100FLC")
+            
+            # 冷媒種類下拉
+            ref_types = sorted(df_ref_coef.iloc[:,0].dropna().unique()) if not df_ref_coef.empty else []
+            ref_type = c11.selectbox("D. 冷媒種類", ref_types, index=None, placeholder="請選擇...")
+            
+            ref_amount = st.number_input("E. 冷媒填充量 (公斤)", min_value=0.0, step=0.1, format="%.2f")
+            
+            st.markdown("F. 請上傳冷媒填充單據佐證資料")
+            # V200: 客製化淺藍色上傳區
+            st.markdown('<div class="ref-uploader">', unsafe_allow_html=True)
+            f_ref_file = st.file_uploader("上傳佐證 (必填)", type=['png', 'jpg', 'jpeg', 'pdf'], label_visibility="collapsed")
+            st.markdown('</div>', unsafe_allow_html=True)
+            
+            st.markdown("---")
+            st.markdown("#### (4) 備註")
+            note_val = st.text_input("A. 備註內容", placeholder="備註 (選填)")
+            st.markdown('<div class="note-text-darkgray">如有資料誤繕情形，請重新登錄1次資訊，並於備註欄填寫：「前筆資料誤繕，請刪除。」，管理單位將協助刪除誤打資訊。</div>', unsafe_allow_html=True)
+            
+            # 個資聲明
+            privacy_html_ref = """
+            <div class="privacy-box">
+                <div class="privacy-title">📜 個人資料蒐集、處理及利用告知聲明</div>
+                1. <strong>蒐集機關</strong>：國立嘉義大學。<br>
+                2. <strong>蒐集目的</strong>：進行本校冷媒/冰水主機維修填充紀錄管理、校園溫室氣體（碳）盤查統計。<br>
+                3. <strong>個資類別</strong>：填報人姓名。<br>
+                4. <strong>利用期間</strong>：姓名保留至填報年度後第二年1月1日。<br>
+                5. <strong>您有權依個資法請求查詢、更正或刪除您的個資。</strong><br>
+            </div>
+            """
+            st.markdown(privacy_html_ref, unsafe_allow_html=True)
+            agree_ref = st.checkbox("我已閱讀並同意個資聲明，且確認所填資料無誤。", key="ref_agree")
+            
+            submit_ref = st.form_submit_button("🚀 確認送出", use_container_width=True)
+            
+            if submit_ref:
+                # 驗證必填
+                if not agree_ref: st.error("❌ 請勾選同意聲明")
+                elif not selected_campus or not selected_dept or not selected_unit_name: st.warning("⚠️ 請完整選擇填報單位資訊 (A, B, C)")
+                elif not reporter_name or not reporter_ext: st.warning("⚠️ 填報人與分機為必填")
+                elif not selected_building: st.warning("⚠️ 請選擇建築物")
+                elif not equip_type or not ref_type: st.warning("⚠️ 請選擇設備類型與冷媒種類")
+                elif not f_ref_file: st.error("⚠️ 請上傳佐證資料")
+                else:
+                    try:
+                        # 檔名處理
+                        f_ref_file.seek(0); f_ext = f_ref_file.name.split('.')[-1]
+                        # 檔名格式: 校區_所屬單位_填報單位名稱_維修日期_設備類型_冷媒種類
+                        clean_ref_name = f"{selected_campus}_{selected_dept}_{selected_unit_name}_{repair_date}_{equip_type}_{ref_type}.{f_ext}"
+                        
+                        # 上傳到 Google Drive
+                        file_meta = {'name': clean_ref_name, 'parents': [REF_FOLDER_ID]}
+                        media = MediaIoBaseUpload(f_ref_file, mimetype=f_ref_file.type, resumable=True)
+                        file = drive_service.files().create(body=file_meta, media_body=media, fields='webViewLink').execute()
+                        file_link = file.get('webViewLink')
+                        
+                        # 寫入 Google Sheet
+                        current_time = get_taiwan_time().strftime("%Y-%m-%d %H:%M:%S")
+                        row_data = [
+                            current_time, reporter_name, reporter_ext, 
+                            selected_campus, selected_dept, selected_unit_name, 
+                            selected_building, office_no, 
+                            str(repair_date), equip_type, equip_model, 
+                            ref_type, ref_amount, 
+                            note_val, file_link
+                        ]
+                        ws_ref_records.append_row(row_data)
+                        
+                        st.success("✅ 冷媒填報成功！")
+                        st.balloons()
+                        
+                    except Exception as e:
+                        st.error(f"填報失敗: {e}")
+
+    # === Tab 2: 動態看板 (暫時留白) ===
+    with ref_tabs[1]:
+        st.info("🚧 動態查詢看板建置中...")
+
+# ------------------------------------------
+# 👑 超級管理員專區 (V134.0: 燃油定案版 - 完全鎖定)
 # ------------------------------------------
 elif st.session_state['current_page'] == 'admin_dashboard' and username == 'admin':
     st.title("👑 超級管理員後台")
@@ -880,7 +1082,7 @@ elif st.session_state['current_page'] == 'admin_dashboard' and username == 'admi
             gas_data = df_year[(df_year['油品大類'] == '汽油') & (df_year['統計類別'].isin(DEVICE_ORDER))].groupby('統計類別')['加油量'].sum().reset_index()
             if not gas_data.empty:
                 fig_g = px.pie(gas_data, values='加油量', names='統計類別', title='⛽ 汽油用量佔比', hole=0.4, color='統計類別', color_discrete_map=color_map)
-                # V133: Tab3 fix (Inside, Size 20)
+                # V134: Tab3 fix (Inside, Size 20)
                 fig_g.update_traces(textinfo='percent+label', textfont_size=20, textposition='inside', insidetextorientation='horizontal')
                 c_pie1.plotly_chart(fig_g, use_container_width=True)
             else: c_pie1.info("無汽油數據")
@@ -888,7 +1090,7 @@ elif st.session_state['current_page'] == 'admin_dashboard' and username == 'admi
             dsl_data = df_year[(df_year['油品大類'] == '柴油') & (df_year['統計類別'].isin(DEVICE_ORDER))].groupby('統計類別')['加油量'].sum().reset_index()
             if not dsl_data.empty:
                 fig_d = px.pie(dsl_data, values='加油量', names='統計類別', title='🚛 柴油用量佔比', hole=0.4, color='統計類別', color_discrete_map=color_map)
-                # V133: Tab3 fix (Inside, Size 20)
+                # V134: Tab3 fix (Inside, Size 20)
                 fig_d.update_traces(textinfo='percent+label', textfont_size=20, textposition='inside', insidetextorientation='horizontal')
                 c_pie2.plotly_chart(fig_d, use_container_width=True)
             else: c_pie2.info("無柴油數據")
@@ -976,4 +1178,4 @@ elif st.session_state['current_page'] == 'admin_dashboard' and username == 'admi
             else: st.info("無數據")
         else: st.info("尚無該年度資料，無法顯示儀表板。")
 
-    st.markdown('<div class="contact-footer">管理員系統版本 V133.0 (Pie Chart Label Fix)</div>', unsafe_allow_html=True)
+    st.markdown('<div class="contact-footer">管理員系統版本 V134.0 (Final Visual Perfection)</div>', unsafe_allow_html=True)
