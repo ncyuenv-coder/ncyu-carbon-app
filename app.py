@@ -880,16 +880,16 @@ elif st.session_state['current_page'] == 'admin_dashboard' and username == 'admi
             gas_data = df_year[(df_year['油品大類'] == '汽油') & (df_year['統計類別'].isin(DEVICE_ORDER))].groupby('統計類別')['加油量'].sum().reset_index()
             if not gas_data.empty:
                 fig_g = px.pie(gas_data, values='加油量', names='統計類別', title='⛽ 汽油用量佔比', hole=0.4, color='統計類別', color_discrete_map=color_map)
-                # V133: Tab3 fix
-                fig_g.update_traces(textinfo='percent+label', textfont_size=16, textposition='inside', insidetextorientation='horizontal')
+                # V133: Tab3 fix (Inside, Size 20)
+                fig_g.update_traces(textinfo='percent+label', textfont_size=20, textposition='inside', insidetextorientation='horizontal')
                 c_pie1.plotly_chart(fig_g, use_container_width=True)
             else: c_pie1.info("無汽油數據")
             
             dsl_data = df_year[(df_year['油品大類'] == '柴油') & (df_year['統計類別'].isin(DEVICE_ORDER))].groupby('統計類別')['加油量'].sum().reset_index()
             if not dsl_data.empty:
                 fig_d = px.pie(dsl_data, values='加油量', names='統計類別', title='🚛 柴油用量佔比', hole=0.4, color='統計類別', color_discrete_map=color_map)
-                # V133: Tab3 fix
-                fig_d.update_traces(textinfo='percent+label', textfont_size=16, textposition='inside', insidetextorientation='horizontal')
+                # V133: Tab3 fix (Inside, Size 20)
+                fig_d.update_traces(textinfo='percent+label', textfont_size=20, textposition='inside', insidetextorientation='horizontal')
                 c_pie2.plotly_chart(fig_d, use_container_width=True)
             else: c_pie2.info("無柴油數據")
         else: st.warning("尚無資料可供統計。")
