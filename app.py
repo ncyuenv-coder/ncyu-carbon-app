@@ -107,7 +107,7 @@ st.markdown("""
         background-color: #EBF5FB !important; border: 2px dashed #AED6F1 !important; border-radius: 12px; padding: 20px;
     }
     
-    /* V200: 冷媒-檔案上傳區 (淺藍底色+深藍字體) */
+    /* 冷媒-檔案上傳區 (淺藍底色+深藍字體) */
     .ref-uploader [data-testid="stFileUploaderDropzone"] {
         background-color: #D6EAF8 !important; /* 淺藍底色 */
         border: 2px solid #2E86C1 !important; 
@@ -259,12 +259,14 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# ☁️ 設定區 (V200: 新增冷媒設定)
+# ☁️ 設定區 (V201: 修正 ID 歸屬)
+# 1. 燃油設備 (使用使用者手動填寫的 SHEET_ID, 預設為 placeholder)
 SHEET_ID = "1gqDU21YJeBoBOd8rMYzwwZ45offXWPGEODKTF6B8k-Y" 
-DRIVE_FOLDER_ID = "1Uryuk3-9FHJ39w5Uo8FYxuh9VOFndeqD" # 燃油佐證資料夾
+DRIVE_FOLDER_ID = "1Uryuk3-9FHJ39w5Uo8FYxuh9VOFndeqD" # 燃油佐證資料夾 (V127指定)
 
-REF_SHEET_ID = "1ZdvMBkprsN9w6EUKeGU_KYC8UKeS0rmX1Nq0yXzESIc" # 冷媒試算表
-REF_FOLDER_ID = "1o0S56OyStDjvC5tgBWiUNqNjrpXuCQMI" # 冷媒佐證資料夾
+# 2. 冷媒設備 (使用 V200 指定的新 ID)
+REF_SHEET_ID = "1ZdvMBkprsN9w6EUKeGU_KYC8UKeS0rmX1Nq0yXzESIc" 
+REF_FOLDER_ID = "1o0S56OyStDjvC5tgBWiUNqNjrpXuCQMI"
 
 VIP_UNITS = ["總務處事務組", "民雄總務", "新民聯辦", "產推處產學營運組"]
 FLEET_CARDS = {"總務處事務組-柴油": "TZI510508", "總務處事務組-汽油": "TZI510509", "民雄總務": "TZI510594", "新民聯辦": "TZI510410", "產推處產學營運組": "TZI510244"}
@@ -321,8 +323,8 @@ def init_google():
 try:
     gc, drive_service = init_google(); 
     # V200: 連線到兩個不同的 Sheet
-    sh = gc.open_by_key(SHEET_ID) # 燃油
-    sh_ref = gc.open_by_key(REF_SHEET_ID) # 冷媒
+    sh = gc.open_by_key(SHEET_ID) # 燃油 (User provided ID in secret/code)
+    sh_ref = gc.open_by_key(REF_SHEET_ID) # 冷媒 (V200 New ID)
     
     # 燃油 Sheets
     try: ws_equip = sh.worksheet("設備清單") 
@@ -1178,4 +1180,4 @@ elif st.session_state['current_page'] == 'admin_dashboard' and username == 'admi
             else: st.info("無數據")
         else: st.info("尚無該年度資料，無法顯示儀表板。")
 
-    st.markdown('<div class="contact-footer">管理員系統版本 V134.0 (Final Visual Perfection)</div>', unsafe_allow_html=True)
+    st.markdown('<div class="contact-footer">管理員系統版本 V126.0 (Chart Fonts Fixed)</div>', unsafe_allow_html=True)
