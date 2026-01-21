@@ -21,7 +21,7 @@ def get_taiwan_time():
     return datetime.utcnow() + timedelta(hours=8)
 
 # ==========================================
-# 1. CSS 樣式表 (V129: 樣式全數鎖定)
+# 1. CSS 樣式表 (V131: 樣式鎖定)
 # ==========================================
 st.markdown("""
 <style>
@@ -312,13 +312,11 @@ try:
     if len(ws_record.get_all_values()) == 0: ws_record.append_row(["填報時間", "填報單位", "填報人", "填報人分機", "設備名稱備註", "校內財產編號", "原燃物料名稱", "油卡編號", "加油日期", "加油量", "與其他設備共用加油單", "備註", "佐證資料"])
 except Exception as e: st.error(f"連線失敗: {e}"); st.stop()
 
-# V129: 自動重試機制 (Auto-Retry for 429 Quota Exceeded)
+# V129: 自動重試機制
 @st.cache_data(ttl=600)
 def load_data():
     max_retries = 3
-    delay = 2 # 初始等待秒數
-    
-    # 讀取設備清單
+    delay = 2 
     df_e = pd.DataFrame()
     for attempt in range(max_retries):
         try:
@@ -327,17 +325,15 @@ def load_data():
         except Exception as e:
             if "429" in str(e) and attempt < max_retries - 1:
                 time.sleep(delay)
-                delay *= 2 # 指數退避 (2s -> 4s -> 8s)
+                delay *= 2 
             else:
-                raise e # 若非429或超過重試次數，則拋出異常
+                raise e
 
     if '設備編號' in df_e.columns:
         df_e['統計類別'] = df_e['設備編號'].apply(lambda c: next((v for k, v in DEVICE_CODE_MAP.items() if str(c).startswith(k)), "其他/未分類"))
     else: df_e['統計類別'] = "未設定I欄"
-    # V119: 預處理數字
     df_e['設備數量_num'] = pd.to_numeric(df_e['設備數量'], errors='coerce').fillna(1)
     
-    # 讀取填報紀錄
     df_r = pd.DataFrame()
     for attempt in range(max_retries):
         try:
@@ -374,7 +370,7 @@ if st.session_state['current_page'] == 'home':
     st.markdown('<div class="contact-footer">如有填報疑問，請電洽環安中心林小姐(分機 7137)，謝謝</div>', unsafe_allow_html=True)
 
 # ------------------------------------------
-# ⛽ 外部填報區 (V129.0: 高穩定性載入)
+# ⛽ 外部填報區 (V131.0: 批次備註還原+一般上傳顯示優化)
 # ------------------------------------------
 elif st.session_state['current_page'] == 'fuel':
     st.title("⛽ 燃油設備填報專區")
@@ -384,13 +380,11 @@ elif st.session_state['current_page'] == 'fuel':
     with tabs[0]:
         st.markdown('<div class="alert-box">📢 請「誠實申報」，以保障單位及自身權益！</div>', unsafe_allow_html=True)
         if not df_equip.empty:
-            # V123: 標題更新
             st.markdown("#### 步驟 1：請選擇您的單位及設備")
             c1, c2 = st.columns(2)
             units = sorted([x for x in df_equip['填報單位'].unique() if x != '-' and x != '填報單位'])
             selected_dept = c1.selectbox("填報單位", units, index=None, placeholder="請選擇單位...", key="dept_selector")
             
-            # V119: 完整個資聲明文字
             privacy_html = """
             <div class="privacy-box">
                 <div class="privacy-title">📜 個人資料蒐集、處理及利用告知聲明</div>
@@ -402,8 +396,6 @@ elif st.session_state['current_page'] == 'fuel':
                 6. <strong>您有權依個資法請求查詢、更正或刪除您的個資。如不提供，將無法完成填報。</strong><br>
             </div>
             """
-            
-            # V123: 小字誤繕說明
             typo_note = '<div class="note-text-darkgray">如有資料誤繕情形，請重新登錄1次資訊，並於備註欄填寫：「前筆資料誤繕，請刪除。」，管理單位將協助刪除誤打資訊</div>'
 
             # --- 批次申報 ---
@@ -434,7 +426,6 @@ elif st.session_state['current_page'] == 'fuel':
                         st.markdown("⛽ **請填入各設備該月份之加油總量(公升)，若該月份無使用請填0：**")
                         batch_inputs = {}
                         for idx, row in filtered_equip.iterrows():
-                            # V120: 7:3 佈局, 間距加大
                             c_card, c_val = st.columns([7, 3]) 
                             with c_card:
                                 header_color = MORANDI_COLORS.get(row.get('統計類別'), '#D5DBDB')
@@ -467,9 +458,8 @@ elif st.session_state['current_page'] == 'fuel':
                         f_file = st.file_uploader("支援 PDF/JPG/PNG", type=['pdf', 'jpg', 'png', 'jpeg'])
                         st.markdown("---")
                         
-                        # V119: 新增備註欄位
-                        st.markdown("**備註說明**")
-                        st.text_input("備註內容 (選填)", key="batch_note")
+                        # V131: 恢復備註欄位但隱藏Label
+                        st.text_input("備註", key="batch_note", placeholder="備註 (選填)", label_visibility="collapsed")
                         st.markdown(typo_note, unsafe_allow_html=True)
                         st.write("")
 
@@ -503,14 +493,13 @@ elif st.session_state['current_page'] == 'fuel':
                                         rows_to_append.append([current_time, selected_dept, p_name, p_ext, row['設備名稱備註'], str(row.get('校內財產編號','-')), row['原燃物料名稱'], fleet_id, str(batch_date), vol, "是", f"批次申報-{target_sub_cat} | {note_val}", file_link])
                                     if rows_to_append:
                                         ws_record.append_rows(rows_to_append)
-                                        # V128: 移除 Rerun，保留成功訊息
                                         st.success(f"✅ 批次申報成功！已寫入 {len(rows_to_append)} 筆紀錄。")
                                         st.balloons()
                                         st.session_state['reset_counter'] += 1
                                     else: st.warning("系統錯誤：無法產生寫入資料。")
                                 except Exception as e: st.error(f"失敗: {e}")
 
-            # --- 一般申報模式 (V123: 更新) ---
+            # --- 一般申報模式 ---
             else:
                 filtered = df_equip[df_equip['填報單位'] == selected_dept]
                 devices = sorted([x for x in filtered['設備名稱備註'].unique()])
@@ -522,10 +511,7 @@ elif st.session_state['current_page'] == 'fuel':
                     st.markdown(info_html, unsafe_allow_html=True)
                     
                     st.markdown("#### 步驟2：填報設備加油資訊")
-                    
-                    # V123: 申報類型標題小字深灰色
                     st.markdown('<p style="color:#566573; font-size:1rem; font-weight:bold; margin-bottom:-10px;">請選擇申報類型：</p>', unsafe_allow_html=True)
-                    # V123: 選項樣式由 CSS .stRadio div[role="radiogroup"] label 控制
                     report_mode = st.radio("類型選擇", ["用油量申報 (含單筆/多筆/油卡)", "無使用"], horizontal=True, label_visibility="collapsed")
                     
                     if report_mode == "用油量申報 (含單筆/多筆/油卡)":
@@ -546,19 +532,23 @@ elif st.session_state['current_page'] == 'fuel':
                             fuel_card_id = st.text_input("💳 油卡編號 (選填)")
                             for i in range(st.session_state['multi_row_count']):
                                 c_d, c_v = st.columns(2)
-                                # V122: 欄位文字更新
                                 _date = c_d.date_input(f"📅 加油日期 填報序號 {i+1}", datetime.today(), key=f"d_{i}")
                                 _vol = c_v.number_input(f"💧 加油量(公升) 填報序號 {i+1}", min_value=0.0, step=0.1, key=f"v_{i}")
                                 data_entries.append({"date": _date, "vol": _vol})
                             
                             st.markdown("---")
                             is_shared = st.checkbox("與其他設備共用加油單") 
-                            
                             note_input = st.text_input("備註", placeholder="")
                             st.markdown(typo_note, unsafe_allow_html=True)
                             
-                            # V122: 檔案上傳文字更新
-                            f_files = st.file_uploader("上傳佐證資料 (必填) - 支援 png, jpg, jpeg, pdf (單檔最多3MB，最多 可上傳10 個檔案)", type=['png', 'jpg', 'jpeg', 'pdf'], accept_multiple_files=True)
+                            # V131: 上傳介面優化 - 保留HTML標題，移除collapsed
+                            st.markdown("<h4 style='color: #1A5276;'>📂 上傳佐證資料 (必填)</h4>", unsafe_allow_html=True)
+                            st.markdown("""
+                            * **A. 請依填報加油日期之順序上傳檔案。**
+                            * **B. 一次多筆申報時，可採單張油單逐一按時序上傳，或依時序彙整成一個檔案後統一上傳。**
+                            * **C. 支援 png, jpg, jpeg, pdf (單檔最多3MB，最多可上傳10個檔案)。**
+                            """)
+                            f_files = st.file_uploader("選擇檔案", type=['png', 'jpg', 'jpeg', 'pdf'], accept_multiple_files=True)
                         else:
                             st.info("ℹ️ 您選擇了「無使用」，請選擇無使用的期間。")
                             c_s, c_e = st.columns(2)
@@ -581,12 +571,23 @@ elif st.session_state['current_page'] == 'fuel':
                                 elif len(f_files) > 10: st.error("⚠️ 最多只能上傳 10 個檔案！")
                                 elif data_entries[0]['vol'] <= 0: st.warning("⚠️ 第一筆加油量不能為 0。")
                                 else:
-                                    # Process submission
                                     valid_logic = True; links=[]
                                     if f_files:
+                                        total_report_vol = sum([e['vol'] for e in data_entries])
                                         for idx, f in enumerate(f_files):
                                             try:
-                                                f.seek(0); clean_name = f"{selected_dept}_{selected_device}_{data_entries[0]['date']}_{idx+1}.{f.name.split('.')[-1]}"
+                                                f.seek(0); file_ext = f.name.split('.')[-1]
+                                                clean_name = ""
+                                                
+                                                if len(f_files) == len(data_entries):
+                                                    c_date = data_entries[idx]['date']
+                                                    c_vol = data_entries[idx]['vol']
+                                                    clean_name = f"{selected_dept}_{selected_device}_{c_date}_{c_vol}.{file_ext}"
+                                                elif len(f_files) == 1 and len(data_entries) > 1:
+                                                    clean_name = f"{selected_dept}_{selected_device}_{total_report_vol}.{file_ext}"
+                                                else:
+                                                    clean_name = f"{selected_dept}_{selected_device}_{data_entries[0]['date']}_{idx+1}.{file_ext}"
+
                                                 meta = {'name': clean_name, 'parents': [DRIVE_FOLDER_ID]}
                                                 media = MediaIoBaseUpload(f, mimetype=f.type, resumable=True)
                                                 file = drive_service.files().create(body=meta, media_body=media, fields='webViewLink').execute()
@@ -601,7 +602,6 @@ elif st.session_state['current_page'] == 'fuel':
                                             rows.append([now_str, selected_dept, p_name, p_ext, selected_device, str(row.get('校內財產編號','-')), str(row.get('原燃物料名稱','-')), card_str, str(e['date']), e['vol'], shared_str, note_input, final_link])
                                         if rows:
                                             ws_record.append_rows(rows)
-                                            # V128: 移除 Rerun，保留成功訊息
                                             st.success("✅ 申報成功！")
                                             st.balloons()
                                             st.session_state['reset_counter'] += 1
@@ -609,7 +609,6 @@ elif st.session_state['current_page'] == 'fuel':
                             elif report_mode == "無使用":
                                 rows = [[get_taiwan_time().strftime("%Y-%m-%d %H:%M:%S"), selected_dept, p_name, p_ext, selected_device, str(row.get('校內財產編號','-')), str(row.get('原燃物料名稱','-')), "-", str(data_entries[0]['date']), 0.0, "-", note_input, "無"]]
                                 ws_record.append_rows(rows)
-                                # V128: 移除 Rerun，保留成功訊息
                                 st.success("✅ 申報成功！")
                                 st.balloons()
                                 st.session_state['reset_counter'] += 1
