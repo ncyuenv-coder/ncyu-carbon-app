@@ -326,19 +326,18 @@ try:
     except: ws_record = sh.add_worksheet(title="填報紀錄", rows="1000", cols="13")
     if len(ws_record.get_all_values()) == 0: ws_record.append_row(["填報時間", "填報單位", "填報人", "填報人分機", "設備名稱備註", "校內財產編號", "原燃物料名稱", "油卡編號", "加油日期", "加油量", "與其他設備共用加油單", "備註", "佐證資料"])
 
-    # 冷媒 Sheets
-    try: ws_ref_units = sh_ref.worksheet("全校各單位")
-    except: ws_ref_units = sh_ref.add_worksheet(title="全校各單位", rows="100", cols="5")
+    # V205: 冷媒 Sheets (修正: 移除自動建立邏輯，避免 400 錯誤)
+    # 如果找不到分頁，會直接報錯提示使用者，而不是嘗試建立
+    try:
+        ws_ref_units = sh_ref.worksheet("全校各單位")
+        ws_ref_buildings = sh_ref.worksheet("建築物清單")
+        ws_ref_types = sh_ref.worksheet("設備類型")
+        ws_ref_coef = sh_ref.worksheet("冷媒係數表")
+    except Exception as e:
+        st.error(f"❌ 讀取冷媒資料庫失敗，請確認 Google Sheet 中是否包含以下分頁：全校各單位, 建築物清單, 設備類型, 冷媒係數表。詳細錯誤: {e}")
+        st.stop()
     
-    try: ws_ref_buildings = sh_ref.worksheet("建築物清單")
-    except: ws_ref_buildings = sh_ref.add_worksheet(title="建築物清單", rows="100", cols="3")
-    
-    try: ws_ref_types = sh_ref.worksheet("設備類型")
-    except: ws_ref_types = sh_ref.add_worksheet(title="設備類型", rows="20", cols="2")
-    
-    try: ws_ref_coef = sh_ref.worksheet("冷媒係數表")
-    except: ws_ref_coef = sh_ref.add_worksheet(title="冷媒係數表", rows="50", cols="3")
-    
+    # 填報紀錄檔 (這個可以保留建立邏輯，因為它可能真的是空的)
     try: ws_ref_records = sh_ref.worksheet("冷媒填報紀錄")
     except: 
         ws_ref_records = sh_ref.add_worksheet(title="冷媒填報紀錄", rows="1000", cols="15")
@@ -386,12 +385,10 @@ def load_data():
 # V204: 冷媒資料載入 (使用 get_all_values + iloc 強制定位)
 @st.cache_data(ttl=600)
 def load_ref_data():
-    # Helper to load sheet via get_all_values and convert to DF
     def get_sheet_df(ws):
         data = ws.get_all_values()
         if len(data) > 1:
             df = pd.DataFrame(data[1:], columns=data[0]).astype(str)
-            # Trim whitespace
             for col in df.columns:
                 df[col] = df[col].str.strip()
             return df
@@ -402,7 +399,6 @@ def load_ref_data():
     df_types = get_sheet_df(ws_ref_types)
     df_coef = get_sheet_df(ws_ref_coef)
     
-    # 讀取紀錄檔
     data_rec = ws_ref_records.get_all_values()
     df_records = pd.DataFrame(data_rec[1:], columns=data_rec[0]) if len(data_rec) > 1 else pd.DataFrame(columns=data_rec[0])
     
@@ -766,19 +762,50 @@ elif st.session_state['current_page'] == 'fuel':
                     df_final['CO2e'] = df_final.apply(lambda r: r['加油量']*0.0022 if '汽油' in r['原燃物料名稱'] else r['加油量']*0.0027, axis=1)
                     treemap_data = df_final.groupby(['設備名稱備註'])['CO2e'].sum().reset_index()
                     # V125: treemap percentage .1%
-                    fig_tree = px.treemap(treemap_data, path=['設備名稱備註'], values='CO2e', color='填報單位', color_discrete_sequence=DASH_PALETTE)
-                    fig_tree.update_traces(texttemplate='%{label}<br>%{value:.4f}<br>%{percentRoot:.1%}', textfont=dict(size=24))
+                    fig_tree = px.treemap(treemap_data, path=['設備名稱備註'], values='CO2e', title=f"{query_dept} - 設備碳排放量權重分析", color='CO2e', color_continuous_scale='Teal')
+                    fig_tree.update_traces(texttemplate='%{label}<br>%{value:.4f}<br>%{percentEntry:.1%}', textfont=dict(size=24))
+                    fig_tree.update_coloraxes(showscale=False)
                     st.plotly_chart(fig_tree, use_container_width=True)
-            else: st.info("無數據")
+
+                    st.subheader("🍩 油品設備用油量佔比分析", anchor=False)
+                    c_pie1, c_pie2 = st.columns(2)
+                    with c_pie1:
+                        st.markdown('<div class="pie-chart-box">', unsafe_allow_html=True) 
+                        gas_df = df_final[df_final['原燃物料名稱'].str.contains('汽油', na=False)]
+                        if not gas_df.empty:
+                            fig_gas = px.pie(gas_df, values='加油量', names='設備名稱備註', title='⛽ 汽油設備用油量分析', color_discrete_sequence=px.colors.sequential.Teal, hole=0.5)
+                            # V134: Tab3 fix (Inside, Size 20)
+                            fig_gas.update_traces(textinfo='percent+label', textfont_size=20, textposition='inside', insidetextorientation='horizontal')
+                            fig_gas.update_layout(legend=dict(orientation="h", yanchor="top", y=-0.1, xanchor="center", x=0.5), margin=dict(l=40, r=40, t=40, b=40))
+                            st.plotly_chart(fig_gas, use_container_width=True)
+                        else: st.info("無汽油使用紀錄")
+                        st.markdown('</div>', unsafe_allow_html=True) 
+                    with c_pie2:
+                        st.markdown('<div class="pie-chart-box">', unsafe_allow_html=True) 
+                        diesel_df = df_final[df_final['原燃物料名稱'].str.contains('柴油', na=False)]
+                        if not diesel_df.empty:
+                            fig_diesel = px.pie(diesel_df, values='加油量', names='設備名稱備註', title='🚛 柴油設備用油量分析', color_discrete_sequence=px.colors.sequential.Oranges, hole=0.5)
+                            # V134: Tab3 fix (Inside, Size 20)
+                            fig_diesel.update_traces(textinfo='percent+label', textfont_size=20, textposition='inside', insidetextorientation='horizontal')
+                            fig_diesel.update_layout(legend=dict(orientation="h", yanchor="top", y=-0.1, xanchor="center", x=0.5), margin=dict(l=40, r=40, t=40, b=40))
+                            st.plotly_chart(fig_diesel, use_container_width=True)
+                        else: st.info("無柴油使用紀錄")
+                        st.markdown('</div>', unsafe_allow_html=True) 
+                    
+                    st.markdown("---")
+                    st.subheader(f"📋 {query_year}年度 填報明細")
+                    df_display = df_final[["加油日期", "設備名稱備註", "原燃物料名稱", "油卡編號", "加油量", "填報人", "備註"]].sort_values(by='加油日期', ascending=False).rename(columns={'加油量': '加油量(公升)'})
+                    st.dataframe(df_display.style.format({"加油量(公升)": "{:.2f}"}), use_container_width=True)
+                else: st.warning(f"⚠️ {query_dept} 在 {query_year} 年度尚無填報紀錄。")
         else: st.info("尚無該年度資料，無法顯示儀表板。")
 
-    st.markdown('<div class="contact-footer">管理員系統版本 V126.0 (Chart Fonts Fixed)</div>', unsafe_allow_html=True)
+    st.markdown('<div class="contact-footer">管理員系統版本 V134.0 (Final Visual Perfection)</div>', unsafe_allow_html=True)
 
 # ------------------------------------------
-# ❄️ 冷媒類設備填報專區 (V204: 選單邏輯修正 - 強制 A/B/C 欄位)
+# ❄️ 冷媒填報專區 (V204: Title Update & V205 Fix: Remove auto-create)
 # ------------------------------------------
 elif st.session_state['current_page'] == 'refrigerant':
-    st.title("❄️ 冷媒填報專區") # V204: Title Update
+    st.title("❄️ 冷媒填報專區") # V204 Title
     
     ref_tabs = st.tabs(["📝 新增填報", "📊 動態查詢看板"])
     
@@ -790,20 +817,19 @@ elif st.session_state['current_page'] == 'refrigerant':
             st.markdown("#### 填報人基本資料區")
             c1, c2, c3 = st.columns(3)
             
-            # V204: 選單強力修復 - 強制使用 iloc 位置
-            # 校區 (Col A / Index 0)
+            # V204 Fix: 使用 iloc 強制讀取 Column A, B, C
             campuses = sorted(df_ref_units.iloc[:, 0].dropna().unique())
             selected_campus = c1.selectbox("校區", campuses, index=None, placeholder="請選擇校區...", key="ref_campus")
             
-            # 所屬單位 (Col B / Index 1) - 篩選邏輯: Col A == selected_campus
             depts = []
             if selected_campus:
+                # 篩選 Col A == selected_campus, 取 Col B
                 depts = sorted(df_ref_units[df_ref_units.iloc[:, 0] == selected_campus].iloc[:, 1].dropna().unique())
             selected_dept = c2.selectbox("所屬單位", depts, index=None, placeholder="請先選擇校區...", key="ref_dept")
             
-            # 填報單位名稱 (Col C / Index 2) - 篩選邏輯: Col A == selected_campus AND Col B == selected_dept
             units = []
             if selected_dept:
+                # 篩選 Col A == selected_campus AND Col B == selected_dept, 取 Col C
                 units = sorted(df_ref_units[
                     (df_ref_units.iloc[:, 0] == selected_campus) & 
                     (df_ref_units.iloc[:, 1] == selected_dept)
@@ -818,14 +844,13 @@ elif st.session_state['current_page'] == 'refrigerant':
             st.markdown("#### 詳細位置資訊區")
             c6, c7 = st.columns(2)
             
-            # V204: 建築物 (Col A=校區, Col B=建築物)
             buildings = []
             if selected_campus:
-                # 假設建築物清單前兩欄為: 校區(0), 建築物(1)
                 if df_ref_buildings.shape[1] >= 2:
+                    # 假設建築物清單 Col A=校區, Col B=建築物
                     buildings = sorted(df_ref_buildings[df_ref_buildings.iloc[:, 0] == selected_campus].iloc[:, 1].dropna().unique())
                 else:
-                    st.error("建築物清單格式錯誤")
+                    st.error("建築物清單格式錯誤 (欄位不足)")
             
             selected_building = c6.selectbox("建築物名稱", buildings, index=None, placeholder="請先選擇上方校區...", key="ref_building")
             office_no = c7.text_input("辦公室編號", placeholder="例如：404辦公室或213研究室")
@@ -841,8 +866,8 @@ elif st.session_state['current_page'] == 'refrigerant':
             c10, c11 = st.columns(2)
             equip_model = c10.text_input("設備品牌型號", placeholder="例如：國際 CS-100FL+CU-100FLC")
             
-            # V202 Fix: 改抓 B 欄 (index 1)
             ref_types = []
+            # V202 Fix: 抓 B 欄 (index 1)
             if not df_ref_coef.empty and df_ref_coef.shape[1] >= 2:
                 ref_types = sorted(df_ref_coef.iloc[:, 1].dropna().unique())
             ref_type = c11.selectbox("冷媒種類", ref_types, index=None, placeholder="請選擇...")
@@ -1062,88 +1087,6 @@ elif st.session_state['current_page'] == 'admin_dashboard' and username == 'admi
                 fig_d.update_traces(textinfo='percent+label', textfont_size=20, textposition='inside', insidetextorientation='horizontal')
                 c_pie2.plotly_chart(fig_d, use_container_width=True)
             else: c_pie2.info("無柴油數據")
-        else: st.warning("尚無資料可供統計。")
-
-    # === Tab 4: 儀表板 ===
-    with admin_tabs[3]:
-        if not df_year.empty:
-            st.markdown(f"<div class='dashboard-main-title'>{selected_admin_year}年度 能源使用與碳排統計</div>", unsafe_allow_html=True)
-            
-            gas_sum = df_year[df_year['油品大類'] == '汽油']['加油量'].sum()
-            diesel_sum = df_year[df_year['油品大類'] == '柴油']['加油量'].sum()
-            total_sum = df_year['加油量'].sum()
-            total_co2 = (gas_sum * 0.0022) + (diesel_sum * 0.0027)
-            gas_pct = (gas_sum / total_sum * 100) if total_sum > 0 else 0
-            diesel_pct = (diesel_sum / total_sum * 100) if total_sum > 0 else 0
-            
-            c1, c2 = st.columns(2)
-            with c1: st.markdown(f"""<div class="admin-kpi-card"><div class="admin-kpi-header" style="background-color: #B0C4DE;">⛽ 汽油使用量</div><div class="admin-kpi-body"><div class="admin-kpi-value">{gas_sum:,.2f}<span class="admin-kpi-unit">公升</span></div><div class="admin-kpi-sub">佔比 {gas_pct:.1f}%</div></div></div>""", unsafe_allow_html=True)
-            with c2: st.markdown(f"""<div class="admin-kpi-card"><div class="admin-kpi-header" style="background-color: #F5CBA7;">🚛 柴油使用量</div><div class="admin-kpi-body"><div class="admin-kpi-value">{diesel_sum:,.2f}<span class="admin-kpi-unit">公升</span></div><div class="admin-kpi-sub">佔比 {diesel_pct:.1f}%</div></div></div>""", unsafe_allow_html=True)
-            st.write("") 
-            c3, c4 = st.columns(2)
-            with c3: st.markdown(f"""<div class="admin-kpi-card"><div class="admin-kpi-header" style="background-color: #A9CCE3;">💧 總用油量</div><div class="admin-kpi-body"><div class="admin-kpi-value">{total_sum:,.2f}<span class="admin-kpi-unit">公升</span></div><div class="admin-kpi-sub">100%</div></div></div>""", unsafe_allow_html=True)
-            with c4: st.markdown(f"""<div class="admin-kpi-card"><div class="admin-kpi-header" style="background-color: #E6B0AA;">☁️ 碳排放量</div><div class="admin-kpi-body"><div class="admin-kpi-value">{total_co2:,.4f}<span class="admin-kpi-unit">公噸CO<sub>2</sub>e</span></div><div class="admin-kpi-sub">ESG 指標</div></div></div>""", unsafe_allow_html=True)
-            st.markdown("---")
-
-            # V126: 座標軸字體大(20), 深灰; 數據標籤小(14)
-            st.subheader("📈 全校逐月加油量統計")
-            monthly = df_year.groupby(['月份', '油品大類'])['加油量'].sum().reset_index()
-            full_months = pd.DataFrame({'月份': range(1, 13)})
-            monthly = full_months.merge(monthly, on='月份', how='left').fillna({'加油量':0, '油品大類':'汽油'})
-            fig_month = px.bar(monthly, x='月份', y='加油量', color='油品大類', barmode='group', text_auto='.1f', color_discrete_sequence=DASH_PALETTE)
-            
-            fig_month.update_layout(
-                xaxis=dict(tickmode='linear', tick0=1, dtick=1, title_font=dict(size=20), tickfont=dict(size=18, color='#566573')), 
-                yaxis=dict(title="加油量(公升)", title_font=dict(size=20), tickfont=dict(size=18, color='#566573')), 
-                font=dict(size=18), showlegend=True
-            )
-            fig_month.update_traces(textfont_size=14) # Data label smaller
-            st.plotly_chart(fig_month, use_container_width=True)
-
-            # V126: 座標軸字體大(20), 深灰; 數據標籤小(14)
-            st.subheader("🏆 全校前十大加油量單位")
-            top_fuel = st.radio("選擇油品類型", ["汽油", "柴油"], horizontal=True)
-            df_top = df_year[df_year['油品大類'] == top_fuel]
-            if not df_top.empty:
-                top10_data = df_top.groupby('填報單位')['加油量'].sum().nlargest(10).reset_index()
-                fig_top = px.bar(top10_data, x='填報單位', y='加油量', text_auto='.1f', title=f"{top_fuel}用量前十大單位", color_discrete_sequence=DASH_PALETTE)
-                
-                fig_top.update_layout(
-                    xaxis=dict(categoryorder='total descending', title_font=dict(size=20), tickfont=dict(size=18, color='#566573')), 
-                    yaxis=dict(title="加油量(公升)", title_font=dict(size=20), tickfont=dict(size=18, color='#566573')), 
-                    font=dict(size=18)
-                )
-                fig_top.update_traces(textfont_size=14) # Data label smaller
-                st.plotly_chart(fig_top, use_container_width=True)
-            else: st.info("無此油品數據。")
-
-            st.markdown("---")
-            st.subheader("🍩 全校加油量單位佔比")
-            c_d1, c_d2 = st.columns(2)
-            with c_d1:
-                df_gas = df_year[df_year['油品大類'] == '汽油']
-                if not df_gas.empty:
-                    fig_dg = px.pie(df_gas, values='加油量', names='填報單位', title='⛽ 汽油用量分佈', hole=0.4, color_discrete_sequence=DASH_PALETTE)
-                    fig_dg.update_traces(textposition='inside', textinfo='label+percent', hovertemplate='%{label}<br>加油量: %{value:.2f} L<br>佔比: %{percent}', textfont_size=18, insidetextorientation='horizontal')
-                    st.plotly_chart(fig_dg, use_container_width=True)
-                else: st.info("無汽油數據")
-            with c_d2:
-                df_dsl = df_year[df_year['油品大類'] == '柴油']
-                if not df_dsl.empty:
-                    fig_dd = px.pie(df_dsl, values='加油量', names='填報單位', title='🚛 柴油用量分佈', hole=0.4, color_discrete_sequence=DASH_PALETTE)
-                    fig_dd.update_traces(textposition='inside', textinfo='label+percent', hovertemplate='%{label}<br>加油量: %{value:.2f} L<br>佔比: %{percent}', textfont_size=18, insidetextorientation='horizontal')
-                    st.plotly_chart(fig_dd, use_container_width=True)
-                else: st.info("無柴油數據")
-
-            st.markdown("---")
-            st.subheader("🌍 全校油料使用碳排放量(公噸二氧化碳當量)結構")
-            df_year['CO2e'] = df_year.apply(lambda r: r['加油量']*0.0022 if '汽油' in str(r['原燃物料名稱']) else r['加油量']*0.0027, axis=1)
-            if not df_year.empty:
-                fig_tree = px.treemap(df_year, path=['填報單位', '設備名稱備註'], values='CO2e', color='填報單位', color_discrete_sequence=DASH_PALETTE)
-                # V125: 小數點1位
-                fig_tree.update_traces(texttemplate='%{label}<br>%{value:.4f}<br>%{percentRoot:.1%}', textfont=dict(size=24))
-                st.plotly_chart(fig_tree, use_container_width=True)
-            else: st.info("無數據")
         else: st.info("尚無該年度資料，無法顯示儀表板。")
 
     st.markdown('<div class="contact-footer">管理員系統版本 V134.0 (Final Visual Perfection)</div>', unsafe_allow_html=True)
