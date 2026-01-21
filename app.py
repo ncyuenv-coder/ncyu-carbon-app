@@ -10,6 +10,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import time
 import re
+import numpy as np # V206 加入 numpy 處理空值
 
 # ==========================================
 # 0. 系統設定
@@ -326,18 +327,17 @@ try:
     except: ws_record = sh.add_worksheet(title="填報紀錄", rows="1000", cols="13")
     if len(ws_record.get_all_values()) == 0: ws_record.append_row(["填報時間", "填報單位", "填報人", "填報人分機", "設備名稱備註", "校內財產編號", "原燃物料名稱", "油卡編號", "加油日期", "加油量", "與其他設備共用加油單", "備註", "佐證資料"])
 
-    # V205: 冷媒 Sheets (修正: 移除自動建立邏輯，避免 400 錯誤)
-    # 如果找不到分頁，會直接報錯提示使用者，而不是嘗試建立
+    # V205 Fix: 冷媒 Sheets (移除自動 add_worksheet 邏輯，避免 400 錯誤)
     try:
         ws_ref_units = sh_ref.worksheet("全校各單位")
         ws_ref_buildings = sh_ref.worksheet("建築物清單")
         ws_ref_types = sh_ref.worksheet("設備類型")
         ws_ref_coef = sh_ref.worksheet("冷媒係數表")
     except Exception as e:
-        st.error(f"❌ 讀取冷媒資料庫失敗，請確認 Google Sheet 中是否包含以下分頁：全校各單位, 建築物清單, 設備類型, 冷媒係數表。詳細錯誤: {e}")
+        st.error(f"❌ 讀取冷媒資料庫失敗。請確認 Google Sheet (ID: {REF_SHEET_ID}) 中是否已存在以下分頁：'全校各單位', '建築物清單', '設備類型', '冷媒係數表'。詳細錯誤: {e}")
         st.stop()
     
-    # 填報紀錄檔 (這個可以保留建立邏輯，因為它可能真的是空的)
+    # 填報紀錄檔
     try: ws_ref_records = sh_ref.worksheet("冷媒填報紀錄")
     except: 
         ws_ref_records = sh_ref.add_worksheet(title="冷媒填報紀錄", rows="1000", cols="15")
@@ -382,22 +382,31 @@ def load_data():
 
     return df_e, df_r
 
-# V204: 冷媒資料載入 (使用 get_all_values + iloc 強制定位)
+# V206: 冷媒資料載入 (V206: 終極資料清洗 - Auto-Fill Merged Cells & Regex Clean)
 @st.cache_data(ttl=600)
 def load_ref_data():
-    def get_sheet_df(ws):
+    def get_sheet_df_cleaned(ws):
         data = ws.get_all_values()
         if len(data) > 1:
             df = pd.DataFrame(data[1:], columns=data[0]).astype(str)
-            for col in df.columns:
-                df[col] = df[col].str.strip()
+            
+            # 1. 移除空白字元 (包含隱形字元)
+            df.columns = df.columns.str.strip()
+            df = df.apply(lambda x: x.str.strip().replace(r'\s+', ' ', regex=True) if x.dtype == "object" else x)
+            
+            # 2. V206 強力修復：處理合併儲存格 (Auto-Fill)
+            # 將空字串轉換為 NaN，然後進行 Forward Fill (往下填滿)
+            df = df.replace(r'^\s*$', np.nan, regex=True).ffill()
+            
+            # 3. 再轉回字串以免報錯，並補回空字串
+            df = df.fillna("")
             return df
         return pd.DataFrame()
 
-    df_units = get_sheet_df(ws_ref_units)
-    df_buildings = get_sheet_df(ws_ref_buildings)
-    df_types = get_sheet_df(ws_ref_types)
-    df_coef = get_sheet_df(ws_ref_coef)
+    df_units = get_sheet_df_cleaned(ws_ref_units)
+    df_buildings = get_sheet_df_cleaned(ws_ref_buildings)
+    df_types = get_sheet_df_cleaned(ws_ref_types)
+    df_coef = get_sheet_df_cleaned(ws_ref_coef)
     
     data_rec = ws_ref_records.get_all_values()
     df_records = pd.DataFrame(data_rec[1:], columns=data_rec[0]) if len(data_rec) > 1 else pd.DataFrame(columns=data_rec[0])
@@ -762,44 +771,13 @@ elif st.session_state['current_page'] == 'fuel':
                     df_final['CO2e'] = df_final.apply(lambda r: r['加油量']*0.0022 if '汽油' in r['原燃物料名稱'] else r['加油量']*0.0027, axis=1)
                     treemap_data = df_final.groupby(['設備名稱備註'])['CO2e'].sum().reset_index()
                     # V125: treemap percentage .1%
-                    fig_tree = px.treemap(treemap_data, path=['設備名稱備註'], values='CO2e', title=f"{query_dept} - 設備碳排放量權重分析", color='CO2e', color_continuous_scale='Teal')
-                    fig_tree.update_traces(texttemplate='%{label}<br>%{value:.4f}<br>%{percentEntry:.1%}', textfont=dict(size=24))
-                    fig_tree.update_coloraxes(showscale=False)
+                    fig_tree = px.treemap(treemap_data, path=['設備名稱備註'], values='CO2e', color='填報單位', color_discrete_sequence=DASH_PALETTE)
+                    fig_tree.update_traces(texttemplate='%{label}<br>%{value:.4f}<br>%{percentRoot:.1%}', textfont=dict(size=24))
                     st.plotly_chart(fig_tree, use_container_width=True)
-
-                    st.subheader("🍩 油品設備用油量佔比分析", anchor=False)
-                    c_pie1, c_pie2 = st.columns(2)
-                    with c_pie1:
-                        st.markdown('<div class="pie-chart-box">', unsafe_allow_html=True) 
-                        gas_df = df_final[df_final['原燃物料名稱'].str.contains('汽油', na=False)]
-                        if not gas_df.empty:
-                            fig_gas = px.pie(gas_df, values='加油量', names='設備名稱備註', title='⛽ 汽油設備用油量分析', color_discrete_sequence=px.colors.sequential.Teal, hole=0.5)
-                            # V134: Tab3 fix (Inside, Size 20)
-                            fig_gas.update_traces(textinfo='percent+label', textfont_size=20, textposition='inside', insidetextorientation='horizontal')
-                            fig_gas.update_layout(legend=dict(orientation="h", yanchor="top", y=-0.1, xanchor="center", x=0.5), margin=dict(l=40, r=40, t=40, b=40))
-                            st.plotly_chart(fig_gas, use_container_width=True)
-                        else: st.info("無汽油使用紀錄")
-                        st.markdown('</div>', unsafe_allow_html=True) 
-                    with c_pie2:
-                        st.markdown('<div class="pie-chart-box">', unsafe_allow_html=True) 
-                        diesel_df = df_final[df_final['原燃物料名稱'].str.contains('柴油', na=False)]
-                        if not diesel_df.empty:
-                            fig_diesel = px.pie(diesel_df, values='加油量', names='設備名稱備註', title='🚛 柴油設備用油量分析', color_discrete_sequence=px.colors.sequential.Oranges, hole=0.5)
-                            # V134: Tab3 fix (Inside, Size 20)
-                            fig_diesel.update_traces(textinfo='percent+label', textfont_size=20, textposition='inside', insidetextorientation='horizontal')
-                            fig_diesel.update_layout(legend=dict(orientation="h", yanchor="top", y=-0.1, xanchor="center", x=0.5), margin=dict(l=40, r=40, t=40, b=40))
-                            st.plotly_chart(fig_diesel, use_container_width=True)
-                        else: st.info("無柴油使用紀錄")
-                        st.markdown('</div>', unsafe_allow_html=True) 
-                    
-                    st.markdown("---")
-                    st.subheader(f"📋 {query_year}年度 填報明細")
-                    df_display = df_final[["加油日期", "設備名稱備註", "原燃物料名稱", "油卡編號", "加油量", "填報人", "備註"]].sort_values(by='加油日期', ascending=False).rename(columns={'加油量': '加油量(公升)'})
-                    st.dataframe(df_display.style.format({"加油量(公升)": "{:.2f}"}), use_container_width=True)
-                else: st.warning(f"⚠️ {query_dept} 在 {query_year} 年度尚無填報紀錄。")
+            else: st.info("無數據")
         else: st.info("尚無該年度資料，無法顯示儀表板。")
 
-    st.markdown('<div class="contact-footer">管理員系統版本 V134.0 (Final Visual Perfection)</div>', unsafe_allow_html=True)
+    st.markdown('<div class="contact-footer">管理員系統版本 V126.0 (Chart Fonts Fixed)</div>', unsafe_allow_html=True)
 
 # ------------------------------------------
 # ❄️ 冷媒填報專區 (V204: Title Update & V205 Fix: Remove auto-create)
@@ -844,10 +822,11 @@ elif st.session_state['current_page'] == 'refrigerant':
             st.markdown("#### 詳細位置資訊區")
             c6, c7 = st.columns(2)
             
+            # V204: 建築物 (Col A=校區, Col B=建築物)
             buildings = []
             if selected_campus:
+                # 假設建築物清單前兩欄為: 校區(0), 建築物(1)
                 if df_ref_buildings.shape[1] >= 2:
-                    # 假設建築物清單 Col A=校區, Col B=建築物
                     buildings = sorted(df_ref_buildings[df_ref_buildings.iloc[:, 0] == selected_campus].iloc[:, 1].dropna().unique())
                 else:
                     st.error("建築物清單格式錯誤 (欄位不足)")
@@ -866,8 +845,8 @@ elif st.session_state['current_page'] == 'refrigerant':
             c10, c11 = st.columns(2)
             equip_model = c10.text_input("設備品牌型號", placeholder="例如：國際 CS-100FL+CU-100FLC")
             
+            # V202 Fix: 改抓 B 欄 (index 1)
             ref_types = []
-            # V202 Fix: 抓 B 欄 (index 1)
             if not df_ref_coef.empty and df_ref_coef.shape[1] >= 2:
                 ref_types = sorted(df_ref_coef.iloc[:, 1].dropna().unique())
             ref_type = c11.selectbox("冷媒種類", ref_types, index=None, placeholder="請選擇...")
