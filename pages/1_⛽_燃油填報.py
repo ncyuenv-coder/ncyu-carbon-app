@@ -20,53 +20,120 @@ def get_taiwan_time():
     return datetime.utcnow() + timedelta(hours=8)
 
 # ==========================================
-# 1. CSS 樣式表 (V134 完整保留 + V202 上傳區)
+# 1. CSS 樣式表 (V134.0 完整還原 + V202 上傳區)
 # ==========================================
 st.markdown("""
 <style>
-    /* 全域設定 */
-    :root { color-scheme: light; --orange-bg: #E67E22; --orange-dark: #D35400; --text-main: #2C3E50; --text-sub: #566573; --morandi-red: #A93226; --kpi-gas: #52BE80; --kpi-diesel: #F4D03F; --kpi-total: #5DADE2; --kpi-co2: #AF7AC5; }
-    
-    /* 按鈕樣式 */
-    div.stButton > button { background-color: var(--orange-bg) !important; color: #FFFFFF !important; border: 2px solid var(--orange-dark) !important; border-radius: 12px !important; font-size: 1.2rem !important; font-weight: 800 !important; width: 100%; }
-    div.stButton > button:hover { background-color: var(--orange-dark) !important; transform: translateY(-2px) !important; color: #FFFFFF !important; }
-    
-    /* V202: 統一所有檔案上傳區樣式 (淺藍底+深藍字) */
-    [data-testid="stFileUploaderDropzone"] { background-color: #D6EAF8 !important; border: 2px dashed #2E86C1 !important; border-radius: 12px; padding: 20px; }
-    [data-testid="stFileUploaderDropzone"] div, [data-testid="stFileUploaderDropzone"] span, [data-testid="stFileUploaderDropzone"] small { color: #154360 !important; font-weight: bold !important; }
+    /* --- 全域設定 --- */
+    :root {
+        color-scheme: light;
+        --orange-bg: #E67E22;     
+        --orange-dark: #D35400;
+        --text-main: #2C3E50;
+        --text-sub: #566573;
+        --morandi-red: #A93226; 
+        --kpi-gas: #52BE80;
+        --kpi-diesel: #F4D03F;
+        --kpi-total: #5DADE2;
+        --kpi-co2: #AF7AC5;
+    }
 
-    /* 其他 V134 核心樣式 */
+    /* 背景色還原 */
+    [data-testid="stAppViewContainer"] { background-color: #EAEDED; color: var(--text-main); }
+    [data-testid="stHeader"] { background-color: rgba(0,0,0,0); }
+    [data-testid="stSidebar"] { background-color: #FFFFFF; border-right: 1px solid #BDC3C7; }
+
+    /* 輸入元件優化 (白底+深灰框) */
+    div[data-baseweb="input"] > div, div[data-baseweb="base-input"] > input, textarea, input {
+        background-color: #FFFFFF !important; border-color: #BDC3C7 !important; color: #000000 !important; font-size: 1.15rem !important;
+    }
+    div[data-baseweb="select"] > div { border-color: #BDC3C7 !important; background-color: #FFFFFF !important; }
+    ul[data-baseweb="menu"] { background-color: #FFFFFF !important; }
+
+    /* 按鈕樣式 (橘底白字 + 陰影) */
+    div.stButton > button, 
+    button[kind="primary"], 
+    [data-testid="stFormSubmitButton"] > button {
+        background-color: var(--orange-bg) !important; 
+        color: #FFFFFF !important; 
+        border: 2px solid var(--orange-dark) !important; 
+        border-radius: 12px !important;
+        font-size: 1.3rem !important; 
+        font-weight: 800 !important; 
+        padding: 0.7rem 1.5rem !important;
+        box-shadow: 0 4px 6px rgba(230, 126, 34, 0.3) !important;
+        width: 100%; 
+    }
+    div.stButton > button p { color: #FFFFFF !important; } 
+    div.stButton > button:hover, [data-testid="stFormSubmitButton"] > button:hover { 
+        background-color: var(--orange-dark) !important; transform: translateY(-2px) !important; color: #FFFFFF !important;
+    }
+
+    /* Tab 分頁字體 (V134 重點：加大加粗) */
+    button[data-baseweb="tab"] div p { font-size: 1.3rem !important; font-weight: 900 !important; color: var(--text-sub); }
+    button[data-baseweb="tab"][aria-selected="true"] div p { color: #E67E22 !important; border-bottom: 3px solid #E67E22; }
+
+    /* Radio Button 樣式優化 (V202 淺藍底) */
+    .stRadio div[role="radiogroup"] label {
+        background-color: #D6EAF8 !important; 
+        border: 1px solid #AED6F1 !important;
+        border-radius: 8px !important;
+        padding: 8px 15px !important;
+        margin-right: 10px !important;
+        margin-top: 10px !important;
+    }
+    .stRadio div[role="radiogroup"] label p {
+        font-size: 1.0rem !important; 
+        font-weight: 800 !important;
+        color: #154360 !important;
+    }
+
+    /* 上傳區樣式 (V202 淺藍底+深藍字) */
+    [data-testid="stFileUploaderDropzone"] {
+        background-color: #D6EAF8 !important; 
+        border: 2px dashed #2E86C1 !important; 
+        border-radius: 12px; 
+        padding: 20px;
+    }
+    [data-testid="stFileUploaderDropzone"] div, 
+    [data-testid="stFileUploaderDropzone"] span, 
+    [data-testid="stFileUploaderDropzone"] small {
+        color: #154360 !important; 
+        font-weight: bold !important;
+    }
+
+    /* 說明文字與 Checkbox */
     .note-text-darkgray { color: #566573 !important; font-weight: bold; font-size: 0.9rem; margin-top: 5px; margin-bottom: 15px; }
     div[data-testid="stCheckbox"] label p { font-size: 1.2rem !important; color: #1F618D !important; font-weight: 900 !important; }
-    
+
     /* 批次申報卡片 */
-    .batch-card-final { background-color: #FFFFFF; border: 1px solid #BDC3C7; border-radius: 10px; overflow: hidden; box-shadow: 0 2px 5px rgba(0,0,0,0.1); height: 100%; display: flex; flex-direction: column; border-left: 5px solid #E67E22; margin-bottom: 25px; }
-    .batch-header-final { padding: 14px 15px; font-weight: 800; color: #2C3E50; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(0,0,0,0.1); font-size: 1.15rem; background-color: #F4F6F6; }
-    .batch-qty-badge { font-size: 0.95rem; background-color: rgba(255,255,255,0.7); padding: 2px 10px; border-radius: 12px; border: 1px solid rgba(0,0,0,0.1); color: #2C3E50; font-weight: bold; }
-    .batch-body-final { background-color: #FFFFFF; padding: 15px; font-size: 1rem; color: #566573; line-height: 1.6; flex-grow: 1; }
+    .batch-card-final {
+        background-color: #FFFFFF; border: 1px solid #BDC3C7; border-radius: 10px; overflow: hidden;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1); height: 100%; display: flex; flex-direction: column;
+        border-left: 5px solid #E67E22; margin-bottom: 25px; 
+    }
+    .batch-header-final {
+        padding: 14px 15px; font-weight: 800; color: #2C3E50; display: flex; justify-content: space-between; align-items: center;
+        border-bottom: 1px solid rgba(0,0,0,0.1); font-size: 1.15rem; background-color: #F4F6F6;
+    }
+    .batch-qty-badge {
+        font-size: 0.95rem; background-color: rgba(255,255,255,0.7); padding: 2px 10px;
+        border-radius: 12px; border: 1px solid rgba(0,0,0,0.1); color: #2C3E50; font-weight: bold;
+    }
+    .batch-body-final {
+        background-color: #FFFFFF; padding: 15px; font-size: 1rem; color: #566573; line-height: 1.6; flex-grow: 1;
+    }
     .batch-row { display: flex; justify-content: space-between; margin-bottom: 5px; }
     .batch-item { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-right: 5px; }
-    
-    /* 看板 KPI */
-    .kpi-card { padding: 20px; border-radius: 15px; text-align: center; background-color: #FFFFFF; box-shadow: 0 4px 10px rgba(0,0,0,0.1); border: 1px solid #BDC3C7; height: 100%; transition: transform 0.2s; }
-    .kpi-card:hover { transform: translateY(-5px); }
-    .kpi-gas { border-top: 8px solid var(--kpi-gas); } .kpi-diesel { border-top: 8px solid var(--kpi-diesel); } .kpi-total { border-top: 8px solid var(--kpi-total); } .kpi-co2 { border-top: 8px solid var(--kpi-co2); }
-    .kpi-title { font-size: 1.2rem; font-weight: bold; opacity: 0.8; color: var(--text-sub) !important; margin-bottom: 5px; }
-    .kpi-value { font-size: 2.8rem; font-weight: 800; color: var(--text-main) !important; margin: 0; }
-    .kpi-unit { font-size: 1rem; font-weight: normal; color: var(--text-sub) !important; margin-left: 5px; }
-    .kpi-sub { font-size: 0.9rem; color: #C0392B !important; font-weight: 700; background-color: rgba(192, 57, 43, 0.1); padding: 2px 10px; border-radius: 20px; display: inline-block; margin-top: 5px;}
-    
-    /* Admin KPI */
-    .admin-kpi-card { background-color: #FFFFFF; border: 1px solid #BDC3C7; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.1); height: 100%; text-align: center; margin-bottom: 20px; }
-    .admin-kpi-header { padding: 10px; font-size: 1.2rem; font-weight: bold; color: #2C3E50; border-bottom: 1px solid rgba(0,0,0,0.1); }
-    .admin-kpi-body { padding: 20px; }
-    .admin-kpi-value { font-size: 2.8rem; font-weight: 900; color: #2C3E50; margin-bottom: 5px; }
-    .admin-kpi-unit { font-size: 1rem; color: #7F8C8D; font-weight: normal; margin-left: 5px; }
-    .admin-kpi-sub { font-size: 0.9rem; display: inline-block; padding: 2px 10px; border-radius: 15px; background-color: #F9E79F; color: #7D6608; margin-top: 5px; font-weight: bold; }
-    
-    /* 統計卡片 */
-    .stat-card-v119 { background-color: #FFFFFF; border: 1px solid #BDC3C7; border-radius: 12px; overflow: hidden; box-shadow: 0 3px 6px rgba(0,0,0,0.08); margin-bottom: 15px; height: 100%; }
-    .stat-header { padding: 15px 25px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(0,0,0,0.1); }
+
+    /* 後台 - 統計卡片 (V119/V134) */
+    .stat-card-v119 {
+        background-color: #FFFFFF; border: 1px solid #BDC3C7; border-radius: 12px; overflow: hidden;
+        box-shadow: 0 3px 6px rgba(0,0,0,0.08); margin-bottom: 15px; height: 100%;
+    }
+    .stat-header {
+        padding: 15px 25px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(0,0,0,0.1);
+    }
     .stat-title { font-size: 1.25rem; font-weight: 800; color: #2C3E50; }
     .stat-count { font-size: 2rem; font-weight: 900; color: var(--morandi-red); }
     .stat-body-split { padding: 15px 20px; display: flex; }
@@ -74,15 +141,58 @@ st.markdown("""
     .stat-col-right { width: 50%; padding-left: 15px; }
     .stat-item { font-size: 0.95rem; color: #566573; margin-bottom: 8px; display: flex; justify-content: space-between; }
     .stat-item-label { font-weight: bold; color: #2C3E50; }
-    
-    /* 其他 */
-    .top-kpi-card { background-color: #FFFFFF; border-radius: 12px; padding: 25px; text-align: center; box-shadow: 0 4px 10px rgba(0,0,0,0.1); border: 1px solid #BDC3C7; margin-bottom: 10px; }
+    .stat-item-val { color: #2C3E50; font-weight: 900; }
+
+    /* 後台 - Top KPI */
+    .top-kpi-card {
+        background-color: #FFFFFF; border-radius: 12px; padding: 25px; text-align: center;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.1); border: 1px solid #BDC3C7; margin-bottom: 10px;
+    }
     .top-kpi-title { font-size: 1.15rem; color: #7F8C8D; font-weight: bold; margin-bottom: 5px; }
     .top-kpi-value { font-size: 3.5rem; color: #2C3E50; font-weight: 900; line-height: 1.1; }
-    .unreported-block { padding: 15px 20px; border-radius: 12px; margin-bottom: 20px; color: #2C3E50; box-shadow: 0 2px 6px rgba(0,0,0,0.08); border: 1px solid rgba(0,0,0,0.05); }
+
+    /* 看板 KPI (V134) */
+    .kpi-card {
+        padding: 20px; border-radius: 15px; text-align: center; background-color: #FFFFFF;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.1); border: 1px solid #BDC3C7; height: 100%; transition: transform 0.2s;
+    }
+    .kpi-card:hover { transform: translateY(-5px); }
+    .kpi-gas { border-top: 8px solid var(--kpi-gas); } .kpi-diesel { border-top: 8px solid var(--kpi-diesel); }
+    .kpi-total { border-top: 8px solid var(--kpi-total); } .kpi-co2 { border-top: 8px solid var(--kpi-co2); }
+    .kpi-title { font-size: 1.2rem; font-weight: bold; opacity: 0.8; color: var(--text-sub) !important; margin-bottom: 5px; }
+    .kpi-value { font-size: 2.8rem; font-weight: 800; color: var(--text-main) !important; margin: 0; }
+    .kpi-unit { font-size: 1rem; font-weight: normal; color: var(--text-sub) !important; margin-left: 5px; }
+    .kpi-sub { font-size: 0.9rem; color: #C0392B !important; font-weight: 700; background-color: rgba(192, 57, 43, 0.1); padding: 2px 10px; border-radius: 20px; display: inline-block; margin-top: 5px;}
+
+    /* Admin 儀表板 KPI */
+    .admin-kpi-card {
+        background-color: #FFFFFF; border: 1px solid #BDC3C7; border-radius: 12px; overflow: hidden;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.1); height: 100%; text-align: center; margin-bottom: 20px;
+    }
+    .admin-kpi-header { padding: 10px; font-size: 1.2rem; font-weight: bold; color: #2C3E50; border-bottom: 1px solid rgba(0,0,0,0.1); }
+    .admin-kpi-body { padding: 20px; }
+    .admin-kpi-value { font-size: 2.8rem; font-weight: 900; color: #2C3E50; margin-bottom: 5px; }
+    .admin-kpi-unit { font-size: 1rem; color: #7F8C8D; font-weight: normal; margin-left: 5px; }
+    .admin-kpi-sub {
+        font-size: 0.9rem; display: inline-block; padding: 2px 10px; border-radius: 15px;
+        background-color: #F9E79F; color: #7D6608; margin-top: 5px; font-weight: bold;
+    }
+
+    /* 未申報與其他 */
+    .unreported-block {
+        padding: 15px 20px; border-radius: 12px; margin-bottom: 20px; color: #2C3E50;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.08); border: 1px solid rgba(0,0,0,0.05);
+    }
     .unreported-title { font-size: 1.6rem; font-weight: 900; margin-bottom: 12px; border-bottom: 2px solid rgba(0,0,0,0.1); padding-bottom: 8px; }
     .device-info-box { background-color: #FFFFFF; border: 2px solid #5DADE2; border-radius: 10px; padding: 20px; margin-bottom: 20px; }
-    .dashboard-main-title { font-size: 1.8rem; font-weight: 900; text-align: center; color: #2C3E50; margin-bottom: 20px; background-color: #F8F9F9; padding: 10px; border-radius: 10px; border: 1px solid #BDC3C7; }
+    .alert-box { background-color: #FCF3CF; border: 2px solid #F1C40F; padding: 15px; border-radius: 10px; margin-bottom: 20px; color: #9A7D0A !important; font-weight: bold; text-align: center; }
+    .privacy-box { background-color: #F8F9F9; border: 1px solid #BDC3C7; padding: 15px; border-radius: 10px; font-size: 0.9rem; color: #566573; margin-bottom: 10px; }
+    .privacy-title { font-weight: bold; color: #2C3E50; margin-bottom: 5px; font-size: 1rem; }
+    .pie-chart-box { background-color: #FFFFFF; border: 2px solid #BDC3C7; border-radius: 15px; padding: 10px; }
+    .dashboard-main-title {
+        font-size: 1.8rem; font-weight: 900; text-align: center; color: #2C3E50; margin-bottom: 20px;
+        background-color: #F8F9F9; padding: 10px; border-radius: 10px; border: 1px solid #BDC3C7;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -122,8 +232,10 @@ with st.sidebar:
     st.markdown("---")
     authenticator.logout('登出系統', 'sidebar')
 
-# 3. 資料庫連線 (燃油)
-SHEET_ID = "1gqDU21YJeBoBOd8rMYzwwZ45offXWPGEODKTF6B8k-Y" 
+# ==========================================
+# 3. 資料庫連線與設定 (V134)
+# ==========================================
+SHEET_ID = "請在此貼上您的_Google_Sheet_ID" 
 DRIVE_FOLDER_ID = "1Uryuk3-9FHJ39w5Uo8FYxuh9VOFndeqD"
 VIP_UNITS = ["總務處事務組", "民雄總務", "新民聯辦", "產推處產學營運組"]
 FLEET_CARDS = {"總務處事務組-柴油": "TZI510508", "總務處事務組-汽油": "TZI510509", "民雄總務": "TZI510594", "新民聯辦": "TZI510410", "產推處產學營運組": "TZI510244"}
@@ -180,7 +292,7 @@ if 'reset_counter' not in st.session_state: st.session_state['reset_counter'] = 
 # ==========================================
 
 def render_user_interface():
-    """ 一般使用者 / 管理員的前台填報介面 """
+    """ 一般使用者 / 管理員的前台填報介面 (V134 Logic) """
     st.markdown("### ⛽ 燃油設備填報專區")
     tabs = st.tabs(["📝 新增填報", "📊 動態查詢看板"])
     
@@ -352,7 +464,7 @@ def render_user_interface():
                                 ws_record.append_rows(rows); st.success("✅ 申報成功！"); st.balloons(); st.session_state['reset_counter'] += 1; st.cache_data.clear()
         else: st.warning("📭 目前資料庫尚無有效資料，請先至「新增填報」分頁填寫。")
 
-    # === Tab 2: 看板 ---
+    # === Tab 2: 看板 (V134 logic) ===
     with tabs[1]:
         st.markdown("### 📊 動態查詢看板 (年度檢視)")
         st.info("請選擇「單位」與「年份」，檢視該年度的用油統計與碳排放分析。")
@@ -427,6 +539,7 @@ def render_user_interface():
                     st.subheader(f"🌞 單位油料使用碳排放量(公噸二氧化碳當量)結構", anchor=False)
                     df_final['CO2e'] = df_final.apply(lambda r: r['加油量']*0.0022 if '汽油' in r['原燃物料名稱'] else r['加油量']*0.0027, axis=1)
                     treemap_data = df_final.groupby(['設備名稱備註'])['CO2e'].sum().reset_index()
+                    # V125: treemap percentage .1%
                     fig_tree = px.treemap(treemap_data, path=['設備名稱備註'], values='CO2e', title=f"{query_dept} - 設備碳排放量權重分析", color='CO2e', color_continuous_scale='Teal')
                     fig_tree.update_traces(texttemplate='%{label}<br>%{value:.4f}<br>%{percentEntry:.1%}', textfont=dict(size=24))
                     fig_tree.update_coloraxes(showscale=False)
@@ -439,6 +552,7 @@ def render_user_interface():
                         gas_df = df_final[df_final['原燃物料名稱'].str.contains('汽油', na=False)]
                         if not gas_df.empty:
                             fig_gas = px.pie(gas_df, values='加油量', names='設備名稱備註', title='⛽ 汽油設備用油量分析', color_discrete_sequence=px.colors.sequential.Teal, hole=0.5)
+                            # V134: Tab3 fix (Inside, Size 20)
                             fig_gas.update_traces(textinfo='percent+label', textfont_size=20, textposition='inside', insidetextorientation='horizontal')
                             fig_gas.update_layout(legend=dict(orientation="h", yanchor="top", y=-0.1, xanchor="center", x=0.5), margin=dict(l=40, r=40, t=40, b=40))
                             st.plotly_chart(fig_gas, use_container_width=True)
@@ -449,6 +563,7 @@ def render_user_interface():
                         diesel_df = df_final[df_final['原燃物料名稱'].str.contains('柴油', na=False)]
                         if not diesel_df.empty:
                             fig_diesel = px.pie(diesel_df, values='加油量', names='設備名稱備註', title='🚛 柴油設備用油量分析', color_discrete_sequence=px.colors.sequential.Oranges, hole=0.5)
+                            # V134: Tab3 fix (Inside, Size 20)
                             fig_diesel.update_traces(textinfo='percent+label', textfont_size=20, textposition='inside', insidetextorientation='horizontal')
                             fig_diesel.update_layout(legend=dict(orientation="h", yanchor="top", y=-0.1, xanchor="center", x=0.5), margin=dict(l=40, r=40, t=40, b=40))
                             st.plotly_chart(fig_diesel, use_container_width=True)
@@ -461,6 +576,8 @@ def render_user_interface():
                     st.dataframe(df_display.style.format({"加油量(公升)": "{:.2f}"}), use_container_width=True)
                 else: st.warning(f"⚠️ {query_dept} 在 {query_year} 年度尚無填報紀錄。")
         else: st.info("尚無該年度資料，無法顯示儀表板。")
+
+    st.markdown('<div class="contact-footer">管理員系統版本 V134.0 (Final Visual Perfection)</div>', unsafe_allow_html=True)
 
 def render_admin_dashboard():
     """ 顯示管理員後台 """
