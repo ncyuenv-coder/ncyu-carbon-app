@@ -21,7 +21,7 @@ def get_taiwan_time():
     return datetime.utcnow() + timedelta(hours=8)
 
 # ==========================================
-# 1. CSS 樣式表 (V134 燃油樣式鎖定 + V200 冷媒新樣式)
+# 1. CSS 樣式表 (V202: 上傳區樣式統一 + 燃油V134樣式鎖定)
 # ==========================================
 st.markdown("""
 <style>
@@ -102,21 +102,16 @@ st.markdown("""
         color: #154360 !important;
     }
 
-    /* 燃油-檔案上傳區 (淺藍虛線) */
-    .fuel-uploader [data-testid="stFileUploaderDropzone"] {
-        background-color: #EBF5FB !important; border: 2px dashed #AED6F1 !important; border-radius: 12px; padding: 20px;
-    }
-    
-    /* 冷媒-檔案上傳區 (淺藍底色+深藍字體) */
-    .ref-uploader [data-testid="stFileUploaderDropzone"] {
+    /* V202: 統一所有檔案上傳區樣式 (淺藍底+深藍字) */
+    [data-testid="stFileUploaderDropzone"] {
         background-color: #D6EAF8 !important; /* 淺藍底色 */
-        border: 2px solid #2E86C1 !important; 
+        border: 2px dashed #2E86C1 !important; 
         border-radius: 12px; 
         padding: 20px;
     }
-    .ref-uploader [data-testid="stFileUploaderDropzone"] div, 
-    .ref-uploader [data-testid="stFileUploaderDropzone"] span, 
-    .ref-uploader [data-testid="stFileUploaderDropzone"] small {
+    [data-testid="stFileUploaderDropzone"] div, 
+    [data-testid="stFileUploaderDropzone"] span, 
+    [data-testid="stFileUploaderDropzone"] small {
         color: #154360 !important; /* 深藍字體 */
         font-weight: bold !important;
     }
@@ -259,14 +254,12 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# ☁️ 設定區 (V201: 修正 ID 歸屬)
-# 1. 燃油設備 (使用使用者手動填寫的 SHEET_ID, 預設為 placeholder)
+# ☁️ 設定區
 SHEET_ID = "1gqDU21YJeBoBOd8rMYzwwZ45offXWPGEODKTF6B8k-Y" 
-DRIVE_FOLDER_ID = "1Uryuk3-9FHJ39w5Uo8FYxuh9VOFndeqD" # 燃油佐證資料夾 (V127指定)
+DRIVE_FOLDER_ID = "1Uryuk3-9FHJ39w5Uo8FYxuh9VOFndeqD" # 燃油佐證資料夾
 
-# 2. 冷媒設備 (使用 V200 指定的新 ID)
-REF_SHEET_ID = "1ZdvMBkprsN9w6EUKeGU_KYC8UKeS0rmX1Nq0yXzESIc" 
-REF_FOLDER_ID = "1o0S56OyStDjvC5tgBWiUNqNjrpXuCQMI"
+REF_SHEET_ID = "1ZdvMBkprsN9w6EUKeGU_KYC8UKeS0rmX1Nq0yXzESIc" # 冷媒試算表
+REF_FOLDER_ID = "1o0S56OyStDjvC5tgBWiUNqNjrpXuCQMI" # 冷媒佐證資料夾
 
 VIP_UNITS = ["總務處事務組", "民雄總務", "新民聯辦", "產推處產學營運組"]
 FLEET_CARDS = {"總務處事務組-柴油": "TZI510508", "總務處事務組-汽油": "TZI510509", "民雄總務": "TZI510594", "新民聯辦": "TZI510410", "產推處產學營運組": "TZI510244"}
@@ -322,9 +315,9 @@ def init_google():
 
 try:
     gc, drive_service = init_google(); 
-    # V200: 連線到兩個不同的 Sheet
-    sh = gc.open_by_key(SHEET_ID) # 燃油 (User provided ID in secret/code)
-    sh_ref = gc.open_by_key(REF_SHEET_ID) # 冷媒 (V200 New ID)
+    # 連線到兩個不同的 Sheet
+    sh = gc.open_by_key(SHEET_ID) # 燃油
+    sh_ref = gc.open_by_key(REF_SHEET_ID) # 冷媒
     
     # 燃油 Sheets
     try: ws_equip = sh.worksheet("設備清單") 
@@ -333,8 +326,7 @@ try:
     except: ws_record = sh.add_worksheet(title="填報紀錄", rows="1000", cols="13")
     if len(ws_record.get_all_values()) == 0: ws_record.append_row(["填報時間", "填報單位", "填報人", "填報人分機", "設備名稱備註", "校內財產編號", "原燃物料名稱", "油卡編號", "加油日期", "加油量", "與其他設備共用加油單", "備註", "佐證資料"])
 
-    # 冷媒 Sheets (全校各單位, 建築物清單, 設備類型, 冷媒係數表, 填報紀錄)
-    # 這裡我們假設 User 已經建好了這些 Sheet
+    # 冷媒 Sheets
     try: ws_ref_units = sh_ref.worksheet("全校各單位")
     except: ws_ref_units = sh_ref.add_worksheet(title="全校各單位", rows="100", cols="5")
     
@@ -391,7 +383,7 @@ def load_data():
 
     return df_e, df_r
 
-# V200: 冷媒資料載入 (使用快取)
+# V202: 冷媒資料載入 (修復空白問題 + B欄讀取)
 @st.cache_data(ttl=600)
 def load_ref_data():
     # 讀取基本設定檔
@@ -400,7 +392,27 @@ def load_ref_data():
     df_types = pd.DataFrame(ws_ref_types.get_all_records()).astype(str)
     df_coef = pd.DataFrame(ws_ref_coef.get_all_records()).astype(str)
     
-    # 讀取紀錄檔 (不需要一直讀，但為了Dashboard需要)
+    # 預處理: 去除欄位與內容的空白 (Trim whitespace)
+    # 1. 全校各單位
+    df_units.columns = df_units.columns.str.strip()
+    for col in df_units.columns:
+        df_units[col] = df_units[col].str.strip()
+        
+    # 2. 建築物清單
+    df_buildings.columns = df_buildings.columns.str.strip()
+    for col in df_buildings.columns:
+        df_buildings[col] = df_buildings[col].str.strip()
+    
+    # 3. 設備類型
+    df_types.columns = df_types.columns.str.strip()
+    
+    # 4. 冷媒係數表 (確保有 B 欄)
+    df_coef.columns = df_coef.columns.str.strip()
+    # 雖然 header 有名字，但為了保險我們也對內容 strip
+    for col in df_coef.columns:
+        df_coef[col] = df_coef[col].str.strip()
+
+    # 讀取紀錄檔
     data = ws_ref_records.get_all_values()
     df_records = pd.DataFrame(data[1:], columns=data[0]) if len(data) > 1 else pd.DataFrame(columns=data[0])
     
@@ -421,7 +433,6 @@ if st.session_state['current_page'] == 'home':
         if st.button("前往「燃油設備填報區」", use_container_width=True, type="primary"): st.session_state['current_page'] = 'fuel'; st.rerun()
     with col2:
         st.info("❄️ 冷氣/冰水主機")
-        # V200: 開啟冷媒按鈕
         if st.button("前往「冷媒類設備填報區」", use_container_width=True, type="primary"): st.session_state['current_page'] = 'refrigerant'; st.rerun()
     if username == 'admin':
         st.markdown("---"); st.markdown("### 👑 超級管理員專區")
@@ -429,7 +440,7 @@ if st.session_state['current_page'] == 'home':
     st.markdown('<div class="contact-footer">如有填報疑問，請電洽環安中心林小姐(分機 7137)，謝謝</div>', unsafe_allow_html=True)
 
 # ------------------------------------------
-# ⛽ 外部填報區 (V134.0: 燃油定案版 - 完全鎖定)
+# ⛽ 外部填報區 (V134.0: 燃油定案版 - 完全鎖定, 僅 CSS 受全域影響)
 # ------------------------------------------
 elif st.session_state['current_page'] == 'fuel':
     st.title("⛽ 燃油設備填報專區")
@@ -804,7 +815,7 @@ elif st.session_state['current_page'] == 'fuel':
         st.markdown('<div class="contact-footer">如有填報疑問，請電洽環安中心林小姐(分機 7137)，謝謝</div>', unsafe_allow_html=True)
 
 # ------------------------------------------
-# ❄️ 冷媒類設備填報專區 (V200.0: 新增)
+# ❄️ 冷媒類設備填報專區 (V203: 移除序號 & 選單邏輯修正)
 # ------------------------------------------
 elif st.session_state['current_page'] == 'refrigerant':
     st.title("❄️ 冷媒/冰水主機填報專區")
@@ -816,76 +827,67 @@ elif st.session_state['current_page'] == 'refrigerant':
         st.markdown('<div class="alert-box">📢 請「誠實申報」，以保障單位及自身權益！</div>', unsafe_allow_html=True)
         
         with st.form("ref_entry_form", clear_on_submit=True):
-            st.markdown("#### (1) 填報人基本資料區")
+            st.markdown("#### 填報人基本資料區")
             c1, c2, c3 = st.columns(3)
             
-            # 連動選單: 校區 -> 所屬單位 -> 填報單位名稱
-            # 1. 校區
-            campuses = sorted(df_ref_units['校區'].dropna().unique())
-            selected_campus = c1.selectbox("A. 校區", campuses, index=None, placeholder="請選擇校區...", key="ref_campus")
+            # V203: 校區強制讀取 Column A (iloc[:,0])
+            campuses = sorted(df_ref_units.iloc[:, 0].dropna().unique())
+            selected_campus = c1.selectbox("校區", campuses, index=None, placeholder="請選擇校區...", key="ref_campus")
             
-            # 2. 所屬單位
             depts = []
             if selected_campus:
                 depts = sorted(df_ref_units[df_ref_units['校區'] == selected_campus]['所屬單位'].dropna().unique())
-            selected_dept = c2.selectbox("B. 所屬單位", depts, index=None, placeholder="請先選擇校區...", key="ref_dept")
+            selected_dept = c2.selectbox("所屬單位", depts, index=None, placeholder="請先選擇校區...", key="ref_dept")
             
-            # 3. 填報單位名稱
             units = []
             if selected_dept:
                 units = sorted(df_ref_units[(df_ref_units['校區'] == selected_campus) & (df_ref_units['所屬單位'] == selected_dept)]['填報單位名稱'].dropna().unique())
-            selected_unit_name = c3.selectbox("C. 填報單位名稱", units, index=None, placeholder="請先選擇所屬單位...", key="ref_unit_name")
+            selected_unit_name = c3.selectbox("填報單位名稱", units, index=None, placeholder="請先選擇所屬單位...", key="ref_unit_name")
             
             c4, c5 = st.columns(2)
-            reporter_name = c4.text_input("D. 填報人")
-            reporter_ext = c5.text_input("E. 填報人分機")
+            reporter_name = c4.text_input("填報人")
+            reporter_ext = c5.text_input("填報人分機")
             
             st.markdown("---")
-            st.markdown("#### (2) 詳細位置資訊區")
+            st.markdown("#### 詳細位置資訊區")
             c6, c7 = st.columns(2)
             
-            # 連動選單: 校區 -> 建築物
             buildings = []
             if selected_campus:
-                # 假設建築物清單 Sheet 裡有 '校區' 和 '建築物名稱' 欄位
                 if '校區' in df_ref_buildings.columns and '建築物名稱' in df_ref_buildings.columns:
                     buildings = sorted(df_ref_buildings[df_ref_buildings['校區'] == selected_campus]['建築物名稱'].dropna().unique())
                 else:
                     st.error("建築物清單欄位錯誤，請檢查資料庫")
             
-            selected_building = c6.selectbox("A. 建築物名稱", buildings, index=None, placeholder="請先選擇上方校區...", key="ref_building")
-            office_no = c7.text_input("B. 辦公室編號", placeholder="例如：404辦公室或213研究室")
+            selected_building = c6.selectbox("建築物名稱", buildings, index=None, placeholder="請先選擇上方校區...", key="ref_building")
+            office_no = c7.text_input("辦公室編號", placeholder="例如：404辦公室或213研究室")
             
             st.markdown("---")
-            st.markdown("#### (3) 設備修繕冷媒填充資訊區")
+            st.markdown("#### 設備修繕冷媒填充資訊區")
             c8, c9 = st.columns(2)
-            repair_date = c8.date_input("A. 維修日期 (統一填寫發票日期)", datetime.today())
+            repair_date = c8.date_input("維修日期 (統一填寫發票日期)", datetime.today())
             
-            # 設備類型下拉
             equip_types = sorted(df_ref_types.iloc[:,0].dropna().unique()) if not df_ref_types.empty else []
-            equip_type = c9.selectbox("B. 設備類型", equip_types, index=None, placeholder="請選擇...")
+            equip_type = c9.selectbox("設備類型", equip_types, index=None, placeholder="請選擇...")
             
             c10, c11 = st.columns(2)
-            equip_model = c10.text_input("C. 設備品牌型號", placeholder="例如：國際 CS-100FL+CU-100FLC")
+            equip_model = c10.text_input("設備品牌型號", placeholder="例如：國際 CS-100FL+CU-100FLC")
             
-            # 冷媒種類下拉
-            ref_types = sorted(df_ref_coef.iloc[:,0].dropna().unique()) if not df_ref_coef.empty else []
-            ref_type = c11.selectbox("D. 冷媒種類", ref_types, index=None, placeholder="請選擇...")
+            ref_types = []
+            if not df_ref_coef.empty and df_ref_coef.shape[1] >= 2:
+                ref_types = sorted(df_ref_coef.iloc[:, 1].dropna().unique())
+            ref_type = c11.selectbox("冷媒種類", ref_types, index=None, placeholder="請選擇...")
             
-            ref_amount = st.number_input("E. 冷媒填充量 (公斤)", min_value=0.0, step=0.1, format="%.2f")
+            ref_amount = st.number_input("冷媒填充量 (公斤)", min_value=0.0, step=0.1, format="%.2f")
             
-            st.markdown("F. 請上傳冷媒填充單據佐證資料")
-            # V200: 客製化淺藍色上傳區
-            st.markdown('<div class="ref-uploader">', unsafe_allow_html=True)
+            st.markdown("請上傳冷媒填充單據佐證資料")
             f_ref_file = st.file_uploader("上傳佐證 (必填)", type=['png', 'jpg', 'jpeg', 'pdf'], label_visibility="collapsed")
-            st.markdown('</div>', unsafe_allow_html=True)
             
             st.markdown("---")
-            st.markdown("#### (4) 備註")
-            note_val = st.text_input("A. 備註內容", placeholder="備註 (選填)")
+            st.markdown("#### 備註")
+            note_val = st.text_input("備註內容", placeholder="備註 (選填)")
             st.markdown('<div class="note-text-darkgray">如有資料誤繕情形，請重新登錄1次資訊，並於備註欄填寫：「前筆資料誤繕，請刪除。」，管理單位將協助刪除誤打資訊。</div>', unsafe_allow_html=True)
             
-            # 個資聲明
             privacy_html_ref = """
             <div class="privacy-box">
                 <div class="privacy-title">📜 個人資料蒐集、處理及利用告知聲明</div>
@@ -902,27 +904,22 @@ elif st.session_state['current_page'] == 'refrigerant':
             submit_ref = st.form_submit_button("🚀 確認送出", use_container_width=True)
             
             if submit_ref:
-                # 驗證必填
                 if not agree_ref: st.error("❌ 請勾選同意聲明")
-                elif not selected_campus or not selected_dept or not selected_unit_name: st.warning("⚠️ 請完整選擇填報單位資訊 (A, B, C)")
+                elif not selected_campus or not selected_dept or not selected_unit_name: st.warning("⚠️ 請完整選擇填報單位資訊")
                 elif not reporter_name or not reporter_ext: st.warning("⚠️ 填報人與分機為必填")
                 elif not selected_building: st.warning("⚠️ 請選擇建築物")
                 elif not equip_type or not ref_type: st.warning("⚠️ 請選擇設備類型與冷媒種類")
                 elif not f_ref_file: st.error("⚠️ 請上傳佐證資料")
                 else:
                     try:
-                        # 檔名處理
                         f_ref_file.seek(0); f_ext = f_ref_file.name.split('.')[-1]
-                        # 檔名格式: 校區_所屬單位_填報單位名稱_維修日期_設備類型_冷媒種類
                         clean_ref_name = f"{selected_campus}_{selected_dept}_{selected_unit_name}_{repair_date}_{equip_type}_{ref_type}.{f_ext}"
                         
-                        # 上傳到 Google Drive
                         file_meta = {'name': clean_ref_name, 'parents': [REF_FOLDER_ID]}
                         media = MediaIoBaseUpload(f_ref_file, mimetype=f_ref_file.type, resumable=True)
                         file = drive_service.files().create(body=file_meta, media_body=media, fields='webViewLink').execute()
                         file_link = file.get('webViewLink')
                         
-                        # 寫入 Google Sheet
                         current_time = get_taiwan_time().strftime("%Y-%m-%d %H:%M:%S")
                         row_data = [
                             current_time, reporter_name, reporter_ext, 
@@ -1180,4 +1177,4 @@ elif st.session_state['current_page'] == 'admin_dashboard' and username == 'admi
             else: st.info("無數據")
         else: st.info("尚無該年度資料，無法顯示儀表板。")
 
-    st.markdown('<div class="contact-footer">管理員系統版本 V126.0 (Chart Fonts Fixed)</div>', unsafe_allow_html=True)
+    st.markdown('<div class="contact-footer">管理員系統版本 V134.0 (Final Visual Perfection)</div>', unsafe_allow_html=True)
