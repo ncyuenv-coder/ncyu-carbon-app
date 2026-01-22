@@ -5,7 +5,7 @@ import gspread
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
-import unicodedata # V211: 引入正規化套件
+import unicodedata
 
 # ==========================================
 # 0. 系統設定
@@ -20,18 +20,15 @@ def get_taiwan_time():
 # ==========================================
 st.markdown("""
 <style>
-    [data-testid="stFileUploaderDropzone"] {background-color: #D6EAF8; border: 2px dashed #2E86C1; padding: 20px;}
-    .note-text {color: #566573; font-weight: bold; font-size: 0.9rem;}
-    /* 診斷區樣式 */
-    .debug-box {
-        background-color: #FDEDEC; border: 2px solid #E74C3C; 
-        padding: 15px; border-radius: 10px; margin-bottom: 20px;
-        color: #C0392B; font-family: monospace;
+    /* 統一上傳區樣式 */
+    [data-testid="stFileUploaderDropzone"] {
+        background-color: #D6EAF8; border: 2px dashed #2E86C1; padding: 20px;
     }
-    .debug-success {
-        background-color: #D4EFDF; border: 2px solid #27AE60; 
-        padding: 10px; border-radius: 10px; margin-bottom: 20px;
-        color: #196F3D; font-weight: bold;
+    .note-text {color: #566573; font-weight: bold; font-size: 0.9rem;}
+    
+    /* 強制刷新按鈕樣式 */
+    div.stButton > button[kind="secondary"] {
+        color: #E74C3C; border-color: #E74C3C;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -41,7 +38,7 @@ if st.session_state.get("authentication_status") is not True:
     st.warning("🔒 請先至首頁 (Hello) 登入系統")
     st.stop()
 
-# 3. 資料庫連線
+# 3. 資料庫連線設定
 REF_SHEET_ID = "1ZdvMBkprsN9w6EUKeGU_KYC8UKeS0rmX1Nq0yXzESIc"
 REF_FOLDER_ID = "1o0S56OyStDjvC5tgBWiUNqNjrpXuCQMI"
 
@@ -56,6 +53,7 @@ try:
     gc, drive_service = init_google_ref()
     sh_ref = gc.open_by_key(REF_SHEET_ID)
     
+    # 讀取分頁 (請確認 Sheet 名稱已改為 "單位資訊")
     ws_units = sh_ref.worksheet("單位資訊")
     ws_buildings = sh_ref.worksheet("建築物清單")
     ws_types = sh_ref.worksheet("設備類型")
@@ -67,102 +65,76 @@ try:
         ws_records.append_row(["填報時間","填報人","填報人分機","校區","所屬單位","填報單位名稱","建築物名稱","辦公室編號","維修日期","設備類型","設備品牌型號","冷媒種類","冷媒填充量","備註","佐證資料"])
 
 except Exception as e:
-    st.error(f"❌ 冷媒資料庫連線失敗: {e}")
+    st.error(f"❌ 資料庫連線失敗，請檢查 Google Sheet 是否存在 '單位資訊' 分頁。錯誤訊息: {e}")
     st.stop()
 
-# 4. 資料讀取 (V211: 核彈級清洗)
+# 4. 資料讀取 (V212: 絕對位置鎖定 + 強制清洗)
 @st.cache_data(ttl=60)
-def load_ref_data_v211():
-    # 定義清洗函式：轉字串 -> 正規化(NFKC) -> 去除所有隱形符號
+def load_ref_data_v212():
     def clean_text(text):
         if pd.isna(text): return ""
         text = str(text)
-        # NFKC 可以把全形轉半形 (如 'Ａ' -> 'A')，並統一空白字元
-        text = unicodedata.normalize('NFKC', text)
-        return text.strip()
+        # 強力清洗：轉半形、去頭尾空白
+        text = unicodedata.normalize('NFKC', text).strip()
+        return text
 
-    def get_clean_df(ws):
+    def get_df_by_position(ws):
+        # 讀取所有資料
         data = ws.get_all_values()
         if len(data) > 1:
+            # 使用第 1 列當標題，但我們後續會用 iloc (位置) 來操作，不依賴標題名稱
             df = pd.DataFrame(data[1:], columns=data[0])
-            # 1. 清洗欄位名稱
-            df.columns = [clean_text(col) for col in df.columns]
-            # 2. 清洗所有內容
+            # 清洗所有格子
             for col in df.columns:
                 df[col] = df[col].apply(clean_text)
             return df
         return pd.DataFrame()
     
-    return get_clean_df(ws_units), get_clean_df(ws_buildings), get_clean_df(ws_types), get_clean_df(ws_coef)
+    return get_df_by_position(ws_units), get_df_by_position(ws_buildings), get_df_by_position(ws_types), get_df_by_position(ws_coef)
 
-df_units, df_buildings, df_types, df_coef = load_ref_data_v211()
+df_units, df_buildings, df_types, df_coef = load_ref_data_v212()
 
-# 5. 介面
+# 5. 頁面內容
 st.title("❄️ 冷媒填報專區")
+
+# 強制刷新按鈕 (如果 Sheet 改了但網頁沒變，按這個)
+if st.button("🔄 刷新資料庫 (若選單沒更新請點此)", type="secondary"):
+    st.cache_data.clear()
+    st.rerun()
 
 tabs = st.tabs(["📝 新增填報", "📊 動態查詢看板"])
 
 with tabs[0]:
     with st.form("ref_form", clear_on_submit=True):
         st.subheader("填報人基本資料區")
-        
-        # --- V211 智慧欄位尋找 ---
-        # 自動找含有關鍵字的欄位，不拘泥於完全相符
-        def find_col(df, keyword):
-            for col in df.columns:
-                if keyword in col: return col
-            return None
-
-        col_campus = find_col(df_units, '校區')
-        col_dept = find_col(df_units, '所屬單位')
-        col_unit_name = find_col(df_units, '填報單位名稱')
-
-        # --- 診斷面板 (自動偵測問題) ---
-        if not col_campus or not col_dept:
-            st.markdown(f"""
-            <div class="debug-box">
-                ❌ <strong>欄位對應失敗！</strong><br>
-                程式找不到「校區」或「所屬單位」欄位。<br>
-                目前讀到的欄位名稱：{df_units.columns.tolist()}
-            </div>
-            """, unsafe_allow_html=True)
-            campuses = []
-        else:
-            # 正常讀取
-            campuses = sorted([x for x in df_units[col_campus].unique() if x])
-        
         c1, c2, c3 = st.columns(3)
+        
+        # === V212 核心連動邏輯 (絕對位置 A->B->C) ===
+        
+        # 1. 校區 (鎖定 Column A / index 0)
+        campuses = []
+        if not df_units.empty:
+            # iloc[:, 0] 代表第一欄
+            campuses = sorted([x for x in df_units.iloc[:, 0].unique() if x])
         sel_campus = c1.selectbox("校區", campuses, index=None, placeholder="請選擇...")
         
-        # 連動邏輯：所屬單位
+        # 2. 所屬單位 (鎖定 Column B / index 1)
         depts = []
-        if sel_campus and col_campus and col_dept:
-            # V211: 使用嚴格字串比對
-            mask = df_units[col_campus] == str(sel_campus)
-            depts = sorted(df_units[mask][col_dept].unique())
-            depts = [x for x in depts if x]
-            
-            # 如果選了校區卻沒單位，顯示即時診斷
-            if not depts:
-                st.markdown(f"""
-                <div class="debug-box">
-                    ⚠️ <strong>連動異常偵測</strong><br>
-                    您選擇了：[{sel_campus}] (長度: {len(sel_campus)})<br>
-                    但在資料庫中找不到對應的單位。<br>
-                    資料庫中的校區範例：{df_units[col_campus].unique()[:3]}
-                </div>
-                """, unsafe_allow_html=True)
-            
+        if sel_campus and not df_units.empty:
+            # 篩選條件：第1欄 == 選中的校區
+            mask = df_units.iloc[:, 0] == sel_campus
+            depts = sorted([x for x in df_units[mask].iloc[:, 1].unique() if x])
         sel_dept = c2.selectbox("所屬單位", depts, index=None, placeholder="請先選擇校區...")
         
-        # 連動邏輯：填報單位名稱
+        # 3. 填報單位名稱 (鎖定 Column C / index 2)
         units = []
-        if sel_dept and col_unit_name:
-            mask = (df_units[col_campus] == sel_campus) & (df_units[col_dept] == sel_dept)
-            units = sorted(df_units[mask][col_unit_name].unique())
-            units = [x for x in units if x]
-            
+        if sel_dept and not df_units.empty:
+            # 篩選條件：第1欄 == 校區 AND 第2欄 == 單位
+            mask = (df_units.iloc[:, 0] == sel_campus) & (df_units.iloc[:, 1] == sel_dept)
+            units = sorted([x for x in df_units[mask].iloc[:, 2].unique() if x])
         sel_unit = c3.selectbox("填報單位名稱", units, index=None, placeholder="請先選擇所屬單位...")
+        
+        # ---------------------------------------------
         
         c4, c5 = st.columns(2)
         name = c4.text_input("填報人")
@@ -172,15 +144,12 @@ with tabs[0]:
         st.subheader("詳細位置資訊區")
         c6, c7 = st.columns(2)
         
-        # 建築物連動
+        # 建築物 (鎖定前兩欄：A=校區, B=建築物)
         builds = []
-        col_b_campus = find_col(df_buildings, '校區')
-        col_b_name = find_col(df_buildings, '建築物') # 找含有建築物的欄位
-        
-        if sel_campus and col_b_campus and col_b_name:
-            mask = df_buildings[col_b_campus] == sel_campus
-            builds = sorted(df_buildings[mask][col_b_name].unique())
-            builds = [x for x in builds if x]
+        if sel_campus and not df_buildings.empty:
+            # 假設建築物清單也是 A欄=校區, B欄=建築物名稱
+            mask_b = df_buildings.iloc[:, 0] == sel_campus
+            builds = sorted([x for x in df_buildings[mask_b].iloc[:, 1].unique() if x])
             
         sel_build = c6.selectbox("建築物名稱", builds, index=None, placeholder="請先選擇上方校區...")
         office = c7.text_input("辦公室編號", placeholder="例如：404辦公室")
@@ -190,17 +159,19 @@ with tabs[0]:
         c8, c9 = st.columns(2)
         r_date = c8.date_input("維修日期 (統一填寫發票日期)", datetime.today())
         
+        # 設備類型 (A欄)
         e_types = []
-        if not df_types.empty: e_types = sorted([x for x in df_types.iloc[:,0].unique() if x])
+        if not df_types.empty:
+            e_types = sorted([x for x in df_types.iloc[:, 0].unique() if x])
         sel_etype = c9.selectbox("設備類型", e_types, index=None, placeholder="請選擇...")
         
         c10, c11 = st.columns(2)
         e_model = c10.text_input("設備品牌型號", placeholder="例如：國際 CS-100FL+CU-100FLC")
         
+        # [cite_start]冷媒種類 (B欄, 冷媒係數表的第2欄) [cite: 1]
         r_types = []
         if not df_coef.empty and df_coef.shape[1] > 1:
-            # 假設第2欄是冷媒名稱
-            r_types = sorted([x for x in df_coef.iloc[:,1].unique() if x])
+            r_types = sorted([x for x in df_coef.iloc[:, 1].unique() if x])
         sel_rtype = c11.selectbox("冷媒種類", r_types, index=None, placeholder="請選擇...")
         
         amount = st.number_input("冷媒填充量 (公斤)", min_value=0.0, step=0.1, format="%.2f")
