@@ -20,16 +20,17 @@ def get_taiwan_time():
 # ==========================================
 st.markdown("""
 <style>
-    /* 統一上傳區樣式 */
     [data-testid="stFileUploaderDropzone"] {
         background-color: #D6EAF8; border: 2px dashed #2E86C1; padding: 20px;
     }
     .note-text {color: #566573; font-weight: bold; font-size: 0.9rem;}
-    
-    /* 區塊標題優化 */
     .section-header {
         font-size: 1.15rem; font-weight: 800; color: #2C3E50; 
         border-left: 5px solid #E67E22; padding-left: 10px; margin-top: 20px; margin-bottom: 10px;
+    }
+    .debug-info {
+        font-size: 0.85rem; color: #85929E; background-color: #F4F6F6; 
+        padding: 10px; border-radius: 5px; margin-bottom: 15px; border: 1px dashed #BDC3C7;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -54,7 +55,7 @@ try:
     gc, drive_service = init_google_ref()
     sh_ref = gc.open_by_key(REF_SHEET_ID)
     
-    # 讀取分頁
+    # 讀取必要分頁
     ws_units = sh_ref.worksheet("單位資訊")
     ws_buildings = sh_ref.worksheet("建築物清單")
     ws_types = sh_ref.worksheet("設備類型")
@@ -69,33 +70,45 @@ except Exception as e:
     st.error(f"❌ 資料庫連線失敗: {e}")
     st.stop()
 
-# 4. 資料讀取 (V214: 適配新結構 - A欄所屬單位, B欄填報單位)
+# 4. 資料讀取 (V215: 智慧清洗與轉型)
 @st.cache_data(ttl=60)
-def load_ref_data_v214():
+def load_ref_data_v215():
     def clean_text(text):
         if pd.isna(text): return ""
         text = str(text)
-        # 強力清洗：轉半形、去頭尾空白
+        # 強力清洗：正規化 unicode，去除前後空白
         text = unicodedata.normalize('NFKC', text).strip()
         return text
 
-    def get_df_by_position(ws):
+    def get_smart_df(ws):
         data = ws.get_all_values()
         if len(data) > 1:
-            df = pd.DataFrame(data[1:], columns=data[0])
+            # 第一列當標題
+            headers = [clean_text(h) for h in data[0]]
+            df = pd.DataFrame(data[1:], columns=headers)
+            # 內容清洗
             for col in df.columns:
                 df[col] = df[col].apply(clean_text)
             return df
         return pd.DataFrame()
     
-    return get_df_by_position(ws_units), get_df_by_position(ws_buildings), get_df_by_position(ws_types), get_df_by_position(ws_coef)
+    return get_smart_df(ws_units), get_smart_df(ws_buildings), get_smart_df(ws_types), get_smart_df(ws_coef)
 
-df_units, df_buildings, df_types, df_coef = load_ref_data_v214()
+df_units, df_buildings, df_types, df_coef = load_ref_data_v215()
 
-# 5. 頁面內容
+# 5. 頁面介面
 st.title("❄️ 冷媒填報專區")
 
-if st.button("🔄 刷新選單資料", type="secondary"):
+# --- 診斷區 (預設折疊) ---
+with st.expander("🛠️ 資料庫診斷 (若選單空白請點此檢查)", expanded=False):
+    st.markdown("#### 目前讀取到的【單位資訊】表單前 5 筆：")
+    if not df_units.empty:
+        st.dataframe(df_units.head())
+        st.write(f"👉 **欄位名稱清單**: {df_units.columns.tolist()}")
+    else:
+        st.error("⚠️ 讀不到資料！")
+
+if st.button("🔄 強制刷新資料", type="secondary"):
     st.cache_data.clear()
     st.rerun()
 
@@ -107,21 +120,30 @@ with tabs[0]:
         # === 區塊 1: 填報人基本資訊區 ===
         st.markdown('<div class="section-header">1. 填報人基本資訊區</div>', unsafe_allow_html=True)
         
+        # --- 智慧欄位配對 ---
+        # 嘗試找欄位，找不到就回退到索引 (Index)
+        cols = df_units.columns
+        col_dept = next((c for c in cols if "所屬單位" in c), cols[0] if len(cols)>0 else None)
+        col_unit = next((c for c in cols if "填報單位" in c), cols[1] if len(cols)>1 else None)
+        
+        # 顯示目前使用的欄位 (除錯用，可讓使用者安心)
+        # st.caption(f"系統自動配對欄位：所屬單位 ➔ `{col_dept}`，填報單位 ➔ `{col_unit}`")
+
         c1, c2 = st.columns(2)
         
-        # 1-1. 所屬單位 (單位資訊 Col A / index 0)
-        # 移除了校區欄位後，現在 A 欄就是所屬單位
-        unit_depts = sorted([x for x in df_units.iloc[:, 0].unique() if x]) if not df_units.empty else []
-        sel_dept = c1.selectbox("所屬單位", unit_depts, index=None, placeholder="請選擇單位...")
+        # 1-1. 所屬單位
+        dept_list = []
+        if col_dept and not df_units.empty:
+            dept_list = sorted([x for x in df_units[col_dept].unique() if x])
+        sel_dept = c1.selectbox(f"所屬單位", dept_list, index=None, placeholder="請選擇...")
         
-        # 1-2. 填報單位名稱 (單位資訊 Col B / index 1, 依 Col A 篩選)
-        unit_names = []
-        if sel_dept and not df_units.empty:
-            # 篩選 A 欄 == 選中單位，取 B 欄
-            mask = df_units.iloc[:, 0] == sel_dept
-            if df_units.shape[1] >= 2:
-                unit_names = sorted([x for x in df_units[mask].iloc[:, 1].unique() if x])
-        sel_unit_name = c2.selectbox("填報單位名稱", unit_names, index=None, placeholder="請先選擇所屬單位...")
+        # 1-2. 填報單位名稱
+        unit_list = []
+        if sel_dept and col_dept and col_unit and not df_units.empty:
+            # 篩選邏輯：所屬單位欄位 == 選中的值
+            mask = df_units[col_dept] == sel_dept
+            unit_list = sorted([x for x in df_units[mask][col_unit].unique() if x])
+        sel_unit_name = c2.selectbox(f"填報單位名稱", unit_list, index=None, placeholder="請先選擇所屬單位...")
         
         # 1-3. 開放欄位
         c3, c4 = st.columns(2)
@@ -132,40 +154,45 @@ with tabs[0]:
         
         # === 區塊 2: 詳細位置資訊區 ===
         st.markdown('<div class="section-header">2. 詳細位置資訊區</div>', unsafe_allow_html=True)
+        
+        # 智慧欄位配對 (建築物)
+        b_cols = df_buildings.columns
+        col_campus = next((c for c in b_cols if "校區" in c), b_cols[0] if len(b_cols)>0 else None)
+        col_build = next((c for c in b_cols if "建築物" in c), b_cols[1] if len(b_cols)>1 else None)
+        
         c6, c7 = st.columns(2)
         
-        # 2-1. 填報單位所在校區 (建築物清單 Col A)
-        loc_campuses = sorted([x for x in df_buildings.iloc[:, 0].unique() if x]) if not df_buildings.empty else []
-        sel_loc_campus = c6.selectbox("填報單位所在校區", loc_campuses, index=None, placeholder="請選擇校區...")
+        # 2-1. 所在校區
+        campus_list = []
+        if col_campus and not df_buildings.empty:
+            campus_list = sorted([x for x in df_buildings[col_campus].unique() if x])
+        sel_loc_campus = c6.selectbox("填報單位所在校區", campus_list, index=None, placeholder="請選擇校區...")
         
-        # 2-2. 建築物名稱 (建築物清單 Col B, 依 Col A 篩選)
-        buildings = []
-        if sel_loc_campus and not df_buildings.empty:
-            mask_b = df_buildings.iloc[:, 0] == sel_loc_campus
-            if df_buildings.shape[1] >= 2:
-                buildings = sorted([x for x in df_buildings[mask_b].iloc[:, 1].unique() if x])
-        sel_build = c6.selectbox("建築物名稱", buildings, index=None, placeholder="請先選擇校區...")
+        # 2-2. 建築物名稱
+        build_list = []
+        if sel_loc_campus and col_campus and col_build and not df_buildings.empty:
+            mask_b = df_buildings[col_campus] == sel_loc_campus
+            build_list = sorted([x for x in df_buildings[mask_b][col_build].unique() if x])
+        sel_build = c6.selectbox("建築物名稱", build_list, index=None, placeholder="請先選擇校區...")
         
-        # 2-3. 辦公室編號
+        # 2-3. 辦公室
         office = c7.text_input("辦公室編號", placeholder="例如：202辦公室、306研究室")
         
         st.markdown("---")
         
-        # === 區塊 3: 設備修繕資訊 ===
+        # === 區塊 3: 設備資訊 ===
         st.markdown('<div class="section-header">3. 設備修繕冷媒填充資訊區</div>', unsafe_allow_html=True)
         c8, c9 = st.columns(2)
         r_date = c8.date_input("維修日期 (統一填寫發票日期)", datetime.today())
         
-        # 設備類型 (A欄)
-        e_types = []
-        if not df_types.empty:
-            e_types = sorted([x for x in df_types.iloc[:, 0].unique() if x])
+        # 設備類型 (預設 A 欄)
+        e_types = sorted([x for x in df_types.iloc[:, 0].unique() if x]) if not df_types.empty else []
         sel_etype = c9.selectbox("設備類型", e_types, index=None, placeholder="請選擇...")
         
         c10, c11 = st.columns(2)
         e_model = c10.text_input("設備品牌型號", placeholder="例如：國際 CS-100FL+CU-100FLC")
         
-        # 冷媒種類 (B欄, 冷媒係數表的第2欄)
+        # 冷媒種類 (預設 B 欄 - 因為通常第一欄是代碼)
         r_types = []
         if not df_coef.empty and df_coef.shape[1] > 1:
             r_types = sorted([x for x in df_coef.iloc[:, 1].unique() if x])
@@ -178,45 +205,29 @@ with tabs[0]:
         
         st.markdown("---")
         note = st.text_input("備註內容", placeholder="備註 (選填)")
-        st.markdown('<div class="note-text">如有資料誤繕情形，請重新登錄1次資訊，並於備註欄填寫：「前筆資料誤繕，請刪除。」</div>', unsafe_allow_html=True)
         
-        st.markdown("""
-        <div style="background-color:#F8F9F9; padding:10px; border-radius:5px; font-size:0.9rem; margin-bottom:10px;">
-        <strong>📜 個人資料蒐集聲明</strong><br>
-        1. 蒐集目的：冷媒設備維修管理與碳盤查統計。<br>
-        2. 利用期間：保存至填報年度後第二年1月1日。<br>
-        3. 您有權依個資法請求查詢或刪除。
-        </div>
-        """, unsafe_allow_html=True)
-        
+        st.markdown('<div style="background-color:#F8F9F9; padding:10px; font-size:0.9rem;"><strong>📜 個資聲明</strong>：蒐集目的為設備管理與碳盤查，保存至申報後第二年。</div>', unsafe_allow_html=True)
         agree = st.checkbox("我已閱讀並同意個資聲明")
         
         submitted = st.form_submit_button("🚀 確認送出", use_container_width=True)
         
         if submitted:
-            # 必填檢查
             if not agree: st.error("❌ 請勾選同意聲明")
-            elif not sel_dept or not sel_unit_name: st.warning("⚠️ 請完整選擇【基本資訊】中的單位資訊")
+            elif not sel_dept or not sel_unit_name: st.warning("⚠️ 請完整選擇單位資訊")
             elif not name or not ext: st.warning("⚠️ 請填寫填報人與分機")
-            elif not sel_loc_campus or not sel_build: st.warning("⚠️ 請完整選擇【位置資訊】中的校區與建築物")
-            elif not sel_etype or not sel_rtype: st.warning("⚠️ 請選擇設備類型與冷媒種類")
+            elif not sel_loc_campus or not sel_build: st.warning("⚠️ 請選擇校區與建築物")
             elif not f_file: st.error("⚠️ 請上傳佐證資料")
             else:
                 try:
                     f_file.seek(0); f_ext = f_file.name.split('.')[-1]
-                    # 檔名邏輯：校區_單位_名稱_日期_類型_冷媒.ext
-                    # 注意：這裡的校區改用 sel_loc_campus (位置校區)
-                    clean_name = f"{sel_loc_campus}_{sel_dept}_{sel_unit_name}_{r_date}_{sel_etype}_{sel_rtype}.{f_ext}"
-                    
+                    # 檔名：校區_單位_名稱_日期.ext
+                    clean_name = f"{sel_loc_campus}_{sel_dept}_{sel_unit_name}_{r_date}_{sel_etype}.{f_ext}"
                     meta = {'name': clean_name, 'parents': [REF_FOLDER_ID]}
                     media = MediaIoBaseUpload(f_file, mimetype=f_file.type, resumable=True)
                     file = drive_service.files().create(body=meta, media_body=media, fields='webViewLink').execute()
                     link = file.get('webViewLink')
                     
                     current_time = get_taiwan_time().strftime("%Y-%m-%d %H:%M:%S")
-                    
-                    # 寫入資料 (注意欄位順序對應)
-                    # 欄位：填報時間, 填報人, 分機, 校區, 所屬單位, 填報單位名稱...
                     row_data = [
                         current_time, name, ext, sel_loc_campus, sel_dept, sel_unit_name, 
                         sel_build, office, str(r_date), sel_etype, e_model, 
