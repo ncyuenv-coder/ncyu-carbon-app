@@ -59,7 +59,7 @@ BUILDING_DATA = {
 # ==========================================
 st.markdown("""
 <style>
-    /* 1. 分頁標籤放大 (與燃油設備一致) */
+    /* 1. 分頁標籤放大 */
     button[data-baseweb="tab"] div p {
         font-size: 1.2rem !important;
         font-weight: 700 !important;
@@ -67,16 +67,16 @@ st.markdown("""
     
     /* 2. 莫蘭迪色標題區塊 */
     .morandi-header {
-        background-color: #EBF5FB; /* 莫蘭迪藍灰底色 */
-        color: #2E4053;            /* 深灰藍文字 */
-        padding: 15px;             /* 內距 */
-        border-radius: 8px;        /* 圓角 */
-        border-left: 8px solid #5499C7; /* 左側裝飾條 */
-        font-size: 1.35rem;        /* 字體放大 */
-        font-weight: 700;          /* 粗體 */
+        background-color: #EBF5FB;
+        color: #2E4053;
+        padding: 15px;
+        border-radius: 8px;
+        border-left: 8px solid #5499C7;
+        font-size: 1.35rem;
+        font-weight: 700;
         margin-top: 25px;
         margin-bottom: 20px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.05); /* 輕微陰影 */
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
     }
 
     /* 3. 個資聲明區塊 */
@@ -100,12 +100,24 @@ st.markdown("""
     }
     
     /* 個資聲明勾選文字樣式 (大字、深藍) */
-    /* 目標是 checkbox 後面的 label 文字 */
     [data-testid="stCheckbox"] label p {
         font-size: 1.1rem !important;
         font-weight: 700 !important;
         color: #2E4053 !important;
     }
+
+    /* KPI 卡片樣式 */
+    .kpi-card {
+        background-color: #FFFFFF;
+        border: 1px solid #D5D8DC;
+        border-radius: 10px;
+        padding: 20px;
+        text-align: center;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    }
+    .kpi-title { font-size: 1rem; color: #566573; margin-bottom: 10px; }
+    .kpi-value { font-size: 2rem; color: #2E86C1; font-weight: bold; }
+    .kpi-unit { font-size: 1rem; color: #85929E; }
     
     /* 上傳區樣式 */
     [data-testid="stFileUploaderDropzone"] {
@@ -146,30 +158,60 @@ except Exception as e:
     st.error(f"❌ 資料庫連線失敗: {e}")
     st.stop()
 
-# 5. 資料讀取 (讀取 Google Sheet 係數與類型)
-@st.cache_data(ttl=600)
-def load_dynamic_options():
-    # 設備類型
+# 5. 資料讀取 (選項與紀錄)
+@st.cache_data(ttl=60)
+def load_data_all():
+    # 1. 設備類型選項
     type_data = ws_types.get_all_values()
     e_types = sorted([row[0] for row in type_data[1:] if row]) if len(type_data) > 1 else []
     
-    # 冷媒係數 (保留未來擴充 GWP 讀取的可能性)
+    # 2. 係數表 (建立 GWP 對照表)
     coef_data = ws_coef.get_all_values()
     r_types = []
+    gwp_map = {}
+    
     if len(coef_data) > 1:
-        # 假設 B 欄是名稱 (Index 1)
-        target_idx = 1 if len(coef_data[0]) > 1 else 0
-        r_types = sorted([row[target_idx] for row in coef_data[1:] if len(row) > target_idx and row[target_idx]])
-        
-    return e_types, r_types
+        # 假設結構：代碼(0), 種類(1), GWP(2)
+        try:
+            name_idx = 1
+            gwp_idx = 2
+            
+            for row in coef_data[1:]:
+                if len(row) > gwp_idx and row[name_idx]:
+                    r_name = row[name_idx].strip()
+                    # 處理 GWP: 移除逗號, 轉 float
+                    gwp_val_str = row[gwp_idx].replace(',', '').strip()
+                    # 簡單過濾非數字 (如 <1)
+                    if not gwp_val_str.replace('.', '', 1).isdigit():
+                        gwp_val = 0.0
+                    else:
+                        gwp_val = float(gwp_val_str)
+                        
+                    r_types.append(r_name)
+                    gwp_map[r_name] = gwp_val
+        except:
+            # 備用：只讀取名稱
+            r_types = sorted([row[1] for row in coef_data[1:] if len(row) > 1 and row[1]])
 
-e_types, r_types = load_dynamic_options()
+    # 3. 填報紀錄
+    records_data = ws_records.get_all_values()
+    if len(records_data) > 1:
+        df_records = pd.DataFrame(records_data[1:], columns=records_data[0])
+    else:
+        df_records = pd.DataFrame(columns=["填報時間","填報人","填報人分機","校區","所屬單位","填報單位名稱","建築物名稱","辦公室編號","維修日期","設備類型","設備品牌型號","冷媒種類","冷媒填充量","備註","佐證資料"])
+
+    return e_types, sorted(r_types), gwp_map, df_records
+
+e_types, r_types, gwp_map, df_records = load_data_all()
 
 # 6. 頁面介面
 st.title("❄️ 冷媒填報專區")
 
 tabs = st.tabs(["📝 新增填報", "📊 動態查詢看板"])
 
+# ==========================================
+# 分頁 1: 新增填報
+# ==========================================
 with tabs[0]:
     
     # === 區塊 1: 填報單位基本資訊區 ===
@@ -177,17 +219,14 @@ with tabs[0]:
     
     c1, c2 = st.columns(2)
     
-    # 1-1. 所屬單位
     unit_depts = sorted(UNIT_DATA.keys())
     sel_dept = c1.selectbox("所屬單位", unit_depts, index=None, placeholder="請選擇單位...")
     
-    # 1-2. 填報單位名稱
     unit_names = []
     if sel_dept:
         unit_names = sorted(UNIT_DATA.get(sel_dept, []))
     sel_unit_name = c2.selectbox("填報單位名稱", unit_names, index=None, placeholder="請先選擇所屬單位...")
     
-    # 1-3. 開放欄位
     c3, c4 = st.columns(2)
     name = c3.text_input("填報人")
     ext = c4.text_input("填報人分機")
@@ -195,11 +234,9 @@ with tabs[0]:
     # === 區塊 2: 冷媒設備所在位置資訊區 ===
     st.markdown('<div class="morandi-header">冷媒設備所在位置資訊區</div>', unsafe_allow_html=True)
     
-    # 2-1. 填報單位所在校區
     loc_campuses = sorted(BUILDING_DATA.keys())
     sel_loc_campus = st.selectbox("填報單位所在校區", loc_campuses, index=None, placeholder="請選擇校區...")
     
-    # 2-2. 建築物 與 辦公室
     c6, c7 = st.columns(2)
     
     buildings = []
@@ -215,13 +252,11 @@ with tabs[0]:
     c8, c9 = st.columns(2)
     r_date = c8.date_input("維修日期 (統一填寫發票日期)", datetime.today())
     
-    # 這裡的選項來自 load_dynamic_options (Google Sheet)
     sel_etype = c9.selectbox("設備類型", e_types, index=None, placeholder="請選擇...")
     
     c10, c11 = st.columns(2)
     e_model = c10.text_input("設備品牌型號", placeholder="例如：國際 CS-100FL+CU-100FLC")
     
-    # 這裡的選項來自 load_dynamic_options (Google Sheet)
     sel_rtype = c11.selectbox("冷媒種類", r_types, index=None, placeholder="請選擇...")
     
     amount = st.number_input("冷媒填充量 (公斤)", min_value=0.0, step=0.1, format="%.2f")
@@ -260,7 +295,6 @@ with tabs[0]:
         else:
             try:
                 f_file.seek(0); f_ext = f_file.name.split('.')[-1]
-                # 檔名邏輯
                 clean_name = f"{sel_loc_campus}_{sel_dept}_{sel_unit_name}_{r_date}_{sel_etype}_{sel_rtype}.{f_ext}"
                 meta = {'name': clean_name, 'parents': [REF_FOLDER_ID]}
                 media = MediaIoBaseUpload(f_file, mimetype=f_file.type, resumable=True)
@@ -269,7 +303,6 @@ with tabs[0]:
                 
                 current_time = get_taiwan_time().strftime("%Y-%m-%d %H:%M:%S")
                 
-                # 寫入資料庫
                 row_data = [
                     current_time, name, ext, sel_loc_campus, sel_dept, sel_unit_name, 
                     sel_build, office, str(r_date), sel_etype, e_model, 
@@ -281,5 +314,100 @@ with tabs[0]:
             except Exception as e:
                 st.error(f"上傳或寫入失敗: {e}")
 
+# ==========================================
+# 分頁 2: 動態查詢看板
+# ==========================================
 with tabs[1]:
-    st.info("🚧 動態查詢看板開發中...")
+    st.markdown('<div class="morandi-header">📊 歷史填報紀錄查詢</div>', unsafe_allow_html=True)
+
+    if df_records.empty:
+        st.info("目前尚無填報紀錄。")
+    else:
+        # --- 1. 資料前處理 ---
+        # 確保填充量是數字
+        df_records['冷媒填充量'] = pd.to_numeric(df_records['冷媒填充量'], errors='coerce').fillna(0)
+        # 提取年份
+        df_records['維修日期'] = pd.to_datetime(df_records['維修日期'], errors='coerce')
+        df_records['年份'] = df_records['維修日期'].dt.year.fillna(datetime.now().year).astype(int)
+        
+        # 計算排放量 (填充量 * GWP = kgCO2e)
+        def calc_emission(row):
+            rtype = row.get('冷媒種類', '')
+            amount = row.get('冷媒填充量', 0)
+            gwp = gwp_map.get(rtype, 0)
+            return amount * gwp # 單位: kgCO2e
+
+        df_records['排放量(kgCO2e)'] = df_records.apply(calc_emission, axis=1)
+
+        # --- 2. 側邊欄篩選 ---
+        st.markdown("##### 🔍 篩選條件")
+        col_f1, col_f2, col_f3 = st.columns(3)
+        
+        # 年份篩選
+        years = sorted(df_records['年份'].unique(), reverse=True)
+        sel_year = col_f1.selectbox("年份", ["全部"] + list(years))
+        
+        # 單位篩選
+        depts = sorted(df_records['所屬單位'].unique())
+        sel_q_dept = col_f2.selectbox("所屬單位 (查詢)", ["全部"] + depts)
+        
+        # 填報單位篩選 (連動)
+        units = []
+        if sel_q_dept != "全部":
+            units = sorted(df_records[df_records['所屬單位'] == sel_q_dept]['填報單位名稱'].unique())
+        sel_q_unit = col_f3.selectbox("填報單位 (查詢)", ["全部"] + units)
+
+        # 執行篩選
+        df_view = df_records.copy()
+        if sel_year != "全部":
+            df_view = df_view[df_view['年份'] == sel_year]
+        if sel_q_dept != "全部":
+            df_view = df_view[df_view['所屬單位'] == sel_q_dept]
+        if sel_q_unit != "全部":
+            df_view = df_view[df_view['填報單位名稱'] == sel_q_unit]
+
+        # --- 3. KPI 儀表板 ---
+        st.markdown("---")
+        k1, k2, k3 = st.columns(3)
+        
+        total_count = len(df_view)
+        total_amount = df_view['冷媒填充量'].sum()
+        total_emission = df_view['排放量(kgCO2e)'].sum()
+        
+        k1.markdown(f"""<div class="kpi-card"><div class="kpi-title">📄 填報總筆數</div><div class="kpi-value">{total_count}</div><div class="kpi-unit">筆</div></div>""", unsafe_allow_html=True)
+        k2.markdown(f"""<div class="kpi-card"><div class="kpi-title">💧 累積填充量</div><div class="kpi-value">{total_amount:,.2f}</div><div class="kpi-unit">kg</div></div>""", unsafe_allow_html=True)
+        k3.markdown(f"""<div class="kpi-card"><div class="kpi-title">🌍 估算碳排放量</div><div class="kpi-value">{total_emission:,.2f}</div><div class="kpi-unit">kgCO2e</div></div>""", unsafe_allow_html=True)
+
+        # --- 4. 統計圖表 ---
+        st.markdown("### 📈 統計分析")
+        c_chart1, c_chart2 = st.columns(2)
+        
+        # 圖表1: 各冷媒種類填充量
+        if not df_view.empty:
+            chart_data = df_view.groupby('冷媒種類')[['冷媒填充量']].sum().reset_index()
+            c_chart1.write("##### 各冷媒種類填充量 (kg)")
+            c_chart1.bar_chart(chart_data, x='冷媒種類', y='冷媒填充量', color='#5499C7')
+            
+            # 圖表2: 各冷媒種類排放量
+            chart_data_e = df_view.groupby('冷媒種類')[['排放量(kgCO2e)']].sum().reset_index()
+            c_chart2.write("##### 各冷媒種類碳排放量 (kgCO2e)")
+            c_chart2.bar_chart(chart_data_e, x='冷媒種類', y='排放量(kgCO2e)', color='#E74C3C')
+
+        # --- 5. 詳細資料列表 ---
+        st.markdown("### 📋 詳細清單")
+        # 整理顯示欄位 (隱藏個資與備註)
+        show_cols = ["維修日期", "校區", "所屬單位", "填報單位名稱", "設備類型", "設備品牌型號", "冷媒種類", "冷媒填充量", "排放量(kgCO2e)", "佐證資料"]
+        
+        # 檢查欄位是否存在
+        valid_cols = [c for c in show_cols if c in df_view.columns]
+        
+        st.dataframe(
+            df_view[valid_cols].sort_values("維修日期", ascending=False),
+            use_container_width=True,
+            column_config={
+                "維修日期": st.column_config.DateColumn("維修日期", format="YYYY-MM-DD"),
+                "冷媒填充量": st.column_config.NumberColumn("填充量 (kg)", format="%.2f"),
+                "排放量(kgCO2e)": st.column_config.NumberColumn("排放量 (kgCO2e)", format="%.2f"),
+                "佐證資料": st.column_config.LinkColumn("佐證連結", display_text="開啟檔案")
+            }
+        )
