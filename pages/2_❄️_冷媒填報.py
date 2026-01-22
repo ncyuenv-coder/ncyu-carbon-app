@@ -15,9 +15,8 @@ def get_taiwan_time():
     return datetime.utcnow() + timedelta(hours=8)
 
 # ==========================================
-# 1. 內建靜態選單資料 (源自標準化檔案)
+# 1. 內建靜態選單資料 (資料庫)
 # ==========================================
-# 這是直接從您上傳的 Excel 轉置過來的，保證正確且無隱形字元
 UNIT_DATA = {
     '教務處': ['教務長室/副教務長室/專門委員室', '註冊與課務組', '教學發展組', '招生與出版組', '綜合行政組', '通識教育中心', '民雄教務'],
     '學生事務處': ['學務長室/副學務長室', '住宿服務組', '生活輔導組', '課外活動組', '學生輔導中心', '學生職涯發展中心', '衛生保健組', '原住民族學生資源中心', '特殊教育學生資源中心', '民雄學務'],
@@ -52,7 +51,7 @@ BUILDING_DATA = {
     '林森校區': ['C01警衛室', 'C02司令台', 'CA第一棟大樓', 'CB進修部大樓', 'CD國民輔導大樓', 'CE第二棟大樓', 'CF實輔室', 'CG圖書館', 'CH視聽教室', 'CI明德齋', 'CK餐廳', 'CL青雲齋', 'CN樂育堂', 'CP空大學習指導中心'],
     '新民校區': ['D01管理學院大樓A棟', 'D02管理學院大樓B棟', 'D03明德樓', 'D04嘉大動物醫院', 'D05游泳池', 'D06溫室', 'D07司令台', 'D08警衛室'],
     '蘭潭校區-社口林場': ['E01林場實習館'],
-    '林森校區-民國路': ['F01民國路游泳池'] # 若 CSV 有差異可直接此處修正
+    '林森校區-民國路': ['F01民國路游泳池']
 }
 
 # ==========================================
@@ -76,7 +75,7 @@ if st.session_state.get("authentication_status") is not True:
     st.warning("🔒 請先至首頁 (Hello) 登入系統")
     st.stop()
 
-# 4. 資料庫連線 (只負責讀取係數、設備類型和寫入紀錄)
+# 4. 資料庫連線
 REF_SHEET_ID = "1p7GsW-nrjerXhnn3pNgZzu_CdIh1Yxsm-fLJDqQ6MqA"
 REF_FOLDER_ID = "1o0S56OyStDjvC5tgBWiUNqNjrpXuCQMI"
 
@@ -91,7 +90,7 @@ try:
     gc, drive_service = init_google_ref()
     sh_ref = gc.open_by_key(REF_SHEET_ID)
     
-    # 這裡只讀取比較不會變動的係數與類型
+    # 只讀取選項比較固定的 Sheet，減少變數
     ws_types = sh_ref.worksheet("設備類型")
     ws_coef = sh_ref.worksheet("冷媒係數表")
     
@@ -115,117 +114,119 @@ def load_static_options():
     coef_data = ws_coef.get_all_values()
     r_types = []
     if len(coef_data) > 1:
-        # 假設 B 欄是名稱 (Index 1)
-        r_types = sorted([row[1] for row in coef_data[1:] if len(row) > 1 and row[1]])
+        # B欄是名稱 (Index 1)
+        target_idx = 1 if len(coef_data[0]) > 1 else 0
+        r_types = sorted([row[target_idx] for row in coef_data[1:] if len(row) > target_idx and row[target_idx]])
         
     return e_types, r_types
 
 e_types, r_types = load_static_options()
 
-# 6. 頁面介面
+# 6. 頁面介面 (注意：移除 st.form 以允許即時連動)
 st.title("❄️ 冷媒填報專區")
 
 tabs = st.tabs(["📝 新增填報", "📊 動態查詢看板"])
 
 with tabs[0]:
-    with st.form("ref_form", clear_on_submit=True):
-        
-        # === 區塊 1: 填報人基本資訊區 (使用內建字典) ===
-        st.markdown('<div class="section-header">1. 填報人基本資訊區</div>', unsafe_allow_html=True)
-        
-        c1, c2 = st.columns(2)
-        
-        # 1-1. 所屬單位
-        unit_depts = sorted(UNIT_DATA.keys())
-        sel_dept = c1.selectbox("所屬單位", unit_depts, index=None, placeholder="請選擇單位...")
-        
-        # 1-2. 填報單位名稱 (直接查字典)
-        unit_names = []
-        if sel_dept:
-            unit_names = sorted(UNIT_DATA.get(sel_dept, []))
-        sel_unit_name = c2.selectbox("填報單位名稱", unit_names, index=None, placeholder="請先選擇所屬單位...")
-        
-        # 1-3. 開放欄位
-        c3, c4 = st.columns(2)
-        name = c3.text_input("填報人")
-        ext = c4.text_input("填報人分機")
-        
-        st.markdown("---")
-        
-        # === 區塊 2: 詳細位置資訊區 (使用內建字典) ===
-        st.markdown('<div class="section-header">2. 詳細位置資訊區</div>', unsafe_allow_html=True)
-        c6, c7 = st.columns(2)
-        
-        # 2-1. 填報單位所在校區
-        loc_campuses = sorted(BUILDING_DATA.keys())
-        sel_loc_campus = c6.selectbox("填報單位所在校區", loc_campuses, index=None, placeholder="請選擇校區...")
-        
-        # 2-2. 建築物名稱 (直接查字典)
-        buildings = []
-        if sel_loc_campus:
-            buildings = sorted(BUILDING_DATA.get(sel_loc_campus, []))
-        sel_build = c6.selectbox("建築物名稱", buildings, index=None, placeholder="請先選擇校區...")
-        
-        # 2-3. 辦公室
-        office = c7.text_input("辦公室編號", placeholder="例如：202辦公室、306研究室")
-        
-        st.markdown("---")
-        
-        # === 區塊 3: 設備修繕資訊 ===
-        st.markdown('<div class="section-header">3. 設備修繕冷媒填充資訊區</div>', unsafe_allow_html=True)
-        c8, c9 = st.columns(2)
-        r_date = c8.date_input("維修日期 (統一填寫發票日期)", datetime.today())
-        
-        sel_etype = c9.selectbox("設備類型", e_types, index=None, placeholder="請選擇...")
-        
-        c10, c11 = st.columns(2)
-        e_model = c10.text_input("設備品牌型號", placeholder="例如：國際 CS-100FL+CU-100FLC")
-        
-        sel_rtype = c11.selectbox("冷媒種類", r_types, index=None, placeholder="請選擇...")
-        
-        amount = st.number_input("冷媒填充量 (公斤)", min_value=0.0, step=0.1, format="%.2f")
-        
-        st.markdown("請上傳冷媒填充單據佐證資料")
-        f_file = st.file_uploader("上傳佐證 (必填)", type=['pdf', 'jpg', 'png'], label_visibility="collapsed")
-        
-        st.markdown("---")
-        note = st.text_input("備註內容", placeholder="備註 (選填)")
-        
-        st.markdown('<div style="background-color:#F8F9F9; padding:10px; font-size:0.9rem;"><strong>📜 個資聲明</strong>：蒐集目的為設備管理與碳盤查，保存至申報後第二年。</div>', unsafe_allow_html=True)
-        agree = st.checkbox("我已閱讀並同意個資聲明")
-        
-        submitted = st.form_submit_button("🚀 確認送出", use_container_width=True)
-        
-        if submitted:
-            if not agree: st.error("❌ 請勾選同意聲明")
-            elif not sel_dept or not sel_unit_name: st.warning("⚠️ 請完整選擇【基本資訊】中的單位資訊")
-            elif not name or not ext: st.warning("⚠️ 請填寫填報人與分機")
-            elif not sel_loc_campus or not sel_build: st.warning("⚠️ 請完整選擇【位置資訊】中的校區與建築物")
-            elif not sel_etype or not sel_rtype: st.warning("⚠️ 請選擇設備類型與冷媒種類")
-            elif not f_file: st.error("⚠️ 請上傳佐證資料")
-            else:
-                try:
-                    f_file.seek(0); f_ext = f_file.name.split('.')[-1]
-                    # 檔名邏輯
-                    clean_name = f"{sel_loc_campus}_{sel_dept}_{sel_unit_name}_{r_date}_{sel_etype}_{sel_rtype}.{f_ext}"
-                    meta = {'name': clean_name, 'parents': [REF_FOLDER_ID]}
-                    media = MediaIoBaseUpload(f_file, mimetype=f_file.type, resumable=True)
-                    file = drive_service.files().create(body=meta, media_body=media, fields='webViewLink').execute()
-                    link = file.get('webViewLink')
-                    
-                    current_time = get_taiwan_time().strftime("%Y-%m-%d %H:%M:%S")
-                    
-                    # 寫入資料庫
-                    row_data = [
-                        current_time, name, ext, sel_loc_campus, sel_dept, sel_unit_name, 
-                        sel_build, office, str(r_date), sel_etype, e_model, 
-                        sel_rtype, amount, note, link
-                    ]
-                    ws_records.append_row(row_data)
-                    st.success("✅ 冷媒填報成功！")
-                    st.balloons()
-                except Exception as e:
-                    st.error(f"上傳或寫入失敗: {e}")
+    # ⚠️ 這裡移除了 with st.form(...)，讓選單可以即時更新
+    
+    # === 區塊 1: 填報人基本資訊區 ===
+    st.markdown('<div class="section-header">1. 填報人基本資訊區</div>', unsafe_allow_html=True)
+    
+    c1, c2 = st.columns(2)
+    
+    # 1-1. 所屬單位
+    unit_depts = sorted(UNIT_DATA.keys())
+    sel_dept = c1.selectbox("所屬單位", unit_depts, index=None, placeholder="請選擇單位...")
+    
+    # 1-2. 填報單位名稱 (直接查字典，因無 Form 限制，此處會即時更新)
+    unit_names = []
+    if sel_dept:
+        unit_names = sorted(UNIT_DATA.get(sel_dept, []))
+    sel_unit_name = c2.selectbox("填報單位名稱", unit_names, index=None, placeholder="請先選擇所屬單位...")
+    
+    # 1-3. 開放欄位
+    c3, c4 = st.columns(2)
+    name = c3.text_input("填報人")
+    ext = c4.text_input("填報人分機")
+    
+    st.markdown("---")
+    
+    # === 區塊 2: 詳細位置資訊區 ===
+    st.markdown('<div class="section-header">2. 詳細位置資訊區</div>', unsafe_allow_html=True)
+    c6, c7 = st.columns(2)
+    
+    # 2-1. 填報單位所在校區
+    loc_campuses = sorted(BUILDING_DATA.keys())
+    sel_loc_campus = c6.selectbox("填報單位所在校區", loc_campuses, index=None, placeholder="請選擇校區...")
+    
+    # 2-2. 建築物名稱
+    buildings = []
+    if sel_loc_campus:
+        buildings = sorted(BUILDING_DATA.get(sel_loc_campus, []))
+    sel_build = c6.selectbox("建築物名稱", buildings, index=None, placeholder="請先選擇校區...")
+    
+    # 2-3. 辦公室
+    office = c7.text_input("辦公室編號", placeholder="例如：202辦公室、306研究室")
+    
+    st.markdown("---")
+    
+    # === 區塊 3: 設備修繕資訊 ===
+    st.markdown('<div class="section-header">3. 設備修繕冷媒填充資訊區</div>', unsafe_allow_html=True)
+    c8, c9 = st.columns(2)
+    r_date = c8.date_input("維修日期 (統一填寫發票日期)", datetime.today())
+    
+    sel_etype = c9.selectbox("設備類型", e_types, index=None, placeholder="請選擇...")
+    
+    c10, c11 = st.columns(2)
+    e_model = c10.text_input("設備品牌型號", placeholder="例如：國際 CS-100FL+CU-100FLC")
+    
+    sel_rtype = c11.selectbox("冷媒種類", r_types, index=None, placeholder="請選擇...")
+    
+    amount = st.number_input("冷媒填充量 (公斤)", min_value=0.0, step=0.1, format="%.2f")
+    
+    st.markdown("請上傳冷媒填充單據佐證資料")
+    f_file = st.file_uploader("上傳佐證 (必填)", type=['pdf', 'jpg', 'png'], label_visibility="collapsed")
+    
+    st.markdown("---")
+    note = st.text_input("備註內容", placeholder="備註 (選填)")
+    
+    st.markdown('<div style="background-color:#F8F9F9; padding:10px; font-size:0.9rem;"><strong>📜 個資聲明</strong>：蒐集目的為設備管理與碳盤查，保存至申報後第二年。</div>', unsafe_allow_html=True)
+    agree = st.checkbox("我已閱讀並同意個資聲明")
+    
+    # 改用一般按鈕，因為我們不在 form 裡面了
+    submitted = st.button("🚀 確認送出", type="primary", use_container_width=True)
+    
+    if submitted:
+        if not agree: st.error("❌ 請勾選同意聲明")
+        elif not sel_dept or not sel_unit_name: st.warning("⚠️ 請完整選擇【基本資訊】中的單位資訊")
+        elif not name or not ext: st.warning("⚠️ 請填寫填報人與分機")
+        elif not sel_loc_campus or not sel_build: st.warning("⚠️ 請完整選擇【位置資訊】中的校區與建築物")
+        elif not sel_etype or not sel_rtype: st.warning("⚠️ 請選擇設備類型與冷媒種類")
+        elif not f_file: st.error("⚠️ 請上傳佐證資料")
+        else:
+            try:
+                f_file.seek(0); f_ext = f_file.name.split('.')[-1]
+                # 檔名邏輯
+                clean_name = f"{sel_loc_campus}_{sel_dept}_{sel_unit_name}_{r_date}_{sel_etype}_{sel_rtype}.{f_ext}"
+                meta = {'name': clean_name, 'parents': [REF_FOLDER_ID]}
+                media = MediaIoBaseUpload(f_file, mimetype=f_file.type, resumable=True)
+                file = drive_service.files().create(body=meta, media_body=media, fields='webViewLink').execute()
+                link = file.get('webViewLink')
+                
+                current_time = get_taiwan_time().strftime("%Y-%m-%d %H:%M:%S")
+                
+                # 寫入資料庫
+                row_data = [
+                    current_time, name, ext, sel_loc_campus, sel_dept, sel_unit_name, 
+                    sel_build, office, str(r_date), sel_etype, e_model, 
+                    sel_rtype, amount, note, link
+                ]
+                ws_records.append_row(row_data)
+                st.success("✅ 冷媒填報成功！")
+                st.balloons()
+            except Exception as e:
+                st.error(f"上傳或寫入失敗: {e}")
 
 with tabs[1]:
     st.info("🚧 動態查詢看板開發中...")
