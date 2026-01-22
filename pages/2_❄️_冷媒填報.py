@@ -106,13 +106,14 @@ st.markdown("""
         color: #2E4053 !important;
     }
 
-    /* 整合式資訊卡樣式 */
+    /* 整合式資訊卡樣式 (修正結構) */
     .info-card {
         border-radius: 10px;
         overflow: hidden;
         border: 1px solid #D5DBDB;
         margin-bottom: 20px;
         box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        background-color: #FFFFFF;
     }
     
     /* 卡片標題區 (莫蘭迪藍底) */
@@ -128,6 +129,13 @@ st.markdown("""
         font-size: 1.3rem; 
         font-weight: 700; 
         color: #2E4053;
+    }
+    .emission-box {
+        text-align: right;
+    }
+    .emission-label {
+        font-size: 0.9rem; 
+        color: #566573;
     }
     .emission-value {
         font-size: 2rem; 
@@ -149,19 +157,19 @@ st.markdown("""
     .fill-row {
         display: flex;
         justify-content: space-between;
-        padding: 8px 0;
+        padding: 10px 0;
         border-bottom: 1px dashed #EAEDED;
     }
     .fill-row:last-child {
         border-bottom: none;
     }
     .fill-type {
-        font-size: 1.05rem; 
+        font-size: 1.1rem; 
         color: #2E4053;
         font-weight: 600;
     }
     .fill-amount {
-        font-size: 1.05rem; 
+        font-size: 1.1rem; 
         color: #2874A6;
         font-weight: 600;
     }
@@ -169,9 +177,9 @@ st.markdown("""
     /* 卡片底部 (極淺莫蘭迪底) */
     .card-footer {
         background-color: #F8FBFD; /* 極淺色調 */
-        padding: 12px 20px;
-        font-size: 0.9rem;
-        color: #85929E;
+        padding: 15px 20px;
+        font-size: 0.95rem;
+        color: #566573;
         border-top: 1px solid #EBEDEF;
     }
     
@@ -246,7 +254,8 @@ def load_data_all():
     # 3. 填報紀錄
     records_data = ws_records.get_all_values()
     if len(records_data) > 1:
-        df_records = pd.DataFrame(records_data[1:], columns=records_data[0])
+        # 強制將所有欄位轉為字串，避免錯誤
+        df_records = pd.DataFrame(records_data[1:], columns=[str(x).strip() for x in records_data[0]])
     else:
         df_records = pd.DataFrame(columns=["填報時間","填報人","填報人分機","校區","所屬單位","填報單位名稱","建築物名稱","辦公室編號","維修日期","設備類型","設備品牌型號","冷媒種類","冷媒填充量","備註","佐證資料"])
 
@@ -374,6 +383,15 @@ with tabs[1]:
         st.info("目前尚無填報紀錄。")
     else:
         # --- 1. 資料前處理 ---
+        # 欄位名稱校正：處理 "冷媒填充量(公斤)" 可能存在的情況
+        cols_map = {c: c.replace('(公斤)', '').strip() for c in df_records.columns}
+        df_records.rename(columns=cols_map, inplace=True)
+        
+        # 確保關鍵欄位存在
+        if '冷媒填充量' not in df_records.columns:
+            st.error("❌ 資料庫欄位異常：找不到 '冷媒填充量' 欄位，請聯繫管理員。")
+            st.stop()
+            
         df_records['冷媒填充量'] = pd.to_numeric(df_records['冷媒填充量'], errors='coerce').fillna(0)
         df_records['維修日期'] = pd.to_datetime(df_records['維修日期'], errors='coerce')
         df_records['年份'] = df_records['維修日期'].dt.year.fillna(datetime.now().year).astype(int)
@@ -411,7 +429,7 @@ with tabs[1]:
         if sel_q_unit != "全部":
             df_view = df_view[df_view['填報單位名稱'] == sel_q_unit]
 
-        # --- 3. 整合式資訊卡 (V233 新增) ---
+        # --- 3. 整合式資訊卡 (V234 強化版) ---
         st.markdown("---")
         
         if not df_view.empty:
@@ -429,11 +447,14 @@ with tabs[1]:
             # 填充資訊 (依種類加總)
             fill_summary = df_view.groupby('冷媒種類')['冷媒填充量'].sum().reset_index()
             
-            # 申報履歷 (日期清單)
+            # 申報履歷 (顯示前5筆，避免過長)
             dates_list = sorted(df_view['維修日期'].dt.strftime('%Y-%m-%d').unique(), reverse=True)
-            dates_str = ", ".join(dates_list) if dates_list else "無"
+            if len(dates_list) > 5:
+                dates_str = ", ".join(dates_list[:5]) + f" ... 等共 {len(dates_list)} 筆"
+            else:
+                dates_str = ", ".join(dates_list) if dates_list else "無"
 
-            # 產生 HTML 卡片
+            # 產生 HTML (使用 f-string 組合)
             fill_rows_html = ""
             for _, row in fill_summary.iterrows():
                 fill_rows_html += f"""
@@ -443,12 +464,13 @@ with tabs[1]:
                 </div>
                 """
             
+            # 渲染卡片
             st.markdown(f"""
             <div class="info-card">
                 <div class="card-header">
                     <div class="card-title">{card_title}</div>
-                    <div style="text-align:right;">
-                        <span style="font-size:0.9rem; color:#566573;">碳排放量</span><br>
+                    <div class="emission-box">
+                        <span class="emission-label">碳排放量</span><br>
                         <span class="emission-value">{total_emission:,.2f}</span>
                         <span class="emission-unit">kgCO2e</span>
                     </div>
@@ -468,6 +490,7 @@ with tabs[1]:
         # --- 4. 詳細資料列表 ---
         st.markdown("### 📋 詳細清單")
         show_cols = ["維修日期", "校區", "所屬單位", "填報單位名稱", "設備類型", "設備品牌型號", "冷媒種類", "冷媒填充量", "排放量(kgCO2e)", "佐證資料"]
+        # 再次確認欄位存在
         valid_cols = [c for c in show_cols if c in df_view.columns]
         
         st.dataframe(
