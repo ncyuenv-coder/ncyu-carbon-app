@@ -15,7 +15,7 @@ def get_taiwan_time():
     return datetime.utcnow() + timedelta(hours=8)
 
 # ==========================================
-# 1. 內建靜態選單資料 (資料庫)
+# 1. 內建靜態選單資料 (資料庫 - 單位與位置)
 # ==========================================
 UNIT_DATA = {
     '教務處': ['教務長室/副教務長室/專門委員室', '註冊與課務組', '教學發展組', '招生與出版組', '綜合行政組', '通識教育中心', '民雄教務'],
@@ -99,6 +99,14 @@ st.markdown("""
         margin-bottom: 20px;
     }
     
+    /* 個資聲明勾選文字樣式 (大字、深藍) */
+    /* 目標是 checkbox 後面的 label 文字 */
+    [data-testid="stCheckbox"] label p {
+        font-size: 1.1rem !important;
+        font-weight: 700 !important;
+        color: #2E4053 !important;
+    }
+    
     /* 上傳區樣式 */
     [data-testid="stFileUploaderDropzone"] {
         background-color: #D6EAF8; border: 2px dashed #2E86C1; padding: 20px;
@@ -138,21 +146,24 @@ except Exception as e:
     st.error(f"❌ 資料庫連線失敗: {e}")
     st.stop()
 
-# 5. 資料讀取
+# 5. 資料讀取 (讀取 Google Sheet 係數與類型)
 @st.cache_data(ttl=600)
-def load_static_options():
+def load_dynamic_options():
+    # 設備類型
     type_data = ws_types.get_all_values()
     e_types = sorted([row[0] for row in type_data[1:] if row]) if len(type_data) > 1 else []
     
+    # 冷媒係數 (保留未來擴充 GWP 讀取的可能性)
     coef_data = ws_coef.get_all_values()
     r_types = []
     if len(coef_data) > 1:
+        # 假設 B 欄是名稱 (Index 1)
         target_idx = 1 if len(coef_data[0]) > 1 else 0
         r_types = sorted([row[target_idx] for row in coef_data[1:] if len(row) > target_idx and row[target_idx]])
         
     return e_types, r_types
 
-e_types, r_types = load_static_options()
+e_types, r_types = load_dynamic_options()
 
 # 6. 頁面介面
 st.title("❄️ 冷媒填報專區")
@@ -161,7 +172,7 @@ tabs = st.tabs(["📝 新增填報", "📊 動態查詢看板"])
 
 with tabs[0]:
     
-    # === 區塊 1: 填報單位基本資訊區 (莫蘭迪底色，無序號) ===
+    # === 區塊 1: 填報單位基本資訊區 ===
     st.markdown('<div class="morandi-header">填報單位基本資訊區</div>', unsafe_allow_html=True)
     
     c1, c2 = st.columns(2)
@@ -181,14 +192,14 @@ with tabs[0]:
     name = c3.text_input("填報人")
     ext = c4.text_input("填報人分機")
     
-    # === 區塊 2: 冷媒設備所在位置資訊區 (莫蘭迪底色，無序號) ===
+    # === 區塊 2: 冷媒設備所在位置資訊區 ===
     st.markdown('<div class="morandi-header">冷媒設備所在位置資訊區</div>', unsafe_allow_html=True)
     
-    # 2-1. 填報單位所在校區 (單獨一列)
+    # 2-1. 填報單位所在校區
     loc_campuses = sorted(BUILDING_DATA.keys())
     sel_loc_campus = st.selectbox("填報單位所在校區", loc_campuses, index=None, placeholder="請選擇校區...")
     
-    # 2-2. 建築物 與 辦公室 (並列下一列)
+    # 2-2. 建築物 與 辦公室
     c6, c7 = st.columns(2)
     
     buildings = []
@@ -198,17 +209,19 @@ with tabs[0]:
     
     office = c7.text_input("辦公室編號", placeholder="例如：202辦公室、306研究室")
     
-    # === 區塊 3: 冷媒設備填充資訊區 (莫蘭迪底色，無序號) ===
+    # === 區塊 3: 冷媒設備填充資訊區 ===
     st.markdown('<div class="morandi-header">冷媒設備填充資訊區</div>', unsafe_allow_html=True)
     
     c8, c9 = st.columns(2)
     r_date = c8.date_input("維修日期 (統一填寫發票日期)", datetime.today())
     
+    # 這裡的選項來自 load_dynamic_options (Google Sheet)
     sel_etype = c9.selectbox("設備類型", e_types, index=None, placeholder="請選擇...")
     
     c10, c11 = st.columns(2)
     e_model = c10.text_input("設備品牌型號", placeholder="例如：國際 CS-100FL+CU-100FLC")
     
+    # 這裡的選項來自 load_dynamic_options (Google Sheet)
     sel_rtype = c11.selectbox("冷媒種類", r_types, index=None, placeholder="請選擇...")
     
     amount = st.number_input("冷媒填充量 (公斤)", min_value=0.0, step=0.1, format="%.2f")
@@ -218,7 +231,6 @@ with tabs[0]:
     
     st.markdown("---")
     note = st.text_input("備註內容", placeholder="備註 (選填)")
-    # 新增誤繕說明文字 (深灰色)
     st.markdown('<div class="correction-note">如有資料誤繕情形，請重新登錄1次資訊，並於備註欄填寫：「前筆資料誤繕，請刪除。」，管理單位將協助刪除誤打資訊</div>', unsafe_allow_html=True)
     
     # === 完整個資聲明 ===
@@ -234,7 +246,7 @@ with tabs[0]:
     </div>
     """, unsafe_allow_html=True)
     
-    agree = st.checkbox("我已閱讀並同意上述個資聲明")
+    agree = st.checkbox("我已閱讀並同意個資聲明，且確認所填資料無誤。")
     
     submitted = st.button("🚀 確認送出", type="primary", use_container_width=True)
     
