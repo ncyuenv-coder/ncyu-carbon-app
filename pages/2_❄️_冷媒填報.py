@@ -55,17 +55,45 @@ BUILDING_DATA = {
 }
 
 # ==========================================
-# 2. CSS 樣式
+# 2. CSS 樣式 (UI 美化區)
 # ==========================================
 st.markdown("""
 <style>
+    /* 1. 分頁標籤放大 (與燃油設備一致) */
+    button[data-baseweb="tab"] div p {
+        font-size: 1.2rem !important;
+        font-weight: 700 !important;
+    }
+    
+    /* 2. 莫蘭迪色標題區塊 */
+    .morandi-header {
+        background-color: #EBF5FB; /* 莫蘭迪藍灰底色 */
+        color: #2E4053;            /* 深灰藍文字 */
+        padding: 15px;             /* 內距 */
+        border-radius: 8px;        /* 圓角 */
+        border-left: 8px solid #5499C7; /* 左側裝飾條 */
+        font-size: 1.35rem;        /* 字體放大 */
+        font-weight: 700;          /* 粗體 */
+        margin-top: 25px;
+        margin-bottom: 20px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05); /* 輕微陰影 */
+    }
+
+    /* 3. 個資聲明區塊 */
+    .privacy-box {
+        background-color: #F8F9F9;
+        border: 1px solid #BDC3C7;
+        padding: 20px;
+        border-radius: 8px;
+        font-size: 0.95rem;
+        color: #566573;
+        line-height: 1.8;
+        margin-bottom: 15px;
+    }
+    
+    /* 上傳區樣式 */
     [data-testid="stFileUploaderDropzone"] {
         background-color: #D6EAF8; border: 2px dashed #2E86C1; padding: 20px;
-    }
-    .note-text {color: #566573; font-weight: bold; font-size: 0.9rem;}
-    .section-header {
-        font-size: 1.15rem; font-weight: 800; color: #2C3E50; 
-        border-left: 5px solid #E67E22; padding-left: 10px; margin-top: 20px; margin-bottom: 10px;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -90,7 +118,6 @@ try:
     gc, drive_service = init_google_ref()
     sh_ref = gc.open_by_key(REF_SHEET_ID)
     
-    # 只讀取選項比較固定的 Sheet，減少變數
     ws_types = sh_ref.worksheet("設備類型")
     ws_coef = sh_ref.worksheet("冷媒係數表")
     
@@ -103,18 +130,15 @@ except Exception as e:
     st.error(f"❌ 資料庫連線失敗: {e}")
     st.stop()
 
-# 5. 資料讀取 (讀取係數與類型)
+# 5. 資料讀取
 @st.cache_data(ttl=600)
 def load_static_options():
-    # 設備類型
     type_data = ws_types.get_all_values()
     e_types = sorted([row[0] for row in type_data[1:] if row]) if len(type_data) > 1 else []
     
-    # 冷媒係數
     coef_data = ws_coef.get_all_values()
     r_types = []
     if len(coef_data) > 1:
-        # B欄是名稱 (Index 1)
         target_idx = 1 if len(coef_data[0]) > 1 else 0
         r_types = sorted([row[target_idx] for row in coef_data[1:] if len(row) > target_idx and row[target_idx]])
         
@@ -122,16 +146,15 @@ def load_static_options():
 
 e_types, r_types = load_static_options()
 
-# 6. 頁面介面 (注意：移除 st.form 以允許即時連動)
+# 6. 頁面介面
 st.title("❄️ 冷媒填報專區")
 
 tabs = st.tabs(["📝 新增填報", "📊 動態查詢看板"])
 
 with tabs[0]:
-    # ⚠️ 這裡移除了 with st.form(...)，讓選單可以即時更新
     
-    # === 區塊 1: 填報人基本資訊區 ===
-    st.markdown('<div class="section-header">1. 填報人基本資訊區</div>', unsafe_allow_html=True)
+    # === 區塊 1: 填報單位基本資訊區 (莫蘭迪底色) ===
+    st.markdown('<div class="morandi-header">1. 填報單位基本資訊區</div>', unsafe_allow_html=True)
     
     c1, c2 = st.columns(2)
     
@@ -139,7 +162,7 @@ with tabs[0]:
     unit_depts = sorted(UNIT_DATA.keys())
     sel_dept = c1.selectbox("所屬單位", unit_depts, index=None, placeholder="請選擇單位...")
     
-    # 1-2. 填報單位名稱 (直接查字典，因無 Form 限制，此處會即時更新)
+    # 1-2. 填報單位名稱
     unit_names = []
     if sel_dept:
         unit_names = sorted(UNIT_DATA.get(sel_dept, []))
@@ -150,29 +173,26 @@ with tabs[0]:
     name = c3.text_input("填報人")
     ext = c4.text_input("填報人分機")
     
-    st.markdown("---")
+    # === 區塊 2: 冷媒設備所在位置資訊區 (莫蘭迪底色 + 版面調整) ===
+    st.markdown('<div class="morandi-header">2. 冷媒設備所在位置資訊區</div>', unsafe_allow_html=True)
     
-    # === 區塊 2: 詳細位置資訊區 ===
-    st.markdown('<div class="section-header">2. 詳細位置資訊區</div>', unsafe_allow_html=True)
+    # 2-1. 填報單位所在校區 (單獨一列)
+    loc_campuses = sorted(BUILDING_DATA.keys())
+    sel_loc_campus = st.selectbox("填報單位所在校區", loc_campuses, index=None, placeholder="請選擇校區...")
+    
+    # 2-2. 建築物 與 辦公室 (並列下一列)
     c6, c7 = st.columns(2)
     
-    # 2-1. 填報單位所在校區
-    loc_campuses = sorted(BUILDING_DATA.keys())
-    sel_loc_campus = c6.selectbox("填報單位所在校區", loc_campuses, index=None, placeholder="請選擇校區...")
-    
-    # 2-2. 建築物名稱
     buildings = []
     if sel_loc_campus:
         buildings = sorted(BUILDING_DATA.get(sel_loc_campus, []))
     sel_build = c6.selectbox("建築物名稱", buildings, index=None, placeholder="請先選擇校區...")
     
-    # 2-3. 辦公室
     office = c7.text_input("辦公室編號", placeholder="例如：202辦公室、306研究室")
     
-    st.markdown("---")
+    # === 區塊 3: 冷媒設備填充資訊區 (莫蘭迪底色) ===
+    st.markdown('<div class="morandi-header">3. 冷媒設備填充資訊區</div>', unsafe_allow_html=True)
     
-    # === 區塊 3: 設備修繕資訊 ===
-    st.markdown('<div class="section-header">3. 設備修繕冷媒填充資訊區</div>', unsafe_allow_html=True)
     c8, c9 = st.columns(2)
     r_date = c8.date_input("維修日期 (統一填寫發票日期)", datetime.today())
     
@@ -191,10 +211,21 @@ with tabs[0]:
     st.markdown("---")
     note = st.text_input("備註內容", placeholder="備註 (選填)")
     
-    st.markdown('<div style="background-color:#F8F9F9; padding:10px; font-size:0.9rem;"><strong>📜 個資聲明</strong>：蒐集目的為設備管理與碳盤查，保存至申報後第二年。</div>', unsafe_allow_html=True)
+    # === 完整個資聲明 ===
+    st.markdown("""
+    <div class="privacy-box">
+        <strong>📜 個人資料蒐集、處理及利用告知聲明</strong><br>
+        1. 蒐集機關：國立嘉義大學。<br>
+        2. 蒐集目的：進行本校冷媒設備之冷媒填充紀錄管理、校園溫室氣體（碳）盤查統計、稽核佐證資料蒐集及後續能源使用分析。<br>
+        3. 個資類別：填報人姓名。<br>
+        4. 利用期間：姓名保留至填報年度後第二年1月1日，期滿即進行「去識別化」刪除，其餘數據永久保存。<br>
+        5. 利用對象：本校教師、行政人員及碳盤查查驗人員。<br>
+        6. 您有權依個資法請求查詢、更正或刪除您的個資。如不提供，將無法完成填報。
+    </div>
+    """, unsafe_allow_html=True)
+    
     agree = st.checkbox("我已閱讀並同意個資聲明")
     
-    # 改用一般按鈕，因為我們不在 form 裡面了
     submitted = st.button("🚀 確認送出", type="primary", use_container_width=True)
     
     if submitted:
