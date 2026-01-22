@@ -6,7 +6,6 @@ from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
 import unicodedata
-import re
 
 # ==========================================
 # 0. 系統設定
@@ -29,6 +28,10 @@ st.markdown("""
         font-size: 1.15rem; font-weight: 800; color: #2C3E50; 
         border-left: 5px solid #E67E22; padding-left: 10px; margin-top: 20px; margin-bottom: 10px;
     }
+    .debug-success {
+        background-color: #D4EFDF; border: 1px solid #27AE60; 
+        padding: 10px; border-radius: 5px; color: #196F3D; font-weight: bold; margin-bottom: 10px;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -38,6 +41,7 @@ if st.session_state.get("authentication_status") is not True:
     st.stop()
 
 # 3. 資料庫連線
+# ✅ 已更新為您提供的最新 ID
 REF_SHEET_ID = "1p7GsW-nrjerXhnn3pNgZzu_CdIh1Yxsm-fLJDqQ6MqA"
 REF_FOLDER_ID = "1o0S56OyStDjvC5tgBWiUNqNjrpXuCQMI"
 
@@ -52,7 +56,7 @@ try:
     gc, drive_service = init_google_ref()
     sh_ref = gc.open_by_key(REF_SHEET_ID)
     
-    # 讀取必要分頁
+    # 嘗試讀取分頁 (使用標準名稱)
     ws_units = sh_ref.worksheet("單位資訊")
     ws_buildings = sh_ref.worksheet("建築物清單")
     ws_types = sh_ref.worksheet("設備類型")
@@ -64,101 +68,102 @@ try:
         ws_records.append_row(["填報時間","填報人","填報人分機","校區","所屬單位","填報單位名稱","建築物名稱","辦公室編號","維修日期","設備類型","設備品牌型號","冷媒種類","冷媒填充量","備註","佐證資料"])
 
 except Exception as e:
-    st.error(f"❌ 資料庫連線失敗: {e}")
+    st.error(f"❌ 資料庫連線失敗: {e}。請檢查 REF_SHEET_ID 是否正確，或分頁名稱是否為 '單位資訊' (無空格)。")
     st.stop()
 
-# 4. 資料讀取 (V223: 強力比對清洗)
-@st.cache_data(ttl=60)
-def load_ref_data_v223():
+# 4. 資料讀取 (V225: 絕對位置強制讀取 - 無視標題)
+@st.cache_data(ttl=0)
+def load_ref_data_v225():
     def clean_text(text):
         if pd.isna(text): return ""
         text = str(text)
-        # 正規化 Unicode
-        text = unicodedata.normalize('NFKC', text)
-        return text.strip()
+        return unicodedata.normalize('NFKC', text).strip()
 
-    # 真空清洗：移除所有空白與特殊符號 (用於比對鍵值)
-    def vacuum_clean(text):
-        if pd.isna(text): return ""
-        text = str(text)
-        text = unicodedata.normalize('NFKC', text)
-        # 移除所有空白 (包含 \t, \n, \r, \f, \v)
-        return re.sub(r'\s+', '', text)
-
-    def get_df_robust(ws):
+    def get_df_by_position(ws):
+        # 抓取所有資料
         data = ws.get_all_values()
         if len(data) > 1:
-            # 使用第一列當標題
-            headers = [clean_text(h) for h in data[0]]
-            df = pd.DataFrame(data[1:], columns=headers)
+            # 直接把資料轉成 DataFrame，跳過第一列 (假設是標題，但我們不用標題來索引)
+            # 強制只取前兩欄，並命名為 0 和 1 (整數索引)
+            # 這樣不管標題叫什麼，df[0] 就是第一欄，df[1] 就是第二欄
             
-            # 對所有欄位進行基本清洗 (顯示用)
+            # 先確認是否有資料
+            rows = data[1:]
+            
+            # 建立暫存 list 來確保每行都有 2 欄 (補齊空值)
+            normalized_rows = []
+            for row in rows:
+                if len(row) >= 2:
+                    normalized_rows.append([row[0], row[1]])
+                elif len(row) == 1:
+                    normalized_rows.append([row[0], ""])
+                else:
+                    normalized_rows.append(["", ""])
+            
+            df = pd.DataFrame(normalized_rows, columns=[0, 1])
+            
+            # 清洗內容
             for col in df.columns:
                 df[col] = df[col].apply(clean_text)
-            
-            # 建立「真空對照欄」 (比對用 - 隱藏)
-            # 將每一欄的內容產生一個對應的 Clean Key
-            for col in df.columns:
-                df[f"_clean_{col}"] = df[col].apply(vacuum_clean)
                 
             return df
         return pd.DataFrame()
     
-    return get_df_robust(ws_units), get_df_robust(ws_buildings), get_df_robust(ws_types), get_df_robust(ws_coef)
+    # 針對設備類型與係數表，我們也用同樣邏輯
+    # 設備類型通常只有 1 欄
+    def get_df_single_col(ws):
+        data = ws.get_all_values()
+        if len(data) > 1:
+            # 取第一欄
+            rows = [row[0] for row in data[1:] if row]
+            df = pd.DataFrame(rows, columns=[0])
+            df[0] = df[0].apply(clean_text)
+            return df
+        return pd.DataFrame()
 
-df_units, df_buildings, df_types, df_coef = load_ref_data_v223()
+    return get_df_by_position(ws_units), get_df_by_position(ws_buildings), get_df_single_col(ws_types), get_df_by_position(ws_coef)
+
+df_units, df_buildings, df_types, df_coef = load_ref_data_v225()
 
 # 5. 頁面內容
 st.title("❄️ 冷媒填報專區")
 
-if st.button("🔄 刷新資料庫", type="secondary"):
+# 強制刷新按鈕
+if st.button("🔄 刷新資料庫 (更新後請點此)", type="primary"):
     st.cache_data.clear()
     st.rerun()
 
-tabs = st.tabs(["📝 新增填報", "📊 動態查詢看板"])
+# --- 簡單診斷 (確認有讀到資料) ---
+if not df_units.empty:
+    # 檢查第一筆資料是否為空，若正常則不顯示紅字
+    pass
+else:
+    st.error("⚠️ 【單位資訊】讀取為空！請檢查 Google Sheet。")
 
-# 輔助函式：真空清洗單一字串
-def vacuum_str(val):
-    if val is None: return ""
-    return re.sub(r'\s+', '', unicodedata.normalize('NFKC', str(val)))
+tabs = st.tabs(["📝 新增填報", "📊 動態查詢看板"])
 
 with tabs[0]:
     with st.form("ref_form", clear_on_submit=True):
         
-        # === 區塊 1: 填報人基本資訊區 (2層連動) ===
+        # === 區塊 1: 填報人基本資訊區 ===
         st.markdown('<div class="section-header">1. 填報人基本資訊區</div>', unsafe_allow_html=True)
         
         c1, c2 = st.columns(2)
         
-        # 準備資料欄位名稱 (A欄=所屬單位, B欄=填報單位名稱)
-        # 為了保險，我們使用 iloc 抓取原始欄位名稱，不管它叫什麼
-        col_name_A = df_units.columns[0] if not df_units.empty else "所屬單位"
-        col_name_B = df_units.columns[1] if not df_units.empty and len(df_units.columns) > 1 else "填報單位名稱"
-        
-        # 1-1. 所屬單位
+        # 1-1. 所屬單位 (強制讀取第 1 欄 / Index 0)
         unit_depts = []
         if not df_units.empty:
-            unit_depts = sorted([x for x in df_units[col_name_A].unique() if x])
+            # 0 代表第一欄
+            unit_depts = sorted([x for x in df_units[0].unique() if x])
         sel_dept = c1.selectbox("所屬單位", unit_depts, index=None, placeholder="請選擇單位...")
         
-        # 1-2. 填報單位名稱 (使用強力比對)
+        # 1-2. 填報單位名稱 (強制讀取第 2 欄 / Index 1，依第 1 欄篩選)
         unit_names = []
         if sel_dept and not df_units.empty:
-            # 比對邏輯：比對「真空版」的資料
-            # 將使用者選的內容「真空化」
-            clean_sel = vacuum_str(sel_dept)
-            # 在資料庫找「真空版 A 欄」等於 clean_sel 的資料
-            clean_col_A = f"_clean_{col_name_A}" # 這是我們剛剛偷建的欄位
+            # 篩選邏輯：第1欄 == 選中的單位
+            mask = df_units[0] == sel_dept
+            unit_names = sorted([x for x in df_units[mask][1].unique() if x])
             
-            mask = df_units[clean_col_A] == clean_sel
-            
-            # 取出對應的 B 欄
-            if mask.any():
-                unit_names = sorted([x for x in df_units[mask][col_name_B].unique() if x])
-            else:
-                # 萬一真的沒對到，顯示除錯 (正常情況不會發生)
-                st.warning(f"篩選異常：找不到 '{sel_dept}' 的下層單位。")
-                
         sel_unit_name = c2.selectbox("填報單位名稱", unit_names, index=None, placeholder="請先選擇所屬單位...")
         
         # 1-3. 開放欄位
@@ -168,32 +173,22 @@ with tabs[0]:
         
         st.markdown("---")
         
-        # === 區塊 2: 詳細位置資訊區 (2層連動) ===
+        # === 區塊 2: 詳細位置資訊區 ===
         st.markdown('<div class="section-header">2. 詳細位置資訊區</div>', unsafe_allow_html=True)
         
         c6, c7 = st.columns(2)
         
-        # 準備資料欄位 (A=校區, B=建築物)
-        b_col_A = df_buildings.columns[0] if not df_buildings.empty else "校區"
-        b_col_B = df_buildings.columns[1] if not df_buildings.empty and len(df_buildings.columns) > 1 else "建築物名稱"
-        
-        # 2-1. 填報單位所在校區
+        # 2-1. 填報單位所在校區 (強制讀取建築物清單 第 1 欄 / Index 0)
         loc_campuses = []
         if not df_buildings.empty:
-            loc_campuses = sorted([x for x in df_buildings[b_col_A].unique() if x])
+            loc_campuses = sorted([x for x in df_buildings[0].unique() if x])
         sel_loc_campus = c6.selectbox("填報單位所在校區", loc_campuses, index=None, placeholder="請選擇校區...")
         
-        # 2-2. 建築物名稱 (使用強力比對)
+        # 2-2. 建築物名稱 (強制讀取建築物清單 第 2 欄 / Index 1)
         buildings = []
         if sel_loc_campus and not df_buildings.empty:
-            clean_sel_campus = vacuum_str(sel_loc_campus)
-            clean_b_col_A = f"_clean_{b_col_A}"
-            
-            mask_b = df_buildings[clean_b_col_A] == clean_sel_campus
-            
-            if mask_b.any():
-                buildings = sorted([x for x in df_buildings[mask_b][b_col_B].unique() if x])
-                
+            mask_b = df_buildings[0] == sel_loc_campus
+            buildings = sorted([x for x in df_buildings[mask_b][1].unique() if x])
         sel_build = c6.selectbox("建築物名稱", buildings, index=None, placeholder="請先選擇校區...")
         
         # 2-3. 辦公室
@@ -206,19 +201,22 @@ with tabs[0]:
         c8, c9 = st.columns(2)
         r_date = c8.date_input("維修日期 (統一填寫發票日期)", datetime.today())
         
-        # 設備類型 (A欄)
+        # 設備類型 (強制讀取第 1 欄)
         e_types = []
         if not df_types.empty:
-            e_types = sorted([x for x in df_types.iloc[:, 0].unique() if x])
+            e_types = sorted([x for x in df_types[0].unique() if x])
         sel_etype = c9.selectbox("設備類型", e_types, index=None, placeholder="請選擇...")
         
         c10, c11 = st.columns(2)
         e_model = c10.text_input("設備品牌型號", placeholder="例如：國際 CS-100FL+CU-100FLC")
         
-        # 冷媒種類 (B欄, 第二欄)
+        # 冷媒種類 (強制讀取係數表 第 2 欄 / Index 1 - 依據您提供的係數表 CSV，名稱在第 2 欄)
         r_types = []
-        if not df_coef.empty and len(df_coef.columns) > 1:
-            r_types = sorted([x for x in df_coef.iloc[:, 1].unique() if x])
+        if not df_coef.empty:
+            # 如果係數表有 2 欄以上，取第 2 欄；否則取第 1 欄
+            target_idx = 1 if df_coef.shape[1] > 1 else 0
+            r_types = sorted([x for x in df_coef[target_idx].unique() if x])
+            
         sel_rtype = c11.selectbox("冷媒種類", r_types, index=None, placeholder="請選擇...")
         
         amount = st.number_input("冷媒填充量 (公斤)", min_value=0.0, step=0.1, format="%.2f")
@@ -235,6 +233,7 @@ with tabs[0]:
         submitted = st.form_submit_button("🚀 確認送出", use_container_width=True)
         
         if submitted:
+            # 必填檢查
             if not agree: st.error("❌ 請勾選同意聲明")
             elif not sel_dept or not sel_unit_name: st.warning("⚠️ 請完整選擇【基本資訊】中的單位資訊")
             elif not name or not ext: st.warning("⚠️ 請填寫填報人與分機")
