@@ -91,6 +91,14 @@ st.markdown("""
         margin-bottom: 15px;
     }
     
+    /* 誤繕提醒文字樣式 */
+    .correction-note {
+        color: #566573; 
+        font-size: 0.9rem; 
+        margin-top: -10px; 
+        margin-bottom: 20px;
+    }
+    
     /* 上傳區樣式 */
     [data-testid="stFileUploaderDropzone"] {
         background-color: #D6EAF8; border: 2px dashed #2E86C1; padding: 20px;
@@ -153,8 +161,8 @@ tabs = st.tabs(["📝 新增填報", "📊 動態查詢看板"])
 
 with tabs[0]:
     
-    # === 區塊 1: 填報單位基本資訊區 (莫蘭迪底色) ===
-    st.markdown('<div class="morandi-header">1. 填報單位基本資訊區</div>', unsafe_allow_html=True)
+    # === 區塊 1: 填報單位基本資訊區 (莫蘭迪底色，無序號) ===
+    st.markdown('<div class="morandi-header">填報單位基本資訊區</div>', unsafe_allow_html=True)
     
     c1, c2 = st.columns(2)
     
@@ -173,8 +181,8 @@ with tabs[0]:
     name = c3.text_input("填報人")
     ext = c4.text_input("填報人分機")
     
-    # === 區塊 2: 冷媒設備所在位置資訊區 (莫蘭迪底色 + 版面調整) ===
-    st.markdown('<div class="morandi-header">2. 冷媒設備所在位置資訊區</div>', unsafe_allow_html=True)
+    # === 區塊 2: 冷媒設備所在位置資訊區 (莫蘭迪底色，無序號) ===
+    st.markdown('<div class="morandi-header">冷媒設備所在位置資訊區</div>', unsafe_allow_html=True)
     
     # 2-1. 填報單位所在校區 (單獨一列)
     loc_campuses = sorted(BUILDING_DATA.keys())
@@ -190,8 +198,8 @@ with tabs[0]:
     
     office = c7.text_input("辦公室編號", placeholder="例如：202辦公室、306研究室")
     
-    # === 區塊 3: 冷媒設備填充資訊區 (莫蘭迪底色) ===
-    st.markdown('<div class="morandi-header">3. 冷媒設備填充資訊區</div>', unsafe_allow_html=True)
+    # === 區塊 3: 冷媒設備填充資訊區 (莫蘭迪底色，無序號) ===
+    st.markdown('<div class="morandi-header">冷媒設備填充資訊區</div>', unsafe_allow_html=True)
     
     c8, c9 = st.columns(2)
     r_date = c8.date_input("維修日期 (統一填寫發票日期)", datetime.today())
@@ -210,6 +218,8 @@ with tabs[0]:
     
     st.markdown("---")
     note = st.text_input("備註內容", placeholder="備註 (選填)")
+    # 新增誤繕說明文字 (深灰色)
+    st.markdown('<div class="correction-note">如有資料誤繕情形，請重新登錄1次資訊，並於備註欄填寫：「前筆資料誤繕，請刪除。」，管理單位將協助刪除誤打資訊</div>', unsafe_allow_html=True)
     
     # === 完整個資聲明 ===
     st.markdown("""
@@ -224,7 +234,7 @@ with tabs[0]:
     </div>
     """, unsafe_allow_html=True)
     
-    agree = st.checkbox("我已閱讀並同意個資聲明")
+    agree = st.checkbox("我已閱讀並同意上述個資聲明")
     
     submitted = st.button("🚀 確認送出", type="primary", use_container_width=True)
     
