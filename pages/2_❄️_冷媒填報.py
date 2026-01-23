@@ -16,6 +16,26 @@ def get_taiwan_time():
     return datetime.utcnow() + timedelta(hours=8)
 
 # ==========================================
+# 1. 內建備援資料 (Fallback Data)
+# 當 Google Sheet 連線失敗時，系統會自動切換使用此處資料
+# ==========================================
+
+# 備援單位資訊
+FALLBACK_UNIT_DATA = {'教務處': ['教務長室/副教務長室/專門委員室', '註冊與課務組', '教學發展組', '招生與出版組', '綜合行政組', '通識教育中心', '民雄教務'], '學生事務處': ['學務長室/副學務長室', '住宿服務組', '生活輔導組', '課外活動組', '學生輔導中心', '學生職涯發展中心', '衛生保健組', '原住民族學生資源中心', '特殊教育學生資源中心', '民雄學務'], '總務處': ['總務長室/副總務長室/簡任秘書室', '事務組', '出納組', '文書組', '資產經營管理組', '營繕組', '民雄總務', '新民聯辦', '駐衛警察隊'], '研究發展處': ['研發長室/副研發長室', '綜合企劃組', '學術發展組', '校務研究組'], '產學營運及推廣處': ['產學營運及推廣處長室', '行政管理組', '產學創育推廣中心'], '國際事務處': ['國際事務長室', '境外生事務組', '國際合作組'], '圖書資訊處': ['圖資長室', '圖資管理組', '資訊網路組', '諮詢服務組', '系統資訊組', '民雄圖書資訊', '新民分館', '民雄分館'], '校長室': ['校長室'], '行政副校長室': ['行政副校長室'], '學術副校長室': ['學術副校長室'], '國際副校長室': ['國際副校長室'], '秘書室': ['綜合業務組', '公共關係組', '校友服務組'], '體育室': ['蘭潭場館', '民雄場館', '林森場館', '新民場館'], '主計室': ['主計室'], '人事室': ['人事室'], '環境保護及安全管理中心': ['環境保護及安全管理中心'], '師資培育中心': ['師資培育中心主任室', '教育課程組', '實習輔導組', '綜合行政組'], '語言中心': ['主任室', '蘭潭語言中心', '民雄語言中心', '新民語言中心'], '理工學院': ['理工學院辦公室', '應用數學系', '電子物理學系', '應用化學系', '資訊工程學系', '生物機電工程學系', '土木與水資源工程學系', '水工與材料試驗場', '電機工程學系', '機械與能源工程學系'], '農學院': ['農學院辦公室', '農藝學系', '園藝學系', '森林暨自然資源學系', '木質材料與設計學系', '動物科學系', '農業經濟學系', '生物農業科技學系', '景觀學系', '植物醫學系', '農場管理進修學士學位學程'], '生命科學院': ['生命科學院辦公室', '食品科學系', '水生生物科學系', '生物資源學系', '生化科技學系', '微生物免疫與生物藥學系'], '管理學院': ['管理學院辦公室', '企業管理學系', '應用經濟學系', '生物事業管理學系', '資訊管理學系', '財務金融學系', '行銷與觀光管理學系', '全英文授課觀光暨管理學士學位學程'], '獸醫學院': ['獸醫學院辦公室', '獸醫學系', '雲嘉南動物疾病診斷中心', '動物醫院'], '師範學院': ['師範學院辦公室', '教育學系', '輔導與諮商學系', '體育與健康休閒學系', '特殊教育學系', '幼兒教育學系', '教育行政與政策發展研究所', '數理教育研究所'], '人文藝術學院': ['人文藝術學院辦公室', '中國文學系', '外國語言學系', '應用歷史學系', '視覺藝術學系', '音樂學系']}
+
+# 備援建築物清單
+FALLBACK_BUILDING_DATA = {'蘭潭校區': ['A01行政中心', 'A02森林館', 'A03動物科學館', 'A04農園館', 'A05工程館', 'A06食品科學館', 'A07嘉禾館', 'A08瑞穗館', 'A09游泳池', 'A10機械與能源工程學系創新育成大樓', 'A11木材利用工廠', 'A12動物試驗場', 'A13司令台', 'A14學生活動中心', 'A15電物一館', 'A16理工大樓', 'A17應化一館', 'A18A應化二館', 'A18B電物二館', 'A19農藝場管理室', 'A20國際交流學園', 'A21水工與材料試驗場', 'A22食品加工廠', 'A23機電館', 'A24生物資源館', 'A25生命科學館', 'A26農業科學館', 'A27植物醫學系館', 'A28水生生物科學館', 'A29園藝場管理室', 'A30園藝技藝中心', 'A31圖書資訊館', 'A32綜合教學大樓', 'A33生物農業科技二館', 'A34嘉大植物園', 'A35生技健康館', 'A36景觀學系大樓', 'A37森林生物多樣性館', 'A38動物產品研發推廣中心', 'A39學生活動廣場', 'A40焚化爐設備車倉庫', 'A41生物機械產業實驗室', 'A44有機蔬菜溫室', 'A45蝴蝶蘭溫室', 'A46魚類保育研究中心', 'A71員工單身宿舍', 'A72學苑餐廳', 'A73學一舍', 'A74學二舍', 'A75學三舍', 'A76學五舍', 'A77學六舍', 'A78農產品展售中心', 'A79綠建築', 'A80嘉大昆蟲館', 'A81蘭潭招待所', 'A82警衛室'], '民雄校區': ['B01創意樓', 'B02大學館', 'B03教育館', 'B04新藝樓', 'B06警衛室', 'B07鍋爐間', 'B08司令台', 'B09加氯室', 'B10游泳池', 'B12工友室', 'BA行政大樓', 'BB初等教育館', 'BC圖書館', 'BD樂育堂', 'BE學人單身宿舍', 'BF綠園二舍', 'BG餐廳', 'BH綠園一舍', 'BI科學館', 'BJ人文館', 'BK音樂館', 'BL藝術館', 'BM文薈廳', 'BN社團教室'], '林森校區': ['C01警衛室', 'C02司令台', 'CA第一棟大樓', 'CB進修部大樓', 'CD國民輔導大樓', 'CE第二棟大樓', 'CF實輔室', 'CG圖書館', 'CH視聽教室', 'CI明德齋', 'CK餐廳', 'CL青雲齋', 'CN樂育堂', 'CP空大學習指導中心'], '新民校區': ['D01管理學院大樓A棟', 'D02管理學院大樓B棟', 'D03明德樓', 'D04獸醫館(獸醫學系、動物醫院、雲嘉南動物疾病診斷中心)', 'D05游泳池', 'D06溫室', 'D07司令台', 'D08警衛室'], '社口林場': ['E01林場實習館'], '林森校區-民國路': ['F01民國路進德樓']}
+
+# 備援設備類型
+FALLBACK_EQUIP_TYPES = ['冰水主機', '冰箱', '冷凍櫃', '冷氣', '冷藏櫃', '飲水機']
+
+# 備援冷媒種類
+FALLBACK_REF_TYPES = ['HFC-1234yf 或 R-1234yf (2,3,3,3-四氟1-丙烯)，CF3CF=CH2', 'HFC-125 或 R-125 (1,1,1,2,2-五氟乙烷)，CHF2CF3', 'HFC-134a 或 R-134a (1,1,1,2-四氟乙烷)，CH2FCF3', 'HFC-143a 或 R-143a (1,1,1-三氟乙烷)，CH3CF3', 'HFC-23 或 R-23 (三氟甲烷)，CHF3', 'HFC-245fa 或 R-245fa (1,1,1,3,3-五氟丙烷)，CHF2CH2CF3', 'HFC-32 或 R-32 (二氟甲烷)，CH2F2', 'R-402A，HFC-125/HC-290/HCFC-22(60.0/2.0/38.0)', 'R-407D，HFC-32/HFC-125/HFC-134a(15.0/15.0/70.0)', 'R-411A，HC-1270/HCFC-22/HFC-152a(1.5/87.5/11.0)', 'R-507A，HFC-125/HFC-143a(50.0/50.0)', 'R-508A，HFC-23/PFC-116(39.0/61.0)', 'R-508B，HFC-23/PFC-116(46.0/54.0)', 'R404a，HFC-125/HFC-143a/HFC-134a(44.0/52.0/4.0)', 'R407c，HFC-32/HFC-125/HFC-134a(23.0/25.0/52.0)', 'R408a，HFC-125/HFC-143a/HCFC-22(7.0/46.0/47.0)', 'R410a，HFC-32/HFC-125(50.0/50.0)']
+
+# 備援 GWP 對照表
+FALLBACK_GWP_MAP = {'HFC-1234yf 或 R-1234yf (2,3,3,3-四氟1-丙烯)，CF3CF=CH2': 0.0, 'HFC-125 或 R-125 (1,1,1,2,2-五氟乙烷)，CHF2CF3': 3170.0, 'HFC-134a 或 R-134a (1,1,1,2-四氟乙烷)，CH2FCF3': 1300.0, 'HFC-143a 或 R-143a (1,1,1-三氟乙烷)，CH3CF3': 4800.0, 'HFC-245fa 或 R-245fa (1,1,1,3,3-五氟丙烷)，CHF2CH2CF3': 858.0, 'R404a，HFC-125/HFC-143a/HFC-134a(44.0/52.0/4.0)': 3942.8, 'R407c，HFC-32/HFC-125/HFC-134a(23.0/25.0/52.0)': 1624.21, 'R-407D，HFC-32/HFC-125/HFC-134a(15.0/15.0/70.0)': 1487.05, 'R408a，HFC-125/HFC-143a/HCFC-22(7.0/46.0/47.0)': 2429.9, 'R410a，HFC-32/HFC-125(50.0/50.0)': 1923.5, 'R-507A，HFC-125/HFC-143a(50.0/50.0)': 3985.0, 'R-508A，HFC-23/PFC-116(39.0/61.0)': 11607.0, 'R-508B，HFC-23/PFC-116(46.0/54.0)': 11698.0, 'HFC-23 或 R-23 (三氟甲烷)，CHF3': 12400.0, 'HFC-32 或 R-32 (二氟甲烷)，CH2F2': 677.0, 'R-411A，HC-1270/HCFC-22/HFC-152a(1.5/87.5/11.0)': 0.0, 'R-402A，HFC-125/HC-290/HCFC-22(60.0/2.0/38.0)': 0.0}
+
+# ==========================================
 # 2. CSS 樣式 (UI 美化區)
 # ==========================================
 st.markdown("""
@@ -52,7 +72,7 @@ st.markdown("""
         margin-bottom: 15px;
     }
     
-    /* 誤繕提醒文字樣式 */
+    /* 誤繕提醒文字 */
     .correction-note {
         color: #566573; 
         font-size: 0.9rem; 
@@ -60,14 +80,14 @@ st.markdown("""
         margin-bottom: 20px;
     }
     
-    /* 個資聲明勾選文字樣式 (深藍、粗體、加大 - 比照燃油) */
+    /* 個資聲明勾選文字 (深藍、粗體、加大) */
     [data-testid="stCheckbox"] label p {
         font-size: 1.15rem !important;
         font-weight: 700 !important;
         color: #2E4053 !important;
     }
 
-    /* 4. 橫式資訊卡 (V239 Update) */
+    /* 4. 橫式資訊卡 (Grid Layout) */
     .horizontal-card {
         display: flex;
         border: 1px solid #BDC3C7;
@@ -105,7 +125,7 @@ st.markdown("""
     }
     .info-row {
         display: flex;
-        align-items: flex-start; /* 改為靠上對齊，適應多行內容 */
+        align-items: flex-start;
         padding: 10px 0;
         font-size: 1rem;
         color: #566573;
@@ -128,7 +148,7 @@ if st.session_state.get("authentication_status") is not True:
     st.warning("🔒 請先至首頁 (Hello) 登入系統")
     st.stop()
 
-# 4. 資料庫連線
+# 4. 資料庫連線 (快取連線物件)
 REF_SHEET_ID = "1p7GsW-nrjerXhnn3pNgZzu_CdIh1Yxsm-fLJDqQ6MqA"
 REF_FOLDER_ID = "1o0S56OyStDjvC5tgBWiUNqNjrpXuCQMI"
 
@@ -142,107 +162,110 @@ def init_google_ref():
 try:
     gc, drive_service = init_google_ref()
     sh_ref = gc.open_by_key(REF_SHEET_ID)
-    
-    # 讀取必要分頁
-    ws_units = sh_ref.worksheet("單位資訊") 
-    ws_buildings = sh_ref.worksheet("建築物清單") # V239: 新增讀取建築物清單
-    ws_types = sh_ref.worksheet("設備類型")
-    ws_coef = sh_ref.worksheet("冷媒係數表")
-    
-    try: ws_records = sh_ref.worksheet("冷媒填報紀錄")
-    except: 
-        ws_records = sh_ref.add_worksheet(title="冷媒填報紀錄", rows="1000", cols="15")
-        ws_records.append_row(["填報時間","填報人","填報人分機","校區","所屬單位","填報單位名稱","建築物名稱","辦公室編號","維修日期","設備類型","設備品牌型號","冷媒種類","冷媒填充量","備註","佐證資料"])
-
 except Exception as e:
     st.error(f"❌ 資料庫連線失敗: {e}")
     st.stop()
 
-# 5. 資料讀取 (選項與紀錄 - V239 完全動態版)
-@st.cache_data(ttl=60)
-def load_data_all():
-    # 1. 單位資訊 (動態讀取)
-    unit_data = ws_units.get_all_values()
-    unit_dict = {}
-    if len(unit_data) > 1:
-        for row in unit_data[1:]:
-            if len(row) >= 2:
-                dept = str(row[0]).strip()
-                unit = str(row[1]).strip()
-                if dept and unit:
-                    if dept not in unit_dict:
-                        unit_dict[dept] = []
-                    if unit not in unit_dict[dept]:
-                        unit_dict[dept].append(unit)
-    
-    # 2. 建築物清單 (動態讀取 V239)
-    building_data = ws_buildings.get_all_values()
-    build_dict = {}
-    if len(building_data) > 1:
-        for row in building_data[1:]:
-            if len(row) >= 2:
-                campus = str(row[0]).strip()
-                b_name = str(row[1]).strip()
-                if campus and b_name:
-                    if campus not in build_dict:
-                        build_dict[campus] = []
-                    if b_name not in build_dict[campus]:
-                        build_dict[campus].append(b_name)
-
-    # 3. 設備類型選項
-    type_data = ws_types.get_all_values()
-    e_types = sorted([row[0] for row in type_data[1:] if row]) if len(type_data) > 1 else []
-    
-    # 4. 係數表 (建立 GWP 對照表)
-    coef_data = ws_coef.get_all_values()
-    r_types = []
-    gwp_map = {}
-    
-    if len(coef_data) > 1:
-        try:
-            name_idx = 1
-            gwp_idx = 2
-            for row in coef_data[1:]:
-                if len(row) > gwp_idx and row[name_idx]:
-                    r_name = row[name_idx].strip()
-                    gwp_val_str = row[gwp_idx].replace(',', '').strip()
-                    if not gwp_val_str.replace('.', '', 1).isdigit():
-                        gwp_val = 0.0
-                    else:
-                        gwp_val = float(gwp_val_str)
-                    r_types.append(r_name)
-                    gwp_map[r_name] = gwp_val
-        except:
-            r_types = sorted([row[1] for row in coef_data[1:] if len(row) > 1 and row[1]])
-
-    # 5. 填報紀錄
-    records_data = ws_records.get_all_values()
-    if len(records_data) > 1:
-        raw_headers = records_data[0]
-        col_mapping = {}
-        for h in raw_headers:
-            clean_h = str(h).strip()
-            if "填充量" in clean_h or "重量" in clean_h:
-                col_mapping[h] = "冷媒填充量"
-            elif "種類" in clean_h or "品項" in clean_h:
-                col_mapping[h] = "冷媒種類"
-            elif "日期" in clean_h or "維修" in clean_h:
-                col_mapping[h] = "維修日期"
-            else:
-                col_mapping[h] = clean_h
+# 5. 資料讀取 (V241: 強韌連線版 - 加入快取與錯誤處理，並使用內建備援)
+@st.cache_data(ttl=600)
+def load_data_all_robust():
+    try:
+        # 1. 單位資訊
+        ws_units = sh_ref.worksheet("單位資訊")
+        unit_data = ws_units.get_all_values()
+        unit_dict = {}
+        if len(unit_data) > 1:
+            for row in unit_data[1:]:
+                if len(row) >= 2:
+                    dept = str(row[0]).strip()
+                    unit = str(row[1]).strip()
+                    if dept and unit:
+                        if dept not in unit_dict: unit_dict[dept] = []
+                        if unit not in unit_dict[dept]: unit_dict[dept].append(unit)
         
-        df_records = pd.DataFrame(records_data[1:], columns=raw_headers)
-        df_records.rename(columns=col_mapping, inplace=True)
-    else:
-        df_records = pd.DataFrame(columns=["填報時間","填報人","填報人分機","校區","所屬單位","填報單位名稱","建築物名稱","辦公室編號","維修日期","設備類型","設備品牌型號","冷媒種類","冷媒填充量","備註","佐證資料"])
+        # 2. 建築物清單
+        ws_buildings = sh_ref.worksheet("建築物清單")
+        building_data = ws_buildings.get_all_values()
+        build_dict = {}
+        if len(building_data) > 1:
+            for row in building_data[1:]:
+                if len(row) >= 2:
+                    campus = str(row[0]).strip()
+                    b_name = str(row[1]).strip()
+                    if campus and b_name:
+                        if campus not in build_dict: build_dict[campus] = []
+                        if b_name not in build_dict[campus]: build_dict[campus].append(b_name)
 
-    return unit_dict, build_dict, e_types, sorted(r_types), gwp_map, df_records
+        # 3. 設備類型
+        ws_types = sh_ref.worksheet("設備類型")
+        type_data = ws_types.get_all_values()
+        e_types = sorted([row[0] for row in type_data[1:] if row]) if len(type_data) > 1 else []
+        
+        # 4. 冷媒係數
+        ws_coef = sh_ref.worksheet("冷媒係數表")
+        coef_data = ws_coef.get_all_values()
+        r_types = []
+        gwp_map = {}
+        if len(coef_data) > 1:
+            try:
+                name_idx = 1
+                gwp_idx = 2
+                for row in coef_data[1:]:
+                    if len(row) > gwp_idx and row[name_idx]:
+                        r_name = row[name_idx].strip()
+                        # GWP 清洗
+                        gwp_val_str = row[gwp_idx].replace(',', '').strip()
+                        if not gwp_val_str.replace('.', '', 1).isdigit():
+                            gwp_val = 0.0
+                        else:
+                            gwp_val = float(gwp_val_str)
+                        r_types.append(r_name)
+                        gwp_map[r_name] = gwp_val
+            except:
+                r_types = sorted([row[1] for row in coef_data[1:] if len(row) > 1 and row[1]])
 
-# 呼叫載入函式
-unit_dict, build_dict, e_types, r_types, gwp_map, df_records = load_data_all()
+        # 5. 填報紀錄
+        try:
+            ws_records = sh_ref.worksheet("冷媒填報紀錄")
+        except:
+            ws_records = sh_ref.add_worksheet(title="冷媒填報紀錄", rows="1000", cols="15")
+            ws_records.append_row(["填報時間","填報人","填報人分機","校區","所屬單位","填報單位名稱","建築物名稱","辦公室編號","維修日期","設備類型","設備品牌型號","冷媒種類","冷媒填充量","備註","佐證資料"])
+            
+        records_data = ws_records.get_all_values()
+        if len(records_data) > 1:
+            raw_headers = records_data[0]
+            col_mapping = {}
+            for h in raw_headers:
+                clean_h = str(h).strip()
+                if "填充量" in clean_h or "重量" in clean_h: col_mapping[h] = "冷媒填充量"
+                elif "種類" in clean_h or "品項" in clean_h: col_mapping[h] = "冷媒種類"
+                elif "日期" in clean_h or "維修" in clean_h: col_mapping[h] = "維修日期"
+                else: col_mapping[h] = clean_h
+            
+            df_records = pd.DataFrame(records_data[1:], columns=raw_headers)
+            df_records.rename(columns=col_mapping, inplace=True)
+        else:
+            df_records = pd.DataFrame(columns=["填報時間","填報人","填報人分機","校區","所屬單位","填報單位名稱","建築物名稱","辦公室編號","維修日期","設備類型","設備品牌型號","冷媒種類","冷媒填充量","備註","佐證資料"])
+
+        return unit_dict, build_dict, e_types, sorted(r_types), gwp_map, df_records, True
+
+    except Exception as e:
+        # 連線失敗時，回傳備援資料
+        return FALLBACK_UNIT_DATA, FALLBACK_BUILDING_DATA, FALLBACK_EQUIP_TYPES, sorted(FALLBACK_REF_TYPES), FALLBACK_GWP_MAP, pd.DataFrame(), False
+
+# 呼叫載入 (這裡會使用快取)
+unit_dict, build_dict, e_types, r_types, gwp_map, df_records, load_success = load_data_all_robust()
 
 # 6. 頁面介面
 st.title("❄️ 冷媒填報專區")
+
+if not load_success:
+    st.warning("⚠️ 網路連線不穩，目前使用備援資料模式。部分選單可能不是最新版本。")
+
+# 強制刷新按鈕
+if st.button("🔄 刷新資料庫 (若更新Excel請點此)", type="secondary"):
+    st.cache_data.clear()
+    st.rerun()
 
 tabs = st.tabs(["📝 新增填報", "📋 申報動態查詢"])
 
@@ -255,7 +278,6 @@ with tabs[0]:
     
     c1, c2 = st.columns(2)
     
-    # 使用動態讀取的 unit_dict
     unit_depts = sorted(unit_dict.keys())
     sel_dept = c1.selectbox("所屬單位", unit_depts, index=None, placeholder="請選擇單位...")
     
@@ -270,7 +292,6 @@ with tabs[0]:
     
     st.markdown('<div class="morandi-header">冷媒設備所在位置資訊區</div>', unsafe_allow_html=True)
     
-    # 使用動態讀取的 build_dict
     loc_campuses = sorted(build_dict.keys())
     sel_loc_campus = st.selectbox("填報單位所在校區", loc_campuses, index=None, placeholder="請選擇校區...")
     
@@ -329,6 +350,9 @@ with tabs[0]:
         elif not f_file: st.error("⚠️ 請上傳佐證資料")
         else:
             try:
+                # 寫入時需重新取得 worksheet (不使用快取)
+                ws_target = sh_ref.worksheet("冷媒填報紀錄")
+                
                 f_file.seek(0); f_ext = f_file.name.split('.')[-1]
                 clean_name = f"{sel_loc_campus}_{sel_dept}_{sel_unit_name}_{r_date}_{sel_etype}_{sel_rtype}.{f_ext}"
                 meta = {'name': clean_name, 'parents': [REF_FOLDER_ID]}
@@ -343,14 +367,18 @@ with tabs[0]:
                     sel_build, office, str(r_date), sel_etype, e_model, 
                     sel_rtype, amount, note, link
                 ]
-                ws_records.append_row(row_data)
+                ws_target.append_row(row_data)
                 st.success("✅ 冷媒填報成功！")
                 st.balloons()
+                
+                # 寫入成功後清除快取，確保下次能查詢到新資料
+                st.cache_data.clear()
+                
             except Exception as e:
                 st.error(f"上傳或寫入失敗: {e}")
 
 # ==========================================
-# 分頁 2: 申報動態查詢 (V238 完整功能版)
+# 分頁 2: 申報動態查詢
 # ==========================================
 with tabs[1]:
     st.markdown('<div class="morandi-header">📋 申報動態查詢</div>', unsafe_allow_html=True)
@@ -420,19 +448,17 @@ with tabs[1]:
                         campus_str = ", ".join(sorted(df_view['校區'].unique()))
                         builds = sorted(df_view['建築物名稱'].unique())
                         build_str = ", ".join(builds[:3]) + (f" 等{len(builds)}棟" if len(builds)>3 else "")
-                        
-                        # 新增: 設備類型
                         equip_str = ", ".join(sorted(df_view['設備類型'].unique()))
                         
-                        # 新增: 冷媒填充資訊 (逐筆明細)
+                        # 明細與匯總
                         fill_details = []
+                        fill_stats = []
+                        
                         for _, row in df_view.iterrows():
                             fill_details.append(f"<div>• {row['冷媒種類']}：{row['冷媒填充量']:.2f} 公斤</div>")
                         fill_detail_html = "".join(fill_details)
                         
-                        # 新增: 冷媒填充重量統計 (分類加總)
                         fill_summary = df_view.groupby('冷媒種類')['冷媒填充量'].sum().reset_index()
-                        fill_stats = []
                         for _, row in fill_summary.iterrows():
                             fill_stats.append(f"<div>• {row['冷媒種類']}：{row['冷媒填充量']:.2f} 公斤</div>")
                         fill_stats_html = "".join(fill_stats)
@@ -516,7 +542,6 @@ with tabs[1]:
                             "佐證資料": st.column_config.LinkColumn("佐證連結", display_text="開啟檔案")
                         }
                     )
-                
             else:
                 if not (sel_q_dept and sel_q_unit):
                     st.info("👈 請先選擇「所屬單位」與「填報單位名稱」以開始查詢。")
