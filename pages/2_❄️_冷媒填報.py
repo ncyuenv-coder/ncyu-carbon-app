@@ -5,6 +5,7 @@ import gspread
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
+import re
 
 # ==========================================
 # 0. 系統設定
@@ -99,89 +100,61 @@ st.markdown("""
         margin-bottom: 20px;
     }
     
-    /* 個資聲明勾選文字樣式 (大字、深藍) */
+    /* 個資聲明勾選文字樣式 */
     [data-testid="stCheckbox"] label p {
         font-size: 1.1rem !important;
         font-weight: 700 !important;
         color: #2E4053 !important;
     }
 
-    /* 整合式資訊卡樣式 (修正結構) */
-    .info-card {
-        border-radius: 10px;
+    /* 4. 橫式資訊卡 (New V236) */
+    .horizontal-card {
+        display: flex;
+        border: 1px solid #BDC3C7;
+        border-radius: 12px;
         overflow: hidden;
-        border: 1px solid #D5DBDB;
-        margin-bottom: 20px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        margin-bottom: 25px;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.08);
         background-color: #FFFFFF;
+        min-height: 250px; /* 確保高度 */
     }
     
-    /* 卡片標題區 (莫蘭迪藍底) */
-    .card-header {
-        background-color: #EBF5FB; 
-        padding: 15px 20px;
+    /* 左側 30% */
+    .card-left {
+        flex: 3;
+        background-color: #34495E; /* 莫蘭迪深藍底 */
+        color: #FFFFFF;
         display: flex;
-        justify-content: space-between;
+        flex-direction: column;
+        justify-content: center;
         align-items: center;
-        border-bottom: 1px solid #D6EAF8;
+        padding: 20px;
+        text-align: center;
+        border-right: 1px solid #2C3E50;
     }
-    .card-title {
-        font-size: 1.3rem; 
-        font-weight: 700; 
-        color: #2E4053;
-    }
-    .emission-box {
-        text-align: right;
-    }
-    .emission-label {
-        font-size: 0.9rem; 
-        color: #566573;
-    }
-    .emission-value {
-        font-size: 2rem; 
-        font-weight: 800; 
-        color: #C0392B; /* 莫蘭迪紅 */
-    }
-    .emission-unit {
-        font-size: 1rem; 
-        color: #566573;
-        font-weight: normal;
-        margin-left: 5px;
-    }
+    .dept-text { font-size: 1.5rem; font-weight: 700; margin-bottom: 8px; }
+    .unit-text { font-size: 1.2rem; font-weight: 500; opacity: 0.9; }
     
-    /* 卡片內容區 (白底) */
-    .card-body {
-        background-color: #FFFFFF;
-        padding: 15px 20px;
-    }
-    .fill-row {
+    /* 右側 70% */
+    .card-right {
+        flex: 7;
+        padding: 20px 30px;
         display: flex;
-        justify-content: space-between;
-        padding: 10px 0;
-        border-bottom: 1px dashed #EAEDED;
+        flex-direction: column;
+        justify-content: center;
     }
-    .fill-row:last-child {
-        border-bottom: none;
+    .info-row {
+        display: flex;
+        align-items: center;
+        padding: 6px 0;
+        font-size: 1rem;
+        color: #566573; /* 深灰色 */
+        border-bottom: 1px dashed #F2F3F4;
     }
-    .fill-type {
-        font-size: 1.1rem; 
-        color: #2E4053;
-        font-weight: 600;
-    }
-    .fill-amount {
-        font-size: 1.1rem; 
-        color: #2874A6;
-        font-weight: 600;
-    }
-    
-    /* 卡片底部 (極淺莫蘭迪底) */
-    .card-footer {
-        background-color: #F8FBFD; /* 極淺色調 */
-        padding: 15px 20px;
-        font-size: 0.95rem;
-        color: #566573;
-        border-top: 1px solid #EBEDEF;
-    }
+    .info-row:last-child { border-bottom: none; }
+    .info-icon { margin-right: 12px; font-size: 1.1rem; width: 25px; text-align: center; }
+    .info-label { font-weight: 600; margin-right: 10px; min-width: 140px; color: #2E4053; }
+    .info-value { font-weight: 500; color: #17202A; }
     
     /* 上傳區樣式 */
     [data-testid="stFileUploaderDropzone"] {
@@ -222,7 +195,7 @@ except Exception as e:
     st.error(f"❌ 資料庫連線失敗: {e}")
     st.stop()
 
-# 5. 資料讀取 (選項與紀錄)
+# 5. 資料讀取 (選項與紀錄 - 智能欄位對應版)
 @st.cache_data(ttl=60)
 def load_data_all():
     # 1. 設備類型選項
@@ -251,11 +224,25 @@ def load_data_all():
         except:
             r_types = sorted([row[1] for row in coef_data[1:] if len(row) > 1 and row[1]])
 
-    # 3. 填報紀錄
+    # 3. 填報紀錄 (Smart Column Renaming)
     records_data = ws_records.get_all_values()
     if len(records_data) > 1:
-        # 強制將所有欄位轉為字串，避免錯誤
-        df_records = pd.DataFrame(records_data[1:], columns=[str(x).strip() for x in records_data[0]])
+        raw_headers = records_data[0]
+        # 建立欄位映射字典，將不標準的名稱映射到標準名稱
+        col_mapping = {}
+        for h in raw_headers:
+            clean_h = str(h).strip()
+            if "填充量" in clean_h or "重量" in clean_h:
+                col_mapping[h] = "冷媒填充量"
+            elif "種類" in clean_h or "品項" in clean_h:
+                col_mapping[h] = "冷媒種類"
+            elif "日期" in clean_h or "維修" in clean_h:
+                col_mapping[h] = "維修日期"
+            else:
+                col_mapping[h] = clean_h
+        
+        df_records = pd.DataFrame(records_data[1:], columns=raw_headers)
+        df_records.rename(columns=col_mapping, inplace=True)
     else:
         df_records = pd.DataFrame(columns=["填報時間","填報人","填報人分機","校區","所屬單位","填報單位名稱","建築物名稱","辦公室編號","維修日期","設備類型","設備品牌型號","冷媒種類","冷媒填充量","備註","佐證資料"])
 
@@ -266,14 +253,13 @@ e_types, r_types, gwp_map, df_records = load_data_all()
 # 6. 頁面介面
 st.title("❄️ 冷媒填報專區")
 
-tabs = st.tabs(["📝 新增填報", "📊 動態查詢看板"])
+tabs = st.tabs(["📝 新增填報", "📋 申報動態查詢"])
 
 # ==========================================
-# 分頁 1: 新增填報
+# 分頁 1: 新增填報 (維持不變)
 # ==========================================
 with tabs[0]:
     
-    # === 區塊 1: 填報單位基本資訊區 ===
     st.markdown('<div class="morandi-header">填報單位基本資訊區</div>', unsafe_allow_html=True)
     
     c1, c2 = st.columns(2)
@@ -290,7 +276,6 @@ with tabs[0]:
     name = c3.text_input("填報人")
     ext = c4.text_input("填報人分機")
     
-    # === 區塊 2: 冷媒設備所在位置資訊區 ===
     st.markdown('<div class="morandi-header">冷媒設備所在位置資訊區</div>', unsafe_allow_html=True)
     
     loc_campuses = sorted(BUILDING_DATA.keys())
@@ -305,7 +290,6 @@ with tabs[0]:
     
     office = c7.text_input("辦公室編號", placeholder="例如：202辦公室、306研究室")
     
-    # === 區塊 3: 冷媒設備填充資訊區 ===
     st.markdown('<div class="morandi-header">冷媒設備填充資訊區</div>', unsafe_allow_html=True)
     
     c8, c9 = st.columns(2)
@@ -327,7 +311,6 @@ with tabs[0]:
     note = st.text_input("備註內容", placeholder="備註 (選填)")
     st.markdown('<div class="correction-note">如有資料誤繕情形，請重新登錄1次資訊，並於備註欄填寫：「前筆資料誤繕，請刪除。」，管理單位將協助刪除誤打資訊</div>', unsafe_allow_html=True)
     
-    # === 完整個資聲明 ===
     st.markdown("""
     <div class="privacy-box">
         <strong>📜 個人資料蒐集、處理及利用告知聲明</strong><br>
@@ -374,132 +357,167 @@ with tabs[0]:
                 st.error(f"上傳或寫入失敗: {e}")
 
 # ==========================================
-# 分頁 2: 動態查詢看板 (整合式資訊卡版)
+# 分頁 2: 申報動態查詢 (V236 橫式資訊卡版)
 # ==========================================
 with tabs[1]:
-    st.markdown('<div class="morandi-header">📊 歷史填報紀錄查詢</div>', unsafe_allow_html=True)
+    st.markdown('<div class="morandi-header">📋 申報動態查詢</div>', unsafe_allow_html=True)
 
     if df_records.empty:
         st.info("目前尚無填報紀錄。")
     else:
         # --- 1. 資料前處理 ---
-        # 欄位名稱校正：處理 "冷媒填充量(公斤)" 可能存在的情況
-        cols_map = {c: c.replace('(公斤)', '').strip() for c in df_records.columns}
-        df_records.rename(columns=cols_map, inplace=True)
-        
-        # 確保關鍵欄位存在
-        if '冷媒填充量' not in df_records.columns:
-            st.error("❌ 資料庫欄位異常：找不到 '冷媒填充量' 欄位，請聯繫管理員。")
-            st.stop()
+        # 欄位名稱校正與類型轉換
+        if '冷媒填充量' not in df_records.columns or '維修日期' not in df_records.columns:
+            st.error(f"❌ 關鍵欄位遺失，請檢查資料庫。目前欄位: {list(df_records.columns)}")
+        else:
+            df_records['冷媒填充量'] = pd.to_numeric(df_records['冷媒填充量'], errors='coerce').fillna(0)
+            df_records['維修日期'] = pd.to_datetime(df_records['維修日期'], errors='coerce')
             
-        df_records['冷媒填充量'] = pd.to_numeric(df_records['冷媒填充量'], errors='coerce').fillna(0)
-        df_records['維修日期'] = pd.to_datetime(df_records['維修日期'], errors='coerce')
-        df_records['年份'] = df_records['維修日期'].dt.year.fillna(datetime.now().year).astype(int)
-        
-        # 計算排放量 (kgCO2e)
-        def calc_emission(row):
-            rtype = row.get('冷媒種類', '')
-            amount = row.get('冷媒填充量', 0)
-            gwp = gwp_map.get(rtype, 0)
-            return amount * gwp
+            # 計算排放量 (kgCO2e)
+            def calc_emission(row):
+                rtype = row.get('冷媒種類', '')
+                amount = row.get('冷媒填充量', 0)
+                gwp = gwp_map.get(rtype, 0)
+                return amount * gwp
 
-        df_records['排放量(kgCO2e)'] = df_records.apply(calc_emission, axis=1)
+            df_records['排放量(kgCO2e)'] = df_records.apply(calc_emission, axis=1)
 
-        # --- 2. 側邊欄篩選 ---
-        st.markdown("##### 🔍 篩選條件")
-        col_f1, col_f2, col_f3 = st.columns(3)
-        
-        years = sorted(df_records['年份'].unique(), reverse=True)
-        sel_year = col_f1.selectbox("年份", ["全部"] + list(years))
-        
-        depts = sorted(df_records['所屬單位'].unique())
-        sel_q_dept = col_f2.selectbox("所屬單位 (查詢)", ["全部"] + depts)
-        
-        units = []
-        if sel_q_dept != "全部":
-            units = sorted(df_records[df_records['所屬單位'] == sel_q_dept]['填報單位名稱'].unique())
-        sel_q_unit = col_f3.selectbox("填報單位 (查詢)", ["全部"] + units)
-
-        # 執行篩選
-        df_view = df_records.copy()
-        if sel_year != "全部":
-            df_view = df_view[df_view['年份'] == sel_year]
-        if sel_q_dept != "全部":
-            df_view = df_view[df_view['所屬單位'] == sel_q_dept]
-        if sel_q_unit != "全部":
-            df_view = df_view[df_view['填報單位名稱'] == sel_q_unit]
-
-        # --- 3. 整合式資訊卡 (V234 強化版) ---
-        st.markdown("---")
-        
-        if not df_view.empty:
-            # 計算數據
-            total_emission = df_view['排放量(kgCO2e)'].sum()
+            # --- 2. 篩選區塊 ---
+            st.markdown("##### 🔍 查詢條件設定")
             
-            # 標題名稱邏輯
-            if sel_q_unit != "全部":
-                card_title = sel_q_unit
-            elif sel_q_dept != "全部":
-                card_title = sel_q_dept
-            else:
-                card_title = "全校總計"
+            # 第一排：單位選擇 (必填)
+            c_f1, c_f2 = st.columns(2)
+            
+            depts = sorted(df_records['所屬單位'].dropna().unique())
+            sel_q_dept = c_f1.selectbox("所屬單位 (必選)", depts, index=None, placeholder="請選擇...")
+            
+            units = []
+            if sel_q_dept:
+                units = sorted(df_records[df_records['所屬單位'] == sel_q_dept]['填報單位名稱'].dropna().unique())
+            sel_q_unit = c_f2.selectbox("填報單位名稱 (必選)", units, index=None, placeholder="請選擇...")
+            
+            # 第二排：日期區間
+            c_f3 = st.columns(1)[0]
+            
+            # 預設今年1/1到今天
+            today = datetime.now().date()
+            start_of_year = date(today.year, 1, 1)
+            
+            sel_date_range = c_f3.date_input(
+                "查詢起訖時間區間",
+                value=(start_of_year, today),
+                max_value=today
+            )
+
+            # --- 3. 執行篩選與顯示 ---
+            if sel_q_dept and sel_q_unit and len(sel_date_range) == 2:
+                start_date, end_date = sel_date_range
+                start_dt = pd.Timestamp(start_date)
+                end_dt = pd.Timestamp(end_date)
                 
-            # 填充資訊 (依種類加總)
-            fill_summary = df_view.groupby('冷媒種類')['冷媒填充量'].sum().reset_index()
-            
-            # 申報履歷 (顯示前5筆，避免過長)
-            dates_list = sorted(df_view['維修日期'].dt.strftime('%Y-%m-%d').unique(), reverse=True)
-            if len(dates_list) > 5:
-                dates_str = ", ".join(dates_list[:5]) + f" ... 等共 {len(dates_list)} 筆"
-            else:
-                dates_str = ", ".join(dates_list) if dates_list else "無"
+                # 篩選資料
+                mask = (
+                    (df_records['所屬單位'] == sel_q_dept) &
+                    (df_records['填報單位名稱'] == sel_q_unit) &
+                    (df_records['維修日期'] >= start_dt) &
+                    (df_records['維修日期'] <= end_dt)
+                )
+                df_view = df_records[mask]
+                
+                # --- 4. 準備顯示資訊 ---
+                # 左側文字邏輯
+                if sel_q_dept == sel_q_unit:
+                    left_html = f'<div class="dept-text">{sel_q_dept}</div>'
+                else:
+                    left_html = f'<div class="dept-text">{sel_q_dept}</div><div class="unit-text">{sel_q_unit}</div>'
+                
+                # 右側數據統計
+                total_count = len(df_view)
+                if total_count > 0:
+                    campus_str = ", ".join(sorted(df_view['校區'].unique()))
+                    # 建築物 (取前3個避免過長)
+                    builds = sorted(df_view['建築物名稱'].unique())
+                    build_str = ", ".join(builds[:3]) + (f" 等{len(builds)}棟" if len(builds)>3 else "")
+                    
+                    # 冷媒種類與填充量
+                    # 格式: R-410A (10kg), R-22 (5kg)
+                    type_sum = df_view.groupby('冷媒種類')['冷媒填充量'].sum()
+                    type_str_list = [f"{k} ({v:.2f}kg)" for k, v in type_sum.items()]
+                    type_str = ", ".join(type_str_list)
+                    
+                    total_fill = df_view['冷媒填充量'].sum()
+                    total_emission = df_view['排放量(kgCO2e)'].sum()
+                else:
+                    campus_str = "無資料"
+                    build_str = "無資料"
+                    type_str = "無資料"
+                    total_fill = 0.0
+                    total_emission = 0.0
 
-            # 產生 HTML (使用 f-string 組合)
-            fill_rows_html = ""
-            for _, row in fill_summary.iterrows():
-                fill_rows_html += f"""
-                <div class="fill-row">
-                    <span class="fill-type">{row['冷媒種類']}</span>
-                    <span class="fill-amount">{row['冷媒填充量']:.2f} kg</span>
-                </div>
-                """
-            
-            # 渲染卡片
-            st.markdown(f"""
-            <div class="info-card">
-                <div class="card-header">
-                    <div class="card-title">{card_title}</div>
-                    <div class="emission-box">
-                        <span class="emission-label">碳排放量</span><br>
-                        <span class="emission-value">{total_emission:,.2f}</span>
-                        <span class="emission-unit">kgCO2e</span>
+                # --- 5. 渲染橫式資訊卡 ---
+                st.markdown("---")
+                st.markdown(f"""
+                <div class="horizontal-card">
+                    <div class="card-left">
+                        {left_html}
+                    </div>
+                    <div class="card-right">
+                        <div class="info-row">
+                            <span class="info-icon">📅</span>
+                            <span class="info-label">查詢起訖時間區間</span>
+                            <span class="info-value">{start_date} ~ {end_date}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-icon">🏫</span>
+                            <span class="info-label">所在校區</span>
+                            <span class="info-value">{campus_str}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-icon">🏢</span>
+                            <span class="info-label">建築物名稱</span>
+                            <span class="info-value">{build_str}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-icon">🧪</span>
+                            <span class="info-label">冷媒種類</span>
+                            <span class="info-value">{type_str}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-icon">⚖️</span>
+                            <span class="info-label">冷媒填充重量統計</span>
+                            <span class="info-value">{total_fill:,.2f} 公斤</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-icon">🌍</span>
+                            <span class="info-label">碳排放量</span>
+                            <span class="info-value" style="color:#C0392B; font-weight:bold;">{total_emission:,.2f} 公斤二氧化碳當量</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-icon">📊</span>
+                            <span class="info-label">申報次數統計</span>
+                            <span class="info-value">{total_count} 次</span>
+                        </div>
                     </div>
                 </div>
-                <div class="card-body">
-                    {fill_rows_html}
-                </div>
-                <div class="card-footer">
-                    <strong>📅 歷次申報日期：</strong> {dates_str}
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        else:
-            st.warning("查無符合條件的資料。")
+                """, unsafe_allow_html=True)
 
-        # --- 4. 詳細資料列表 ---
-        st.markdown("### 📋 詳細清單")
-        show_cols = ["維修日期", "校區", "所屬單位", "填報單位名稱", "設備類型", "設備品牌型號", "冷媒種類", "冷媒填充量", "排放量(kgCO2e)", "佐證資料"]
-        # 再次確認欄位存在
-        valid_cols = [c for c in show_cols if c in df_view.columns]
-        
-        st.dataframe(
-            df_view[valid_cols].sort_values("維修日期", ascending=False),
-            use_container_width=True,
-            column_config={
-                "維修日期": st.column_config.DateColumn("維修日期", format="YYYY-MM-DD"),
-                "冷媒填充量": st.column_config.NumberColumn("填充量 (kg)", format="%.2f"),
-                "排放量(kgCO2e)": st.column_config.NumberColumn("排放量 (kgCO2e)", format="%.2f"),
-                "佐證資料": st.column_config.LinkColumn("佐證連結", display_text="開啟檔案")
-            }
-        )
+                # --- 6. 詳細填報明細 ---
+                st.markdown(f"##### 📋 {sel_q_dept} {sel_q_unit} 填報明細")
+                show_cols = ["維修日期", "校區", "建築物名稱", "設備類型", "設備品牌型號", "冷媒種類", "冷媒填充量", "排放量(kgCO2e)", "佐證資料"]
+                # 確保欄位存在
+                valid_cols = [c for c in show_cols if c in df_view.columns]
+                
+                st.dataframe(
+                    df_view[valid_cols].sort_values("維修日期", ascending=False),
+                    use_container_width=True,
+                    column_config={
+                        "維修日期": st.column_config.DateColumn("維修日期", format="YYYY-MM-DD"),
+                        "冷媒填充量": st.column_config.NumberColumn("填充量 (kg)", format="%.2f"),
+                        "排放量(kgCO2e)": st.column_config.NumberColumn("排放量 (kgCO2e)", format="%.2f"),
+                        "佐證資料": st.column_config.LinkColumn("佐證連結", display_text="開啟檔案")
+                    }
+                )
+                
+            else:
+                if not (sel_q_dept and sel_q_unit):
+                    st.info("👈 請先選擇「所屬單位」與「填報單位名稱」以開始查詢。")
