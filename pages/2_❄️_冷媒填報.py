@@ -21,30 +21,131 @@ def get_taiwan_time():
 if 'uploader_key' not in st.session_state:
     st.session_state['uploader_key'] = 0
 
-# 莫蘭迪色系
+# 莫蘭迪色系 (後台圖表用)
 MORANDI_COLORS = ['#889EAF', '#A3B18A', '#D4A373', '#E07A5F', '#B5838D', '#FFB4A2', '#E5989B', '#6D6875', '#F2CC8F', '#81B29A']
 
 # ==========================================
-# 1. 內建備援資料 (Fallback Data)
+# 1. 內建備援資料 (Fallback Data - 完整展開版)
 # ==========================================
-FALLBACK_UNIT_DATA = {'教務處': ['教務長室/副教務長室/專門委員室', '註冊與課務組', '教學發展組', '招生與出版組', '綜合行政組', '通識教育中心', '民雄教務'], '學生事務處': ['學務長室/副學務長室', '住宿服務組', '生活輔導組', '課外活動組', '學生輔導中心', '學生職涯發展中心', '衛生保健組', '原住民族學生資源中心', '特殊教育學生資源中心', '民雄學務'], '總務處': ['總務長室/副總務長室/簡任秘書室', '事務組', '出納組', '文書組', '資產經營管理組', '營繕組', '民雄總務', '新民聯辦', '駐衛警察隊'], '研究發展處': ['研發長室/副研發長室', '綜合企劃組', '學術發展組', '校務研究組'], '產學營運及推廣處': ['產學營運及推廣處長室', '行政管理組', '產學創育推廣中心'], '國際事務處': ['國際事務長室', '境外生事務組', '國際合作組'], '圖書資訊處': ['圖資長室', '圖資管理組', '資訊網路組', '諮詢服務組', '系統資訊組', '民雄圖書資訊', '新民分館', '民雄分館'], '校長室': ['校長室'], '行政副校長室': ['行政副校長室'], '學術副校長室': ['學術副校長室'], '國際副校長室': ['國際副校長室'], '秘書室': ['綜合業務組', '公共關係組', '校友服務組'], '體育室': ['蘭潭場館', '民雄場館', '林森場館', '新民場館'], '主計室': ['主計室'], '人事室': ['人事室'], '環境保護及安全管理中心': ['環境保護及安全管理中心'], '師資培育中心': ['師資培育中心主任室', '教育課程組', '實習輔導組', '綜合行政組'], '語言中心': ['主任室', '蘭潭語言中心', '民雄語言中心', '新民語言中心'], '理工學院': ['理工學院辦公室', '應用數學系', '電子物理學系', '應用化學系', '資訊工程學系', '生物機電工程學系', '土木與水資源工程學系', '水工與材料試驗場', '電機工程學系', '機械與能源工程學系'], '農學院': ['農學院辦公室', '農藝學系', '園藝學系', '森林暨自然資源學系', '木質材料與設計學系', '動物科學系', '農業經濟學系', '生物農業科技學系', '景觀學系', '植物醫學系', '農場管理進修學士學位學程'], '生命科學院': ['生命科學院辦公室', '食品科學系', '水生生物科學系', '生物資源學系', '生化科技學系', '微生物免疫與生物藥學系'], '管理學院': ['管理學院辦公室', '企業管理學系', '應用經濟學系', '生物事業管理學系', '資訊管理學系', '財務金融學系', '行銷與觀光管理學系', '全英文授課觀光暨管理學士學位學程'], '獸醫學院': ['獸醫學院辦公室', '獸醫學系', '雲嘉南動物疾病診斷中心', '動物醫院'], '師範學院': ['師範學院辦公室', '教育學系', '輔導與諮商學系', '體育與健康休閒學系', '特殊教育學系', '幼兒教育學系', '教育行政與政策發展研究所', '數理教育研究所'], '人文藝術學院': ['人文藝術學院辦公室', '中國文學系', '外國語言學系', '應用歷史學系', '視覺藝術學系', '音樂學系']}
-FALLBACK_BUILDING_DATA = {'蘭潭校區': ['A01行政中心', 'A02森林館', 'A03動物科學館', 'A04農園館', 'A05工程館', 'A06食品科學館', 'A07嘉禾館', 'A08瑞穗館', 'A09游泳池', 'A10機械與能源工程學系創新育成大樓', 'A11木材利用工廠', 'A12動物試驗場', 'A13司令台', 'A14學生活動中心', 'A15電物一館', 'A16理工大樓', 'A17應化一館', 'A18A應化二館', 'A18B電物二館', 'A19農藝場管理室', 'A20國際交流學園', 'A21水工與材料試驗場', 'A22食品加工廠', 'A23機電館', 'A24生物資源館', 'A25生命科學館', 'A26農業科學館', 'A27植物醫學系館', 'A28水生生物科學館', 'A29園藝場管理室', 'A30園藝技藝中心', 'A31圖書資訊館', 'A32綜合教學大樓', 'A33生物農業科技二館', 'A34嘉大植物園', 'A35生技健康館', 'A36景觀學系大樓', 'A37森林生物多樣性館', 'A38動物產品研發推廣中心', 'A39學生活動廣場', 'A40焚化爐設備車倉庫', 'A41生物機械產業實驗室', 'A44有機蔬菜溫室', 'A45蝴蝶蘭溫室', 'A46魚類保育研究中心', 'A71員工單身宿舍', 'A72學苑餐廳', 'A73學一舍', 'A74學二舍', 'A75學三舍', 'A76學五舍', 'A77學六舍', 'A78農產品展售中心', 'A79綠建築', 'A80嘉大昆蟲館', 'A81蘭潭招待所', 'A82警衛室'], '民雄校區': ['B01創意樓', 'B02大學館', 'B03教育館', 'B04新藝樓', 'B06警衛室', 'B07鍋爐間', 'B08司令台', 'B09加氯室', 'B10游泳池', 'B12工友室', 'BA行政大樓', 'BB初等教育館', 'BC圖書館', 'BD樂育堂', 'BE學人單身宿舍', 'BF綠園二舍', 'BG餐廳', 'BH綠園一舍', 'BI科學館', 'BJ人文館', 'BK音樂館', 'BL藝術館', 'BM文薈廳', 'BN社團教室'], '林森校區': ['C01警衛室', 'C02司令台', 'CA第一棟大樓', 'CB進修部大樓', 'CD國民輔導大樓', 'CE第二棟大樓', 'CF實輔室', 'CG圖書館', 'CH視聽教室', 'CI明德齋', 'CK餐廳', 'CL青雲齋', 'CN樂育堂', 'CP空大學習指導中心'], '新民校區': ['D01管理學院大樓A棟', 'D02管理學院大樓B棟', 'D03明德樓', 'D04獸醫館(獸醫學系、動物醫院、雲嘉南動物疾病診斷中心)', 'D05游泳池', 'D06溫室', 'D07司令台', 'D08警衛室'], '社口林場': ['E01林場實習館'], '林森校區-民國路': ['F01民國路進德樓']}
+FALLBACK_UNIT_DATA = {
+    '教務處': ['教務長室/副教務長室/專門委員室', '註冊與課務組', '教學發展組', '招生與出版組', '綜合行政組', '通識教育中心', '民雄教務'],
+    '學生事務處': ['學務長室/副學務長室', '住宿服務組', '生活輔導組', '課外活動組', '學生輔導中心', '學生職涯發展中心', '衛生保健組', '原住民族學生資源中心', '特殊教育學生資源中心', '民雄學務'],
+    '總務處': ['總務長室/副總務長室/簡任秘書室', '事務組', '出納組', '文書組', '資產經營管理組', '營繕組', '民雄總務', '新民聯辦', '駐衛警察隊'],
+    '研究發展處': ['研發長室/副研發長室', '綜合企劃組', '學術發展組', '校務研究組'],
+    '產學營運及推廣處': ['產學營運及推廣處長室', '行政管理組', '產學創育推廣中心'],
+    '國際事務處': ['國際事務長室', '境外生事務組', '國際合作組'],
+    '圖書資訊處': ['圖資長室', '圖資管理組', '資訊網路組', '諮詢服務組', '系統資訊組', '民雄圖書資訊', '新民分館', '民雄分館'],
+    '校長室': ['校長室'],
+    '行政副校長室': ['行政副校長室'],
+    '學術副校長室': ['學術副校長室'],
+    '國際副校長室': ['國際副校長室'],
+    '秘書室': ['綜合業務組', '公共關係組', '校友服務組'],
+    '體育室': ['蘭潭場館', '民雄場館', '林森場館', '新民場館'],
+    '主計室': ['主計室'],
+    '人事室': ['人事室'],
+    '環境保護及安全管理中心': ['環境保護及安全管理中心'],
+    '師資培育中心': ['師資培育中心主任室', '教育課程組', '實習輔導組', '綜合行政組'],
+    '語言中心': ['主任室', '蘭潭語言中心', '民雄語言中心', '新民語言中心'],
+    '理工學院': ['理工學院辦公室', '應用數學系', '電子物理學系', '應用化學系', '資訊工程學系', '生物機電工程學系', '土木與水資源工程學系', '水工與材料試驗場', '電機工程學系', '機械與能源工程學系'],
+    '農學院': ['農學院辦公室', '農藝學系', '園藝學系', '森林暨自然資源學系', '木質材料與設計學系', '動物科學系', '農業經濟學系', '生物農業科技學系', '景觀學系', '植物醫學系', '農場管理進修學士學位學程'],
+    '生命科學院': ['生命科學院辦公室', '食品科學系', '水生生物科學系', '生物資源學系', '生化科技學系', '微生物免疫與生物藥學系'],
+    '管理學院': ['管理學院辦公室', '企業管理學系', '應用經濟學系', '生物事業管理學系', '資訊管理學系', '財務金融學系', '行銷與觀光管理學系', '全英文授課觀光暨管理學士學位學程'],
+    '獸醫學院': ['獸醫學院辦公室', '獸醫學系', '雲嘉南動物疾病診斷中心', '動物醫院'],
+    '師範學院': ['師範學院辦公室', '教育學系', '輔導與諮商學系', '體育與健康休閒學系', '特殊教育學系', '幼兒教育學系', '教育行政與政策發展研究所', '數理教育研究所'],
+    '人文藝術學院': ['人文藝術學院辦公室', '中國文學系', '外國語言學系', '應用歷史學系', '視覺藝術學系', '音樂學系']
+}
+
+FALLBACK_BUILDING_DATA = {
+    '蘭潭校區': ['A01行政中心', 'A02森林館', 'A03動物科學館', 'A04農園館', 'A05工程館', 'A06食品科學館', 'A07嘉禾館', 'A08瑞穗館', 'A09游泳池', 'A10機械與能源工程學系創新育成大樓', 'A11木材利用工廠', 'A12動物試驗場', 'A13司令台', 'A14學生活動中心', 'A15電物一館', 'A16理工大樓', 'A17應化一館', 'A18A應化二館', 'A18B電物二館', 'A19農藝場管理室', 'A20國際交流學園', 'A21水工與材料試驗場', 'A22食品加工廠', 'A23機電館', 'A24生物資源館', 'A25生命科學館', 'A26農業科學館', 'A27植物醫學系館', 'A28水生生物科學館', 'A29園藝場管理室', 'A30園藝技藝中心', 'A31圖書資訊館', 'A32綜合教學大樓', 'A33生物農業科技二館', 'A34嘉大植物園', 'A35生技健康館', 'A36景觀學系大樓', 'A37森林生物多樣性館', 'A38動物產品研發推廣中心', 'A39學生活動廣場', 'A40焚化爐設備車倉庫', 'A41生物機械產業實驗室', 'A44有機蔬菜溫室', 'A45蝴蝶蘭溫室', 'A46魚類保育研究中心', 'A71員工單身宿舍', 'A72學苑餐廳', 'A73學一舍', 'A74學二舍', 'A75學三舍', 'A76學五舍', 'A77學六舍', 'A78農產品展售中心', 'A79綠建築', 'A80嘉大昆蟲館', 'A81蘭潭招待所', 'A82警衛室'],
+    '民雄校區': ['B01創意樓', 'B02大學館', 'B03教育館', 'B04新藝樓', 'B06警衛室', 'B07鍋爐間', 'B08司令台', 'B09加氯室', 'B10游泳池', 'B12工友室', 'BA行政大樓', 'BB初等教育館', 'BC圖書館', 'BD樂育堂', 'BE學人單身宿舍', 'BF綠園二舍', 'BG餐廳', 'BH綠園一舍', 'BI科學館', 'BJ人文館', 'BK音樂館', 'BL藝術館', 'BM文薈廳', 'BN社團教室'],
+    '林森校區': ['C01警衛室', 'C02司令台', 'CA第一棟大樓', 'CB進修部大樓', 'CD國民輔導大樓', 'CE第二棟大樓', 'CF實輔室', 'CG圖書館', 'CH視聽教室', 'CI明德齋', 'CK餐廳', 'CL青雲齋', 'CN樂育堂', 'CP空大學習指導中心'],
+    '新民校區': ['D01管理學院大樓A棟', 'D02管理學院大樓B棟', 'D03明德樓', 'D04獸醫館(獸醫學系、動物醫院、雲嘉南動物疾病診斷中心)', 'D05游泳池', 'D06溫室', 'D07司令台', 'D08警衛室'],
+    '社口林場': ['E01林場實習館'],
+    '林森校區-民國路': ['F01民國路進德樓']
+}
+
 FALLBACK_EQUIP_TYPES = ['冰水主機', '冰箱', '冷凍櫃', '冷氣', '冷藏櫃', '飲水機']
-FALLBACK_REF_TYPES = ['HFC-1234yf 或 R-1234yf (2,3,3,3-四氟1-丙烯)，CF3CF=CH2', 'HFC-125 或 R-125 (1,1,1,2,2-五氟乙烷)，CHF2CF3', 'HFC-134a 或 R-134a (1,1,1,2-四氟乙烷)，CH2FCF3', 'HFC-143a 或 R-143a (1,1,1-三氟乙烷)，CH3CF3', 'HFC-23 或 R-23 (三氟甲烷)，CHF3', 'HFC-245fa 或 R-245fa (1,1,1,3,3-五氟丙烷)，CHF2CH2CF3', 'HFC-32 或 R-32 (二氟甲烷)，CH2F2', 'R-402A，HFC-125/HC-290/HCFC-22(60.0/2.0/38.0)', 'R-407D，HFC-32/HFC-125/HFC-134a(15.0/15.0/70.0)', 'R-411A，HC-1270/HCFC-22/HFC-152a(1.5/87.5/11.0)', 'R-507A，HFC-125/HFC-143a(50.0/50.0)', 'R-508A，HFC-23/PFC-116(39.0/61.0)', 'R-508B，HFC-23/PFC-116(46.0/54.0)', 'R404a，HFC-125/HFC-143a/HFC-134a(44.0/52.0/4.0)', 'R407c，HFC-32/HFC-125/HFC-134a(23.0/25.0/52.0)', 'R408a，HFC-125/HFC-143a/HCFC-22(7.0/46.0/47.0)', 'R410a，HFC-32/HFC-125(50.0/50.0)']
-FALLBACK_GWP_MAP = {'HFC-1234yf 或 R-1234yf (2,3,3,3-四氟1-丙烯)，CF3CF=CH2': 0.0, 'HFC-125 或 R-125 (1,1,1,2,2-五氟乙烷)，CHF2CF3': 3170.0, 'HFC-134a 或 R-134a (1,1,1,2-四氟乙烷)，CH2FCF3': 1300.0, 'HFC-143a 或 R-143a (1,1,1-三氟乙烷)，CH3CF3': 4800.0, 'HFC-245fa 或 R-245fa (1,1,1,3,3-五氟丙烷)，CHF2CH2CF3': 858.0, 'R404a，HFC-125/HFC-143a/HFC-134a(44.0/52.0/4.0)': 3942.8, 'R407c，HFC-32/HFC-125/HFC-134a(23.0/25.0/52.0)': 1624.21, 'R-407D，HFC-32/HFC-125/HFC-134a(15.0/15.0/70.0)': 1487.05, 'R408a，HFC-125/HFC-143a/HCFC-22(7.0/46.0/47.0)': 2429.9, 'R410a，HFC-32/HFC-125(50.0/50.0)': 1923.5, 'R-507A，HFC-125/HFC-143a(50.0/50.0)': 3985.0, 'R-508A，HFC-23/PFC-116(39.0/61.0)': 11607.0, 'R-508B，HFC-23/PFC-116(46.0/54.0)': 11698.0, 'HFC-23 或 R-23 (三氟甲烷)，CHF3': 12400.0, 'HFC-32 或 R-32 (二氟甲烷)，CH2F2': 677.0, 'R-411A，HC-1270/HCFC-22/HFC-152a(1.5/87.5/11.0)': 0.0, 'R-402A，HFC-125/HC-290/HCFC-22(60.0/2.0/38.0)': 0.0}
+
+FALLBACK_REF_TYPES = [
+    'HFC-1234yf 或 R-1234yf (2,3,3,3-四氟1-丙烯)，CF3CF=CH2', 'HFC-125 或 R-125 (1,1,1,2,2-五氟乙烷)，CHF2CF3',
+    'HFC-134a 或 R-134a (1,1,1,2-四氟乙烷)，CH2FCF3', 'HFC-143a 或 R-143a (1,1,1-三氟乙烷)，CH3CF3',
+    'HFC-23 或 R-23 (三氟甲烷)，CHF3', 'HFC-245fa 或 R-245fa (1,1,1,3,3-五氟丙烷)，CHF2CH2CF3',
+    'HFC-32 或 R-32 (二氟甲烷)，CH2F2', 'R-402A，HFC-125/HC-290/HCFC-22(60.0/2.0/38.0)',
+    'R-407D，HFC-32/HFC-125/HFC-134a(15.0/15.0/70.0)', 'R-411A，HC-1270/HCFC-22/HFC-152a(1.5/87.5/11.0)',
+    'R-507A，HFC-125/HFC-143a(50.0/50.0)', 'R-508A，HFC-23/PFC-116(39.0/61.0)',
+    'R-508B，HFC-23/PFC-116(46.0/54.0)', 'R404a，HFC-125/HFC-143a/HFC-134a(44.0/52.0/4.0)',
+    'R407c，HFC-32/HFC-125/HFC-134a(23.0/25.0/52.0)', 'R408a，HFC-125/HFC-143a/HCFC-22(7.0/46.0/47.0)',
+    'R410a，HFC-32/HFC-125(50.0/50.0)'
+]
+
+FALLBACK_GWP_MAP = {
+    'HFC-1234yf 或 R-1234yf (2,3,3,3-四氟1-丙烯)，CF3CF=CH2': 0.0, 'HFC-125 或 R-125 (1,1,1,2,2-五氟乙烷)，CHF2CF3': 3170.0,
+    'HFC-134a 或 R-134a (1,1,1,2-四氟乙烷)，CH2FCF3': 1300.0, 'HFC-143a 或 R-143a (1,1,1-三氟乙烷)，CH3CF3': 4800.0,
+    'HFC-245fa 或 R-245fa (1,1,1,3,3-五氟丙烷)，CHF2CH2CF3': 858.0, 'R404a，HFC-125/HFC-143a/HFC-134a(44.0/52.0/4.0)': 3942.8,
+    'R407c，HFC-32/HFC-125/HFC-134a(23.0/25.0/52.0)': 1624.21, 'R-407D，HFC-32/HFC-125/HFC-134a(15.0/15.0/70.0)': 1487.05,
+    'R408a，HFC-125/HFC-143a/HCFC-22(7.0/46.0/47.0)': 2429.9, 'R410a，HFC-32/HFC-125(50.0/50.0)': 1923.5,
+    'R-507A，HFC-125/HFC-143a(50.0/50.0)': 3985.0, 'R-508A，HFC-23/PFC-116(39.0/61.0)': 11607.0,
+    'R-508B，HFC-23/PFC-116(46.0/54.0)': 11698.0, 'HFC-23 或 R-23 (三氟甲烷)，CHF3': 12400.0,
+    'HFC-32 或 R-32 (二氟甲烷)，CH2F2': 677.0, 'R-411A，HC-1270/HCFC-22/HFC-152a(1.5/87.5/11.0)': 0.0,
+    'R-402A，HFC-125/HC-290/HCFC-22(60.0/2.0/38.0)': 0.0
+}
 
 # ==========================================
-# 2. CSS 樣式
+# 2. CSS 樣式 (UI 美化區 - V253 修正版)
 # ==========================================
 st.markdown("""
 <style>
-    button[data-baseweb="tab"] div p { font-size: 1.2rem !important; font-weight: 700 !important; }
-    .morandi-header { background-color: #EBF5FB; color: #2E4053; padding: 15px; border-radius: 8px; border-left: 8px solid #5499C7; font-size: 1.35rem; font-weight: 700; margin-top: 25px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-    .privacy-box { background-color: #F8F9F9; border: 1px solid #BDC3C7; padding: 20px; border-radius: 8px; font-size: 0.95rem; color: #566573; line-height: 1.8; margin-bottom: 15px; }
+    /* 1. 分頁標籤放大且顏色醒目 (橘底白字) */
+    button[data-baseweb="tab"] {
+        font-size: 1.3rem !important;
+        font-weight: 700 !important;
+        background-color: #E67E22 !important; /* 橘色底 */
+        color: white !important;
+        border-radius: 8px 8px 0 0 !important;
+        margin-right: 5px !important;
+        padding: 10px 20px !important;
+    }
+    
+    /* 選中狀態的分頁 */
+    button[data-baseweb="tab"][aria-selected="true"] {
+        background-color: #D35400 !important; /* 深橘色 */
+        color: white !important;
+    }
+    
+    /* 分頁文字 */
+    button[data-baseweb="tab"] div p {
+        font-size: 1.2rem !important;
+        font-weight: 700 !important;
+        color: white !important;
+    }
+    
+    /* 莫蘭迪色標題區塊 */
+    .morandi-header {
+        background-color: #EBF5FB; color: #2E4053; padding: 15px; border-radius: 8px; border-left: 8px solid #5499C7;
+        font-size: 1.35rem; font-weight: 700; margin-top: 25px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+
+    /* 個資聲明區塊 */
+    .privacy-box {
+        background-color: #F8F9F9; border: 1px solid #BDC3C7; padding: 20px; border-radius: 8px;
+        font-size: 0.95rem; color: #566573; line-height: 1.8; margin-bottom: 15px;
+    }
+    
+    /* 誤繕提醒文字 */
     .correction-note { color: #566573; font-size: 0.9rem; margin-top: -10px; margin-bottom: 20px; }
+    
+    /* 個資聲明勾選文字 */
     [data-testid="stCheckbox"] label p { font-size: 1.15rem !important; font-weight: 700 !important; color: #2E4053 !important; }
-    .horizontal-card { display: flex; border: 1px solid #BDC3C7; border-radius: 12px; overflow: hidden; margin-bottom: 25px; box-shadow: 0 4px 8px rgba(0,0,0,0.08); background-color: #FFFFFF; min-height: 250px; }
-    .card-left { flex: 2; background-color: #34495E; color: #FFFFFF; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 20px; text-align: center; border-right: 1px solid #2C3E50; }
+
+    /* 橫式資訊卡 (2:8) - 前台 */
+    .horizontal-card {
+        display: flex; border: 1px solid #BDC3C7; border-radius: 12px; overflow: hidden; margin-bottom: 25px;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.08); background-color: #FFFFFF; min-height: 250px;
+    }
+    .card-left {
+        flex: 2; background-color: #34495E; color: #FFFFFF; display: flex; flex-direction: column;
+        justify-content: center; align-items: center; padding: 20px; text-align: center; border-right: 1px solid #2C3E50;
+    }
     .dept-text { font-size: 1.4rem; font-weight: 700; margin-bottom: 8px; }
     .unit-text { font-size: 1.1rem; font-weight: 500; opacity: 0.9; }
     .card-right { flex: 8; padding: 20px 30px; display: flex; flex-direction: column; justify-content: center; }
@@ -53,11 +154,18 @@ st.markdown("""
     .info-icon { margin-right: 12px; font-size: 1.1rem; width: 25px; text-align: center; margin-top: 2px; }
     .info-label { font-weight: 600; margin-right: 10px; min-width: 150px; color: #2E4053; }
     .info-value { font-weight: 500; color: #17202A; flex: 1; }
-    .kpi-card { background-color: white; border-radius: 10px; padding: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); text-align: center; border: 1px solid #E0E0E0; margin-bottom: 15px; }
+    
+    /* KPI 圖卡 - 後台 */
+    .kpi-card {
+        background-color: white; border-radius: 10px; padding: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        text-align: center; border: 1px solid #E0E0E0; margin-bottom: 15px;
+    }
     .kpi-title { font-size: 1.1rem; color: #555; margin-bottom: 5px; font-weight: 600; }
     .kpi-value { font-size: 2.2rem; color: #2C3E50; font-weight: 800; }
     .kpi-unit { font-size: 1rem; color: #888; margin-left: 5px; }
     .co2-card .kpi-value { color: #C0392B; }
+    
+    /* 上傳區樣式 */
     [data-testid="stFileUploaderDropzone"] { background-color: #D6EAF8; border: 2px dashed #2E86C1; padding: 20px; }
 </style>
 """, unsafe_allow_html=True)
@@ -85,10 +193,11 @@ except Exception as e:
     st.error(f"❌ 資料庫連線失敗: {e}")
     st.stop()
 
-# 5. 資料讀取 (全功能載入)
+# 5. 資料讀取 (全功能載入：含前台選單 + 後台數據)
 @st.cache_data(ttl=600)
 def load_data_all_robust():
     try:
+        # 1. 單位資訊
         ws_units = sh_ref.worksheet("單位資訊")
         unit_data = ws_units.get_all_values()
         unit_dict = {}
@@ -100,6 +209,7 @@ def load_data_all_robust():
                         if dept not in unit_dict: unit_dict[dept] = []
                         if unit not in unit_dict[dept]: unit_dict[dept].append(unit)
         
+        # 2. 建築物清單
         ws_buildings = sh_ref.worksheet("建築物清單")
         building_data = ws_buildings.get_all_values()
         build_dict = {}
@@ -111,10 +221,12 @@ def load_data_all_robust():
                         if campus not in build_dict: build_dict[campus] = []
                         if b_name not in build_dict[campus]: build_dict[campus].append(b_name)
 
+        # 3. 設備類型
         ws_types = sh_ref.worksheet("設備類型")
         type_data = ws_types.get_all_values()
         e_types = sorted([row[0] for row in type_data[1:] if row]) if len(type_data) > 1 else []
         
+        # 4. 冷媒係數 (GWP)
         ws_coef = sh_ref.worksheet("冷媒係數表")
         coef_data = ws_coef.get_all_values()
         r_types = []; gwp_map = {}
@@ -131,6 +243,7 @@ def load_data_all_robust():
             except:
                 r_types = sorted([row[1] for row in coef_data[1:] if len(row) > 1 and row[1]])
 
+        # 5. 填報紀錄
         try: ws_records = sh_ref.worksheet("冷媒填報紀錄")
         except:
             ws_records = sh_ref.add_worksheet(title="冷媒填報紀錄", rows="1000", cols="15")
@@ -150,6 +263,7 @@ def load_data_all_robust():
             df_records = pd.DataFrame(records_data[1:], columns=raw_headers)
             df_records.rename(columns=col_mapping, inplace=True)
             
+            # 數據處理
             df_records['冷媒填充量'] = pd.to_numeric(df_records['冷媒填充量'], errors='coerce').fillna(0)
             df_records['維修日期'] = pd.to_datetime(df_records['維修日期'], errors='coerce')
             df_records['年份'] = df_records['維修日期'].dt.year.fillna(datetime.now().year).astype(int)
@@ -168,19 +282,22 @@ def load_data_all_robust():
     except Exception as e:
         return FALLBACK_UNIT_DATA, FALLBACK_BUILDING_DATA, FALLBACK_EQUIP_TYPES, sorted(FALLBACK_REF_TYPES), FALLBACK_GWP_MAP, pd.DataFrame(), False
 
+# 呼叫載入
 unit_dict, build_dict, e_types, r_types, gwp_map, df_records, load_success = load_data_all_robust()
 
 # ==========================================
 # 6. 介面控制邏輯
 # ==========================================
-st.title("❄️ 冷媒填報專區")
-
 if not load_success:
     st.warning("⚠️ 網路連線不穩，目前使用備援資料模式。")
 
+# 判斷是否為管理員
 is_admin = st.session_state.get("username") == "admin"
+
+# 預設模式
 mode = "📝 一般填報/查詢"
 
+# 管理員可在主畫面上方切換模式
 if is_admin:
     mode = st.radio("檢視模式", ["📝 一般填報/查詢", "⚙️ 管理員後台"], horizontal=True, label_visibility="collapsed")
     st.markdown("---")
@@ -189,12 +306,15 @@ if is_admin:
 # 7. 模式 A: 前台 (填報 + 查詢)
 # ==========================================
 if mode == "📝 一般填報/查詢":
+    st.title("❄️ 冷媒填報專區")
+    
     if st.button("🔄 刷新資料庫 (若更新Excel請點此)", type="secondary"):
         st.cache_data.clear()
         st.rerun()
 
     tabs = st.tabs(["📝 新增填報", "📋 申報動態查詢"])
 
+    # --- Tab 1: 新增填報 ---
     with tabs[0]:
         st.markdown('<div class="morandi-header">填報單位基本資訊區</div>', unsafe_allow_html=True)
         c1, c2 = st.columns(2)
@@ -263,13 +383,15 @@ if mode == "📝 一般填報/查詢":
                     st.cache_data.clear()
                     time.sleep(1.5)
                     
-                    keys_to_clear = ["k_dept", "k_unit", "k_name", "k_ext", "k_campus", "k_build", "k_office", "k_etype", "k_model", "k_rtype", "k_amount", "k_note", "k_agree"]
+                    # 只清空設備與數值
+                    keys_to_clear = ["k_etype", "k_model", "k_rtype", "k_amount", "k_note", "k_agree"]
                     for key in keys_to_clear:
                         if key in st.session_state: del st.session_state[key]
                     st.session_state['uploader_key'] += 1
                     st.rerun()
                 except Exception as e: st.error(f"上傳或寫入失敗: {e}")
 
+    # --- Tab 2: 申報動態查詢 ---
     with tabs[1]:
         st.markdown('<div class="morandi-header">📋 申報動態查詢</div>', unsafe_allow_html=True)
         if df_records.empty: st.info("目前尚無填報紀錄。")
@@ -347,14 +469,15 @@ if mode == "📝 一般填報/查詢":
 # 8. 模式 B: 後台 (管理儀表板)
 # ==========================================
 elif mode == "⚙️ 管理員後台":
+    st.title("⚙️ 冷媒管理後台")
+    
     back_tabs = st.tabs(["📝 申報資料異動", "📊 全校冷媒填充儀表板"])
     
-    # --- Tab 1: 資料異動 ---
+    # --- Tab 1: 資料異動 (含下載) ---
     with back_tabs[0]:
         if df_records.empty:
             st.warning("目前尚無填報資料")
         else:
-            # 下載區
             c_down1, c_down2 = st.columns([4, 1])
             years = sorted(df_records['年份'].unique(), reverse=True)
             sel_year_dl = c_down1.selectbox("📅 選擇下載年度", ["全部"] + list(years), index=0)
@@ -362,28 +485,40 @@ elif mode == "⚙️ 管理員後台":
             if sel_year_dl == "全部": df_dl = df_records
             else: df_dl = df_records[df_records['年份'] == sel_year_dl]
             
+            # 下載按鈕排版優化：插入空行讓它往下移
+            st.markdown("<br>", unsafe_allow_html=True)
             csv = df_dl.to_csv(index=False).encode('utf-8-sig')
             c_down2.download_button("📥 下載資料 (CSV)", data=csv, file_name=f"冷媒填報_{sel_year_dl}.csv", mime="text/csv", type="primary")
             
             st.markdown("---")
             st.markdown("### 🛠️ 線上資料編輯")
-            st.info("💡 修改後請務必點擊下方的「💾 儲存變更」按鈕，資料才會寫入資料庫。")
+            st.info("💡 您可以直接在下方表格修改資料。修改完畢後，請務必點擊底部的「💾 儲存變更」按鈕，資料才會寫入資料庫。")
             
-            # 編輯器 (排除計算欄位，避免誤改)
+            # 編輯器 (排除後台計算欄位)
             editable_cols = ["填報時間","填報人","填報人分機","校區","所屬單位","填報單位名稱","建築物名稱","辦公室編號","維修日期","設備類型","設備品牌型號","冷媒種類","冷媒填充量","備註","佐證資料"]
-            edited_df = st.data_editor(df_records[editable_cols], num_rows="dynamic", use_container_width=True)
+            valid_edit_cols = [c for c in editable_cols if c in df_records.columns]
+            edited_df = st.data_editor(df_records[valid_edit_cols], num_rows="dynamic", use_container_width=True, height=500)
             
             if st.button("💾 儲存變更", type="primary"):
                 try:
-                    # 重新連線
+                    # 連線
                     ws_target = sh_ref.worksheet("冷媒填報紀錄")
                     # 清空舊資料
                     ws_target.clear()
-                    # 準備新資料 (含標題)
-                    updated_data = [editable_cols] + edited_df.values.tolist()
+                    
+                    # 處理數據：將所有日期時間物件轉為字串，避免 JSON 序列化錯誤
+                    df_to_save = edited_df.copy()
+                    for col in df_to_save.columns:
+                        # 強制轉為字串
+                        df_to_save[col] = df_to_save[col].astype(str)
+                    
+                    # 準備新資料 (含標題，轉為 List)
+                    updated_data = [valid_edit_cols] + df_to_save.values.tolist()
+                    
                     # 寫入
                     ws_target.update(updated_data)
-                    st.success("✅ 資料已更新！")
+                    
+                    st.success("✅ 資料已成功更新！")
                     st.cache_data.clear()
                     time.sleep(1.5)
                     st.rerun()
