@@ -16,19 +16,6 @@ def get_taiwan_time():
     return datetime.utcnow() + timedelta(hours=8)
 
 # ==========================================
-# 1. 內建靜態資料 (僅保留建築物，單位改為動態讀取)
-# ==========================================
-# 建築物清單維持靜態 (若需改動態亦可調整，目前依需求維持現狀)
-BUILDING_DATA = {
-    '蘭潭校區': ['A01行政中心', 'A02森林館', 'A03動物科學館', 'A04農園館', 'A05工程館', 'A06食品科學館', 'A07嘉禾館', 'A08瑞穗館', 'A09游泳池', 'A10機械與能源工程學系創新育成大樓', 'A11木材利用工廠', 'A12動物試驗場', 'A13司令台', 'A14學生活動中心', 'A15電物一館', 'A16理工大樓', 'A17應化一館', 'A18A應化二館', 'A18B電物二館', 'A19農藝場管理室', 'A20國際交流學園', 'A21水工與材料試驗場', 'A22食品加工廠', 'A23機電館', 'A24生物資源館', 'A25生命科學館', 'A26農業科學館', 'A27植物醫學系館', 'A28水生生物科學館', 'A29園藝場管理室', 'A30園藝技藝中心', 'A31圖書資訊館', 'A32綜合教學大樓', 'A33生物農業科技二館', 'A34嘉大植物園', 'A35生技健康館', 'A36景觀學系大樓', 'A37森林生物多樣性館', 'A38動物產品研發推廣中心', 'A39學生活動廣場', 'A40焚化爐設備車倉庫', 'A41生物機械產業實驗室', 'A44有機蔬菜溫室', 'A45蝴蝶蘭溫室', 'A46魚類保育研究中心', 'A71員工單身宿舍', 'A72學苑餐廳', 'A73學一舍', 'A74學二舍', 'A75學三舍', 'A76學五舍', 'A77學六舍', 'A78農產品展售中心', 'A79綠建築', 'A80嘉大昆蟲館', 'A81蘭潭招待所', 'A82警衛室'],
-    '民雄校區': ['B01創意樓', 'B02大學館', 'B03教育館', 'B04新藝樓', 'B06警衛室', 'B07鍋爐間', 'B08司令台', 'B09加氯室', 'B10游泳池', 'B12工友室', 'BA行政大樓', 'BB初等教育館', 'BC圖書館', 'BD樂育堂', 'BE學人單身宿舍', 'BF綠園二舍', 'BG餐廳', 'BH綠園一舍', 'BI科學館', 'BJ人文館', 'BK音樂館', 'BL藝術館', 'BM文薈廳', 'BN社團教室'],
-    '林森校區': ['C01警衛室', 'C02司令台', 'CA第一棟大樓', 'CB進修部大樓', 'CD國民輔導大樓', 'CE第二棟大樓', 'CF實輔室', 'CG圖書館', 'CH視聽教室', 'CI明德齋', 'CK餐廳', 'CL青雲齋', 'CN樂育堂', 'CP空大學習指導中心'],
-    '新民校區': ['D01管理學院大樓A棟', 'D02管理學院大樓B棟', 'D03明德樓', 'D04嘉大動物醫院', 'D05游泳池', 'D06溫室', 'D07司令台', 'D08警衛室'],
-    '蘭潭校區-社口林場': ['E01林場實習館'],
-    '林森校區-民國路': ['F01民國路游泳池']
-}
-
-# ==========================================
 # 2. CSS 樣式 (UI 美化區)
 # ==========================================
 st.markdown("""
@@ -80,7 +67,7 @@ st.markdown("""
         color: #2E4053 !important;
     }
 
-    /* 4. 橫式資訊卡 (V238 Update) */
+    /* 4. 橫式資訊卡 (V239 Update) */
     .horizontal-card {
         display: flex;
         border: 1px solid #BDC3C7;
@@ -157,7 +144,8 @@ try:
     sh_ref = gc.open_by_key(REF_SHEET_ID)
     
     # 讀取必要分頁
-    ws_units = sh_ref.worksheet("單位資訊") # V238: 新增讀取單位資訊
+    ws_units = sh_ref.worksheet("單位資訊") 
+    ws_buildings = sh_ref.worksheet("建築物清單") # V239: 新增讀取建築物清單
     ws_types = sh_ref.worksheet("設備類型")
     ws_coef = sh_ref.worksheet("冷媒係數表")
     
@@ -170,7 +158,7 @@ except Exception as e:
     st.error(f"❌ 資料庫連線失敗: {e}")
     st.stop()
 
-# 5. 資料讀取 (選項與紀錄 - V238 全動態版)
+# 5. 資料讀取 (選項與紀錄 - V239 完全動態版)
 @st.cache_data(ttl=60)
 def load_data_all():
     # 1. 單位資訊 (動態讀取)
@@ -179,7 +167,6 @@ def load_data_all():
     if len(unit_data) > 1:
         for row in unit_data[1:]:
             if len(row) >= 2:
-                # 去除空白
                 dept = str(row[0]).strip()
                 unit = str(row[1]).strip()
                 if dept and unit:
@@ -188,11 +175,25 @@ def load_data_all():
                     if unit not in unit_dict[dept]:
                         unit_dict[dept].append(unit)
     
-    # 2. 設備類型選項
+    # 2. 建築物清單 (動態讀取 V239)
+    building_data = ws_buildings.get_all_values()
+    build_dict = {}
+    if len(building_data) > 1:
+        for row in building_data[1:]:
+            if len(row) >= 2:
+                campus = str(row[0]).strip()
+                b_name = str(row[1]).strip()
+                if campus and b_name:
+                    if campus not in build_dict:
+                        build_dict[campus] = []
+                    if b_name not in build_dict[campus]:
+                        build_dict[campus].append(b_name)
+
+    # 3. 設備類型選項
     type_data = ws_types.get_all_values()
     e_types = sorted([row[0] for row in type_data[1:] if row]) if len(type_data) > 1 else []
     
-    # 3. 係數表 (建立 GWP 對照表)
+    # 4. 係數表 (建立 GWP 對照表)
     coef_data = ws_coef.get_all_values()
     r_types = []
     gwp_map = {}
@@ -214,7 +215,7 @@ def load_data_all():
         except:
             r_types = sorted([row[1] for row in coef_data[1:] if len(row) > 1 and row[1]])
 
-    # 4. 填報紀錄
+    # 5. 填報紀錄
     records_data = ws_records.get_all_values()
     if len(records_data) > 1:
         raw_headers = records_data[0]
@@ -235,10 +236,10 @@ def load_data_all():
     else:
         df_records = pd.DataFrame(columns=["填報時間","填報人","填報人分機","校區","所屬單位","填報單位名稱","建築物名稱","辦公室編號","維修日期","設備類型","設備品牌型號","冷媒種類","冷媒填充量","備註","佐證資料"])
 
-    return unit_dict, e_types, sorted(r_types), gwp_map, df_records
+    return unit_dict, build_dict, e_types, sorted(r_types), gwp_map, df_records
 
 # 呼叫載入函式
-unit_dict, e_types, r_types, gwp_map, df_records = load_data_all()
+unit_dict, build_dict, e_types, r_types, gwp_map, df_records = load_data_all()
 
 # 6. 頁面介面
 st.title("❄️ 冷媒填報專區")
@@ -269,14 +270,15 @@ with tabs[0]:
     
     st.markdown('<div class="morandi-header">冷媒設備所在位置資訊區</div>', unsafe_allow_html=True)
     
-    loc_campuses = sorted(BUILDING_DATA.keys())
+    # 使用動態讀取的 build_dict
+    loc_campuses = sorted(build_dict.keys())
     sel_loc_campus = st.selectbox("填報單位所在校區", loc_campuses, index=None, placeholder="請選擇校區...")
     
     c6, c7 = st.columns(2)
     
     buildings = []
     if sel_loc_campus:
-        buildings = sorted(BUILDING_DATA.get(sel_loc_campus, []))
+        buildings = sorted(build_dict.get(sel_loc_campus, []))
     sel_build = c6.selectbox("建築物名稱", buildings, index=None, placeholder="請先選擇校區...")
     
     office = c7.text_input("辦公室編號", placeholder="例如：202辦公室、306研究室")
@@ -423,7 +425,6 @@ with tabs[1]:
                         equip_str = ", ".join(sorted(df_view['設備類型'].unique()))
                         
                         # 新增: 冷媒填充資訊 (逐筆明細)
-                        # 格式: HFC-32...：0.9公斤
                         fill_details = []
                         for _, row in df_view.iterrows():
                             fill_details.append(f"<div>• {row['冷媒種類']}：{row['冷媒填充量']:.2f} 公斤</div>")
