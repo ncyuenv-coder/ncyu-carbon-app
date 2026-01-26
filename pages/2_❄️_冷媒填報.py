@@ -298,7 +298,7 @@ def render_user_interface():
                     st.success("✅ 冷媒填報成功！"); st.balloons()
                 except Exception as e: st.error(f"上傳或寫入失敗: {e}")
 
-    # --- Tab 2: 申報動態查詢 (V261.0 改版) ---
+    # --- Tab 2: 申報動態查詢 (V262.0 改版) ---
     with tabs[1]:
         st.markdown('<div class="morandi-header">📋 申報動態查詢</div>', unsafe_allow_html=True)
         if df_records.empty:
@@ -326,19 +326,20 @@ def render_user_interface():
                     campus_str = ", ".join(sorted(df_view['校區'].unique()))
                     build_str = ", ".join(sorted(df_view['建築物名稱'].unique())[:3])
                     
-                    # V261.0: 資訊整合 (設備類型-冷媒種類)
+                    # 資訊整合 (設備類型-冷媒種類)
                     fill_info_list = []
                     for _, row in df_view.iterrows():
                         fill_info_list.append(f"<div>• {row['設備類型']}-{row['冷媒種類']}：{row['冷媒填充量']:.2f} kg</div>")
                     fill_info_str = "".join(fill_info_list)
 
-                    # V261.0: 重量統計優化 (總計 + 分類)
+                    # 重量統計優化 (V262: 總計粗體)
                     total_kg = df_view['冷媒填充量'].sum()
                     type_sums = df_view.groupby('冷媒種類')['冷媒填充量'].sum().reset_index()
-                    weight_str = f"<div><strong>總計：{total_kg:.2f} kg</strong></div>"
+                    weight_str = f"<div style='font-weight: 900; margin-bottom: 5px; font-size: 1.05rem;'>總計：{total_kg:.2f} kg</div>"
                     for _, row in type_sums.iterrows():
                         weight_str += f"<div>• {row['冷媒種類']}：{row['冷媒填充量']:.2f} kg</div>"
 
+                    # V262: 碳排紅字
                     total_emission = df_view['排放量(kgCO2e)'].sum()
 
                     st.markdown("---")
@@ -356,16 +357,19 @@ def render_user_interface():
                     </div>
                     """, unsafe_allow_html=True)
                     
+                    # V262: 新增區塊名稱與間隔
+                    st.markdown("<br>", unsafe_allow_html=True)
+                    st.subheader("📋 單位申報明細")
                     st.dataframe(df_view[["維修日期", "建築物名稱", "設備類型", "冷媒種類", "冷媒填充量", "排放量(kgCO2e)", "佐證資料"]], use_container_width=True)
                 else: st.warning("查無資料")
             else: st.info("請選擇單位進行查詢")
 
 # ==========================================
-# 6. 功能模組：管理員後台 (V261 - 移除參數分頁)
+# 6. 功能模組：管理員後台
 # ==========================================
 def render_admin_dashboard():
     st.markdown("### 👑 冷媒管理後台")
-    admin_tabs = st.tabs(["📊 全校冷媒填充儀表板", "📝 申報資料異動"]) # V261: 剩 2 頁
+    admin_tabs = st.tabs(["📊 全校冷媒填充儀表板", "📝 申報資料異動"])
 
     # 資料預處理
     df_clean = df_records.copy()
