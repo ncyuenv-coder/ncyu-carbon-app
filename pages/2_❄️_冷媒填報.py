@@ -165,13 +165,13 @@ except Exception as e:
     st.error(f"❌ 資料庫連線失敗: {e}")
     st.stop()
 
-# 4. 資料讀取 (V278.0 - 檔名校正回歸)
-# 檔案名稱對應 (回復為無日期版本)
+# 4. 資料讀取 (V278.0 - 檔名校正版)
 CSV_FILES = {
     "unit": "冷媒設備盤查資料庫_標準化.xlsx - 單位資訊.csv",
     "build": "冷媒設備盤查資料庫_標準化.xlsx - 建築物清單.csv",
     "type": "冷媒設備盤查資料庫_標準化.xlsx - 設備類型.csv",
-    "coef": "冷媒設備盤查資料庫_標準化.xlsx - 冷媒係數表.csv"
+    "coef": "冷媒設備盤查資料庫_標準化.xlsx - 冷媒係數表.csv",
+    "record": "冷媒設備盤查資料庫_標準化.xlsx - 冷媒填報紀錄.csv"
 }
 
 def load_static_data(source='local'):
@@ -205,7 +205,7 @@ def load_static_data(source='local'):
             df_types = pd.DataFrame(ws_types.get_all_records()).astype(str)
             df_coef = pd.DataFrame(ws_coef.get_all_records())
             
-            # 存回本地
+            # 存回本地 CSV 供下次快速讀取
             df_units.to_csv(CSV_FILES["unit"], index=False)
             df_build.to_csv(CSV_FILES["build"], index=False)
             df_types.to_csv(CSV_FILES["type"], index=False)
@@ -235,7 +235,6 @@ def load_static_data(source='local'):
         # 4. 係數 (使用完整名稱，不做截斷)
         if not df_coef.empty:
             for _, row in df_coef.iterrows():
-                # V278: 完整名稱讀取 (因 Excel 內容已標準化)
                 r_name_full = str(row.iloc[1]).strip().replace('\u3000', ' ').replace('\xa0', ' ')
                 try: 
                     gwp = float(str(row.iloc[2]).replace(',', ''))
@@ -255,7 +254,7 @@ def load_static_data(source='local'):
 
 @st.cache_data(ttl=60)
 def load_records_data():
-    """動態填報紀錄 (嚴格只讀取 Google Sheets，不讀取本地 CSV)"""
+    """動態填報紀錄 (優先 Google Sheets，失敗則讀取本地 CSV)"""
     try:
         data = ws_records.get_all_values()
         if len(data) > 1:
@@ -274,12 +273,17 @@ def load_records_data():
         else:
             return pd.DataFrame(columns=["填報時間","填報人","填報人分機","校區","所屬單位","填報單位名稱","建築物名稱","辦公室編號","維修日期","設備類型","設備品牌型號","冷媒種類","冷媒填充量","備註","佐證資料"])
     except Exception as e:
-        st.error(f"⚠️ 無法讀取雲端填報紀錄 (Google Sheet 連線錯誤): {e}。請檢查網路連線。")
-        return pd.DataFrame()
+        # V278: Fallback to local record CSV
+        try:
+            df = pd.read_csv(CSV_FILES['record'])
+            st.warning("⚠️ 無法連接雲端資料庫，已切換至本地備份資料模式。")
+            return df
+        except:
+            st.error(f"填報紀錄讀取失敗 (雲端與本地皆失效): {e}")
+            return pd.DataFrame()
 
 # 初始化 (Session State)
 if 'static_data_loaded' not in st.session_state:
-    # 預設從 Local 讀取靜態資料，速度快
     st.session_state['unit_dict'], st.session_state['build_dict'], st.session_state['e_types'], st.session_state['r_types'], st.session_state['gwp_map'] = load_static_data('local')
     st.session_state['static_data_loaded'] = True
 
@@ -454,7 +458,7 @@ def render_admin_dashboard():
     
     admin_tabs = st.tabs(["📊 全校冷媒填充儀表板", "📝 申報資料異動"])
 
-    # V275: 按鈕維持在 Tab 2
+    # V273: 按鈕放置於 Tab 2 內
     with admin_tabs[1]:
         st.subheader("📝 申報資料異動與下載")
         
@@ -499,7 +503,6 @@ def render_admin_dashboard():
                 try:
                     df_final = edited.copy()
                     
-                    # Cleanup
                     cols_to_remove = ['年份', '月份', '排放量(kgCO2e)', '排放量(公噸)', '冷媒顯示名稱']
                     for c in cols_to_remove:
                         if c in df_final.columns: del df_final[c]
