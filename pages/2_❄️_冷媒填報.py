@@ -24,7 +24,7 @@ username = st.session_state.get("username")
 name = st.session_state.get("name")
 
 # ==========================================
-# 1. CSS 樣式表 (同步燃油 V150.0 規格)
+# 1. CSS 樣式表 (同步燃油 V150.0 規格 + V263 優化)
 # ==========================================
 st.markdown("""
 <style>
@@ -108,7 +108,7 @@ st.markdown("""
     .info-label { font-weight: 700; margin-right: 10px; min-width: 160px; color: #2E4053; }
     .info-value { font-weight: 500; color: #17202A; flex: 1; line-height: 1.6; }
     
-    /* Admin 儀表板 KPI (同步燃油) */
+    /* Admin 儀表板 KPI (V263 莫蘭迪色調) */
     .admin-kpi-card {
         background-color: #FFFFFF; border: 1px solid #BDC3C7; border-radius: 12px; overflow: hidden;
         box-shadow: 0 4px 10px rgba(0,0,0,0.1); height: 100%; text-align: center; margin-bottom: 20px;
@@ -123,6 +123,13 @@ st.markdown("""
         font-size: 1.8rem; font-weight: 900; text-align: center; color: #2C3E50; margin-bottom: 20px;
         background-color: #F8F9F9; padding: 10px; border-radius: 10px; border: 1px solid #BDC3C7;
     }
+
+    /* Radio Button 優化 (儀表板切換用) */
+    .stRadio div[role="radiogroup"] label {
+        background-color: #D6EAF8 !important; border: 1px solid #AED6F1 !important;
+        border-radius: 8px !important; padding: 8px 15px !important; margin-right: 10px !important;
+    }
+    .stRadio div[role="radiogroup"] label p { font-size: 1.0rem !important; font-weight: 800 !important; color: #154360 !important; }
 
     /* 上傳區樣式 */
     [data-testid="stFileUploaderDropzone"] { background-color: #D6EAF8 !important; border: 2px dashed #2E86C1 !important; padding: 20px; border-radius: 12px; }
@@ -298,7 +305,7 @@ def render_user_interface():
                     st.success("✅ 冷媒填報成功！"); st.balloons()
                 except Exception as e: st.error(f"上傳或寫入失敗: {e}")
 
-    # --- Tab 2: 申報動態查詢 (V262.0 改版) ---
+    # --- Tab 2: 申報動態查詢 ---
     with tabs[1]:
         st.markdown('<div class="morandi-header">📋 申報動態查詢</div>', unsafe_allow_html=True)
         if df_records.empty:
@@ -326,20 +333,17 @@ def render_user_interface():
                     campus_str = ", ".join(sorted(df_view['校區'].unique()))
                     build_str = ", ".join(sorted(df_view['建築物名稱'].unique())[:3])
                     
-                    # 資訊整合 (設備類型-冷媒種類)
                     fill_info_list = []
                     for _, row in df_view.iterrows():
                         fill_info_list.append(f"<div>• {row['設備類型']}-{row['冷媒種類']}：{row['冷媒填充量']:.2f} kg</div>")
                     fill_info_str = "".join(fill_info_list)
 
-                    # 重量統計優化 (V262: 總計粗體)
                     total_kg = df_view['冷媒填充量'].sum()
                     type_sums = df_view.groupby('冷媒種類')['冷媒填充量'].sum().reset_index()
                     weight_str = f"<div style='font-weight: 900; margin-bottom: 5px; font-size: 1.05rem;'>總計：{total_kg:.2f} kg</div>"
                     for _, row in type_sums.iterrows():
                         weight_str += f"<div>• {row['冷媒種類']}：{row['冷媒填充量']:.2f} kg</div>"
 
-                    # V262: 碳排紅字
                     total_emission = df_view['排放量(kgCO2e)'].sum()
 
                     st.markdown("---")
@@ -357,7 +361,6 @@ def render_user_interface():
                     </div>
                     """, unsafe_allow_html=True)
                     
-                    # V262: 新增區塊名稱與間隔
                     st.markdown("<br>", unsafe_allow_html=True)
                     st.subheader("📋 單位申報明細")
                     st.dataframe(df_view[["維修日期", "建築物名稱", "設備類型", "冷媒種類", "冷媒填充量", "排放量(kgCO2e)", "佐證資料"]], use_container_width=True)
@@ -380,7 +383,7 @@ def render_admin_dashboard():
         df_clean['月份'] = df_clean['維修日期'].dt.month.fillna(0).astype(int)
         df_clean['排放量(kgCO2e)'] = df_clean.apply(lambda r: r['冷媒填充量'] * gwp_map.get(r['冷媒種類'], 0), axis=1)
 
-    # --- Admin Tab 1: 儀表板 (維持 V260 規格) ---
+    # --- Admin Tab 1: 儀表板 (V263.0 全新升級) ---
     with admin_tabs[0]:
         all_years = sorted(df_clean['年份'].unique(), reverse=True) if not df_clean.empty else [datetime.now().year]
         c_year, _ = st.columns([1, 3])
@@ -391,61 +394,114 @@ def render_admin_dashboard():
         if not df_year.empty:
             st.markdown(f"<div class='dashboard-main-title'>{sel_year}年度 冷媒填充與碳排統計</div>", unsafe_allow_html=True)
             
+            # KPI (V263: New Colors & Order: Count -> KG -> CO2)
             total_kg = df_year['冷媒填充量'].sum()
-            total_co2_t = df_year['排放量(kgCO2e)'].sum() / 1000.0 # 換算公噸
+            total_co2_t = df_year['排放量(kgCO2e)'].sum() / 1000.0
             count = len(df_year)
             
             k1, k2, k3 = st.columns(3)
-            k1.markdown(f"""<div class="admin-kpi-card"><div class="admin-kpi-header" style="background-color: #5DADE2;">⚖️ 年度總填充量</div><div class="admin-kpi-body"><div class="admin-kpi-value">{total_kg:,.2f}<span class="admin-kpi-unit">kg</span></div></div></div>""", unsafe_allow_html=True)
-            k2.markdown(f"""<div class="admin-kpi-card"><div class="admin-kpi-header" style="background-color: #AF7AC5;">☁️ 年度總碳排放量</div><div class="admin-kpi-body"><div class="admin-kpi-value">{total_co2_t:,.4f}<span class="admin-kpi-unit">公噸CO<sub>2</sub>e</span></div></div></div>""", unsafe_allow_html=True)
-            k3.markdown(f"""<div class="admin-kpi-card"><div class="admin-kpi-header" style="background-color: #52BE80;">📄 年度申報筆數</div><div class="admin-kpi-body"><div class="admin-kpi-value">{count}</div></div></div>""", unsafe_allow_html=True)
+            # 1. 筆數 (Green)
+            k1.markdown(f"""<div class="admin-kpi-card"><div class="admin-kpi-header" style="background-color: #A9CCE3;">📄 年度申報筆數</div><div class="admin-kpi-body"><div class="admin-kpi-value">{count}</div></div></div>""", unsafe_allow_html=True)
+            # 2. 填充量 (Orange)
+            k2.markdown(f"""<div class="admin-kpi-card"><div class="admin-kpi-header" style="background-color: #F5CBA7;">⚖️ 年度總填充量</div><div class="admin-kpi-body"><div class="admin-kpi-value">{total_kg:,.2f}<span class="admin-kpi-unit">kg</span></div></div></div>""", unsafe_allow_html=True)
+            # 3. 碳排 (Red)
+            k3.markdown(f"""<div class="admin-kpi-card"><div class="admin-kpi-header" style="background-color: #E6B0AA;">☁️ 年度總碳排放量</div><div class="admin-kpi-body"><div class="admin-kpi-value">{total_co2_t:,.4f}<span class="admin-kpi-unit">公噸CO<sub>2</sub>e</span></div></div></div>""", unsafe_allow_html=True)
             
             st.markdown("---")
             
-            # 1. 逐月填充統計
-            st.subheader("📈 年度逐月冷媒填充統計")
-            monthly = df_year.groupby(['月份', '冷媒種類'])['冷媒填充量'].sum().reset_index()
-            counts_db = df_year.groupby(['月份', '冷媒種類'])['冷媒填充量'].count()
+            # --- Chart 1: 年度冷媒填充概況 ---
+            st.subheader("📈 年度冷媒填充概況")
+            campus_opts = ["全校"] + sorted(list(build_dict.keys()))
+            f_campus_1 = st.radio("選擇校區 (填充概況)", campus_opts, horizontal=True, key="radio_c1")
             
-            def get_text(row):
-                val = row['冷媒填充量']
-                if val <= 0: return ""
-                key = (row['月份'], row['冷媒種類'])
-                if key in counts_db and counts_db[key] == 1: return "" 
-                return f"{val:.1f}"
+            df_c1 = df_year.copy()
+            if f_campus_1 != "全校":
+                df_c1 = df_c1[df_c1['校區'] == f_campus_1]
             
-            monthly['text_label'] = monthly.apply(get_text, axis=1)
+            if not df_c1.empty:
+                # X=Type, Y=KG, Stack=Equip
+                c1_group = df_c1.groupby(['冷媒種類', '設備類型'])['冷媒填充量'].sum().reset_index()
+                fig1 = px.bar(c1_group, x='冷媒種類', y='冷媒填充量', color='設備類型', 
+                              text_auto='.1f', color_discrete_sequence=px.colors.qualitative.Pastel)
+                fig1.update_layout(yaxis_title="冷媒填充量(公斤)", xaxis_title="冷媒種類", font=dict(size=18), showlegend=True)
+                fig1.update_traces(width=0.5, textfont_size=20, textposition='inside')
+                st.plotly_chart(fig1, use_container_width=True)
+            else:
+                st.info("無資料")
 
-            fig_month = px.bar(monthly, x='月份', y='冷媒填充量', color='冷媒種類', barmode='group', text='text_label', color_discrete_sequence=px.colors.qualitative.Pastel)
-            fig_month.update_layout(xaxis=dict(tickmode='linear', tick0=1, dtick=1, title_font=dict(size=20), tickfont=dict(size=18, color='#566573')), yaxis=dict(title="填充量(kg)", title_font=dict(size=20), tickfont=dict(size=18, color='#566573')), font=dict(size=18), showlegend=True)
-            fig_month.update_traces(textfont_size=14, textposition='inside')
-            st.plotly_chart(fig_month, use_container_width=True)
-            
             st.markdown("---")
             
-            # 2. 前十大填充單位
+            # --- Chart 2: 年度前十大填充單位 ---
             st.subheader("🏆 年度前十大填充單位")
-            top10 = df_year.groupby('填報單位名稱')['冷媒填充量'].sum().nlargest(10).reset_index()
-            fig_top = px.bar(top10, x='填報單位名稱', y='冷媒填充量', text_auto='.1f', color_discrete_sequence=['#5DADE2'])
-            fig_top.update_layout(xaxis=dict(categoryorder='total descending', title_font=dict(size=20), tickfont=dict(size=18, color='#566573')), yaxis=dict(title="填充量(kg)", title_font=dict(size=20), tickfont=dict(size=18, color='#566573')), font=dict(size=18))
-            fig_top.update_traces(textfont_size=14)
-            st.plotly_chart(fig_top, use_container_width=True)
+            # Logic: Find top 10 by total sum first, then filter original data to keep stack details
+            top_units = df_year.groupby('填報單位名稱')['冷媒填充量'].sum().nlargest(10).index.tolist()
+            df_top10 = df_year[df_year['填報單位名稱'].isin(top_units)].copy()
+            
+            if not df_top10.empty:
+                # Group by Unit + Refrig Type
+                c2_group = df_top10.groupby(['填報單位名稱', '冷媒種類'])['冷媒填充量'].sum().reset_index()
+                fig2 = px.bar(c2_group, x='填報單位名稱', y='冷媒填充量', color='冷媒種類',
+                              text_auto='.1f', color_discrete_sequence=px.colors.qualitative.Set3)
+                # Sort X axis by total descending
+                fig2.update_layout(xaxis={'categoryorder':'total descending'}, yaxis_title="冷媒填充量(公斤)", font=dict(size=18))
+                fig2.update_traces(width=0.5, textfont_size=20, textposition='inside')
+                st.plotly_chart(fig2, use_container_width=True)
+            else:
+                st.info("無資料")
             
             st.markdown("---")
             
-            # 3. 冷媒種類佔比
-            st.subheader("🍩 冷媒種類填充量佔比分析")
-            type_kg = df_year.groupby('冷媒種類')['冷媒填充量'].sum().reset_index()
-            fig_pie = px.pie(type_kg, values='冷媒填充量', names='冷媒種類', title='各冷媒種類填充分佈', hole=0.4, color_discrete_sequence=px.colors.qualitative.Set3)
-            fig_pie.update_layout(height=650, font=dict(size=18), legend=dict(font=dict(size=16)))
-            fig_pie.update_traces(textinfo='percent+label', textfont_size=30, textposition='inside', insidetextorientation='horizontal', hovertemplate='<b>項目: %{label}</b><br>統計填充量: %{value:.2f} kg<br>百分比: %{percent:.1%}<extra></extra>')
-            st.plotly_chart(fig_pie, use_container_width=True)
+            # --- Chart 3: 冷媒填充資訊分析 ---
+            st.subheader("🍩 冷媒填充資訊分析")
+            f_campus_3 = st.radio("選擇校區 (資訊分析)", campus_opts, horizontal=True, key="radio_c3")
+            df_c3 = df_year.copy()
+            if f_campus_3 != "全校":
+                df_c3 = df_c3[df_c3['校區'] == f_campus_3]
+            
+            if not df_c3.empty:
+                # Part A: 冷媒種類填充量佔比
+                st.markdown("##### 1. 冷媒種類填充量佔比")
+                type_kg = df_c3.groupby('冷媒種類')['冷媒填充量'].sum().reset_index()
+                fig3a = px.pie(type_kg, values='冷媒填充量', names='冷媒種類', hole=0.4, 
+                               color_discrete_sequence=px.colors.qualitative.Set2)
+                fig3a.update_layout(font=dict(size=18), legend=dict(font=dict(size=16)))
+                fig3a.update_traces(textinfo='label+percent', textfont_size=20, textposition='inside',
+                                    hovertemplate='<b>%{label}</b><br>填充量: %{value:.1f} kg<br>佔比: %{percent:.1%}<extra></extra>')
+                st.plotly_chart(fig3a, use_container_width=True)
+                
+                st.markdown("<br>", unsafe_allow_html=True)
+                
+                # Part B: 設備類型統計 (Left: Count, Right: Weight)
+                st.markdown("##### 2. 冷媒填充設備類型統計")
+                c3_l, c3_r = st.columns(2)
+                
+                # Left: Count
+                eq_count = df_c3.groupby('設備類型')['冷媒填充量'].count().reset_index(name='count')
+                fig3b_l = px.pie(eq_count, values='count', names='設備類型', title='依填充次數統計', hole=0.4,
+                                 color_discrete_sequence=px.colors.qualitative.Pastel)
+                fig3b_l.update_layout(font=dict(size=18), legend=dict(font=dict(size=16)))
+                fig3b_l.update_traces(textinfo='label+percent', textfont_size=20, textposition='inside',
+                                      hovertemplate='<b>%{label}</b><br>填充次數: %{value} 次<br>佔比: %{percent:.1%}<extra></extra>')
+                
+                # Right: Weight
+                eq_weight = df_c3.groupby('設備類型')['冷媒填充量'].sum().reset_index()
+                fig3b_r = px.pie(eq_weight, values='冷媒填充量', names='設備類型', title='依填充重量統計', hole=0.4,
+                                 color_discrete_sequence=px.colors.qualitative.Pastel)
+                fig3b_r.update_layout(font=dict(size=18), legend=dict(font=dict(size=16)))
+                fig3b_r.update_traces(textinfo='label+percent', textfont_size=20, textposition='inside',
+                                      hovertemplate='<b>%{label}</b><br>填充重量: %{value:.1f} kg<br>佔比: %{percent:.1%}<extra></extra>')
+                
+                with c3_l: st.plotly_chart(fig3b_l, use_container_width=True)
+                with c3_r: st.plotly_chart(fig3b_r, use_container_width=True)
+            else:
+                st.info("無資料")
             
             st.markdown("---")
             
-            # 4. 碳排結構
-            st.subheader("🌍 各校區冷媒碳排放量結構")
-            fig_tree = px.treemap(df_year, path=['校區', '填報單位名稱'], values='排放量(kgCO2e)', color='校區', color_discrete_sequence=px.colors.qualitative.Pastel)
+            # --- Chart 4: 碳排結構 (Treemap) ---
+            st.subheader("🌍 全校冷媒填充碳排放量(公噸二氧化碳當量)結構")
+            fig_tree = px.treemap(df_year, path=['校區', '填報單位名稱'], values='排放量(kgCO2e)', 
+                                  color='校區', color_discrete_sequence=px.colors.qualitative.Pastel)
             fig_tree.update_traces(texttemplate='%{label}<br>%{value:.1f}<br>%{percentRoot:.1%}', textfont=dict(size=24))
             st.plotly_chart(fig_tree, use_container_width=True)
             
