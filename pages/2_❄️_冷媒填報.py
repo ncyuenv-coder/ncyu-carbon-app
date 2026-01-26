@@ -143,7 +143,7 @@ if st.session_state.get("authentication_status") is not True:
     st.warning("🔒 請先至首頁 (Hello) 登入系統")
     st.stop()
 
-# 3. 資料庫連線 (保持 Google Sheets 連線以供寫入)
+# 3. 資料庫連線
 REF_SHEET_ID = "1p7GsW-nrjerXhnn3pNgZzu_CdIh1Yxsm-fLJDqQ6MqA"
 REF_FOLDER_ID = "1o0S56OyStDjvC5tgBWiUNqNjrpXuCQMI"
 
@@ -165,7 +165,8 @@ except Exception as e:
     st.error(f"❌ 資料庫連線失敗: {e}")
     st.stop()
 
-# 4. 資料讀取 (V273.0 - 混合讀取 + 1150126更新版檔名)
+# 4. 資料讀取 (V275.0 - 靜態Local優先 / 動態Cloud唯一)
+# 檔案名稱對應 (已更新為 1150126 版本)
 CSV_FILES = {
     "unit": "冷媒設備盤查資料庫_標準化 (1150126更新).xlsx - 單位資訊.csv",
     "build": "冷媒設備盤查資料庫_標準化 (1150126更新).xlsx - 建築物清單.csv",
@@ -174,7 +175,11 @@ CSV_FILES = {
 }
 
 def load_static_data(source='local'):
-    """讀取靜態資料：優先讀取 Local CSV (最穩)，若強制更新則讀 Sheet"""
+    """
+    讀取靜態資料 (單位、建築、類型、係數)。
+    - source='local': 優先讀取上傳的 CSV 檔 (速度快)。
+    - source='cloud': 強制連線 Google Sheet 下載並覆蓋 CSV (更新用)。
+    """
     unit_dict = {}
     build_dict = {}
     e_types = []
@@ -190,7 +195,7 @@ def load_static_data(source='local'):
                 df_types = pd.read_csv(CSV_FILES["type"])
                 df_coef = pd.read_csv(CSV_FILES["coef"])
             except FileNotFoundError:
-                # 找不到檔案就去雲端抓
+                # 若檔案不存在，自動轉為雲端下載
                 return load_static_data(source='cloud')
         else:
             # 讀取 Google Sheets (Admin 更新用)
@@ -204,13 +209,13 @@ def load_static_data(source='local'):
             df_types = pd.DataFrame(ws_types.get_all_records()).astype(str)
             df_coef = pd.DataFrame(ws_coef.get_all_records())
             
-            # 存回本地
+            # 存回本地 CSV 供下次快速讀取
             df_units.to_csv(CSV_FILES["unit"], index=False)
             df_build.to_csv(CSV_FILES["build"], index=False)
             df_types.to_csv(CSV_FILES["type"], index=False)
             df_coef.to_csv(CSV_FILES["coef"], index=False)
 
-        # 處理資料
+        # 處理資料格式 (建立字典與清單)
         # 1. 單位
         for _, row in df_units.iterrows():
             d = str(row.iloc[0]).strip()
@@ -231,7 +236,7 @@ def load_static_data(source='local'):
         if not df_types.empty:
             e_types = sorted(df_types.iloc[:, 0].dropna().unique().tolist())
             
-        # 4. 係數 (使用完整名稱)
+        # 4. 係數 (使用完整名稱，不做截斷)
         if not df_coef.empty:
             for _, row in df_coef.iterrows():
                 r_name_full = str(row.iloc[1]).strip().replace('\u3000', ' ').replace('\xa0', ' ')
@@ -253,7 +258,11 @@ def load_static_data(source='local'):
 
 @st.cache_data(ttl=60)
 def load_records_data():
-    """動態填報紀錄 (維持雲端讀取，短快取)"""
+    """
+    動態填報紀錄讀取。
+    V275.0: 嚴格只讀取 Google Sheets，不提供本地 CSV 備援，
+    確保管理員看到的永遠是即時雲端數據。
+    """
     try:
         data = ws_records.get_all_values()
         if len(data) > 1:
@@ -272,11 +281,12 @@ def load_records_data():
         else:
             return pd.DataFrame(columns=["填報時間","填報人","填報人分機","校區","所屬單位","填報單位名稱","建築物名稱","辦公室編號","維修日期","設備類型","設備品牌型號","冷媒種類","冷媒填充量","備註","佐證資料"])
     except Exception as e:
-        st.error(f"填報紀錄讀取失敗: {e}")
+        st.error(f"⚠️ 無法讀取雲端填報紀錄 (Google Sheet 連線錯誤): {e}。請檢查網路連線。")
         return pd.DataFrame()
 
 # 初始化 (Session State)
 if 'static_data_loaded' not in st.session_state:
+    # 預設從 Local 讀取靜態資料，速度快
     st.session_state['unit_dict'], st.session_state['build_dict'], st.session_state['e_types'], st.session_state['r_types'], st.session_state['gwp_map'] = load_static_data('local')
     st.session_state['static_data_loaded'] = True
 
@@ -302,12 +312,13 @@ def render_user_interface():
     st.markdown("### ❄️ 冷媒填報專區")
     tabs = st.tabs(["📝 新增填報", "📋 申報動態查詢"])
 
-    # --- Tab 1: 新增填報 (V272: 不使用 st.form 以確保即時對應，手動控制清空) ---
+    # --- Tab 1: 新增填報 ---
     with tabs[0]:
         st.markdown('<div class="morandi-header">填報單位基本資訊區</div>', unsafe_allow_html=True)
         
         c1, c2 = st.columns(2)
         unit_depts = sorted(unit_dict.keys())
+        # 即時互動，不使用 st.form 以確保選單連動
         sel_dept = c1.selectbox("所屬單位", unit_depts, index=None, placeholder="請選擇單位...", key="u_dept")
         unit_names = sorted(unit_dict.get(sel_dept, [])) if sel_dept else []
         sel_unit_name = c2.selectbox("填報單位名稱", unit_names, index=None, placeholder="請先選擇所屬單位...", key="u_unit")
@@ -365,7 +376,7 @@ def render_user_interface():
                     st.success("✅ 冷媒填報成功！欄位已清空，可繼續填寫下一筆。")
                     st.balloons()
                     
-                    # 清空欄位並重新執行
+                    # 清空欄位並重新執行 (保持同頁面)
                     reset_input_states()
                     st.cache_data.clear()
                     time.sleep(1)
@@ -388,7 +399,7 @@ def render_user_interface():
             df_records['冷媒填充量'] = pd.to_numeric(df_records['冷媒填充量'], errors='coerce').fillna(0)
             df_records['維修日期'] = pd.to_datetime(df_records['維修日期'], errors='coerce')
             
-            # V272 Fix: 使用全名對應
+            # 使用全名對應 GWP
             df_records['排放量(kgCO2e)'] = df_records.apply(lambda r: r['冷媒填充量'] * gwp_map.get(str(r['冷媒種類']).strip(), 0), axis=1)
 
             st.markdown("##### 🔍 查詢條件設定")
@@ -451,11 +462,11 @@ def render_admin_dashboard():
     
     admin_tabs = st.tabs(["📊 全校冷媒填充儀表板", "📝 申報資料異動"])
 
-    # V273.0: 移至 Tab 2 內
+    # V275: 按鈕維持在 Tab 2
     with admin_tabs[1]:
         st.subheader("📝 申報資料異動與下載")
         
-        # 按鈕放置於頂端
+        # 強制從雲端更新本地靜態資料 CSV
         if st.button("🔄 更新背景資料庫 (從 Google Sheet 同步)", key="btn_update_db"):
             with st.spinner("正在從雲端下載最新資料..."):
                 st.session_state['unit_dict'], st.session_state['build_dict'], st.session_state['e_types'], st.session_state['r_types'], st.session_state['gwp_map'] = load_static_data('cloud')
@@ -467,6 +478,7 @@ def render_admin_dashboard():
             campus_map = {"林森校區-民國路": "林森校區", "社口林場": "蘭潭校區"}
             df_clean['校區'] = df_clean['校區'].replace(campus_map)
             
+            # 冷媒顯示名稱 = 原始冷媒種類 (不截斷)
             df_clean['冷媒顯示名稱'] = df_clean['冷媒種類']
 
             df_clean['冷媒填充量'] = pd.to_numeric(df_clean['冷媒填充量'], errors='coerce').fillna(0)
@@ -474,12 +486,13 @@ def render_admin_dashboard():
             df_clean['年份'] = df_clean['維修日期'].dt.year.fillna(datetime.now().year).astype(int)
             df_clean['月份'] = df_clean['維修日期'].dt.month.fillna(0).astype(int)
             
+            # 計算碳排 (使用全名對應)
             df_clean['排放量(kgCO2e)'] = df_clean.apply(lambda r: r['冷媒填充量'] * gwp_map.get(str(r['冷媒種類']).strip(), 0), axis=1)
             df_clean['排放量(公噸)'] = df_clean['排放量(kgCO2e)'] / 1000.0
 
             df_clean['維修日期'] = df_clean['維修日期'].dt.date
             edited = st.data_editor(
-                df_clean, # 這裡應該顯示所有年份供篩選，或預設顯示當年
+                df_clean, 
                 column_config={
                     "佐證資料": st.column_config.LinkColumn("佐證"),
                     "冷媒填充量": st.column_config.NumberColumn("填充量", min_value=0.0, step=0.1),
@@ -491,7 +504,6 @@ def render_admin_dashboard():
             )
             
             csv_data = edited.to_csv(index=False).encode('utf-8-sig')
-            # 這裡檔案名稱用當前時間較好，因為顯示的是全資料
             st.download_button(label="📥 下載完整填報紀錄 (CSV)", data=csv_data, file_name=f"冷媒填報紀錄_full.csv", mime="text/csv", key="dl_ref_csv")
             
             if st.button("💾 儲存變更", type="primary"):
@@ -520,11 +532,10 @@ def render_admin_dashboard():
         else:
             st.info("無資料可編輯")
 
-    # --- Admin Tab 1: 儀表板 (V272.0 視覺微調) ---
+    # --- Admin Tab 1: 儀表板 ---
     MORANDI_PALETTE = ['#88B04B', '#92A8D1', '#F7CAC9', '#B565A7', '#009B77', '#DD4124', '#D65076', '#45B8AC', '#EFC050', '#5B5EA6', '#9B2335', '#DFCFBE']
     
     with admin_tabs[0]:
-        # 需重新準備 df_clean 因為 Tab 2 可能改過
         df_clean_dash = df_records.copy()
         if not df_clean_dash.empty:
             campus_map = {"林森校區-民國路": "林森校區", "社口林場": "蘭潭校區"}
@@ -558,7 +569,7 @@ def render_admin_dashboard():
             
             st.markdown("---")
             
-            # --- Chart 1: 年度冷媒填充概況 ---
+            # Chart 1: 概況
             st.subheader("📈 年度冷媒填充概況")
             campus_opts = ["全校", "蘭潭校區", "民雄校區", "新民校區", "林森校區"]
             f_campus_1 = st.radio("填充概況校區選擇", campus_opts, horizontal=True, key="radio_c1", label_visibility="collapsed")
@@ -571,11 +582,10 @@ def render_admin_dashboard():
                 c1_group = df_c1.groupby(['冷媒顯示名稱', '設備類型'])['冷媒填充量'].sum().reset_index()
                 fig1 = px.bar(c1_group, x='冷媒顯示名稱', y='冷媒填充量', color='設備類型', 
                               text_auto='.1f', color_discrete_sequence=MORANDI_PALETTE)
-                # V272: Tickfont=16 & Black
+                # V275: Tickfont=16, Black
                 fig1.update_layout(yaxis_title="冷媒填充量(公斤)", xaxis_title="冷媒種類", font=dict(size=18), showlegend=True)
                 fig1.update_xaxes(tickfont=dict(size=16, color='#000000'))
                 fig1.update_yaxes(tickfont=dict(size=16, color='#000000'))
-                # V272: Data Label=14
                 fig1.update_traces(width=0.5, textfont_size=14, textposition='inside')
                 st.plotly_chart(fig1, use_container_width=True)
             else:
@@ -583,7 +593,7 @@ def render_admin_dashboard():
 
             st.markdown("---")
             
-            # --- Chart 2: 年度前十大填充單位 ---
+            # Chart 2: 前十大
             st.subheader("🏆 年度前十大填充單位")
             top_units = df_year.groupby('填報單位名稱')['冷媒填充量'].sum().nlargest(10).index.tolist()
             df_top10 = df_year[df_year['填報單位名稱'].isin(top_units)].copy()
@@ -592,7 +602,6 @@ def render_admin_dashboard():
                 c2_group = df_top10.groupby(['填報單位名稱', '冷媒顯示名稱'])['冷媒填充量'].sum().reset_index()
                 fig2 = px.bar(c2_group, x='填報單位名稱', y='冷媒填充量', color='冷媒顯示名稱',
                               text_auto='.1f', color_discrete_sequence=MORANDI_PALETTE)
-                # V272: Tickfont=16 & Black
                 fig2.update_layout(xaxis={'categoryorder':'total descending'}, yaxis_title="冷媒填充量(公斤)", font=dict(size=18))
                 fig2.update_xaxes(tickfont=dict(size=16, color='#000000'))
                 fig2.update_yaxes(tickfont=dict(size=16, color='#000000'))
@@ -603,7 +612,7 @@ def render_admin_dashboard():
             
             st.markdown("---")
             
-            # --- Chart 3: 冷媒填充資訊分析 ---
+            # Chart 3: 圓餅
             st.subheader("🍩 冷媒填充資訊分析")
             f_campus_3 = st.radio("資訊分析校區選擇", campus_opts, horizontal=True, key="radio_c3", label_visibility="collapsed")
             df_c3 = df_year.copy()
@@ -616,8 +625,8 @@ def render_admin_dashboard():
                 fig3a = px.pie(type_kg, values='冷媒填充量', names='冷媒顯示名稱', hole=0.4, 
                                color_discrete_sequence=MORANDI_PALETTE)
                 fig3a.update_layout(font=dict(size=18), legend=dict(font=dict(size=16)), uniformtext_minsize=16, uniformtext_mode='show')
-                # V272: textposition='auto' + pull logic for small slices
-                fig3a.update_traces(textinfo='label+percent', textfont_size=18, textposition='auto',
+                # V275: textposition='auto' + pull
+                fig3a.update_traces(textinfo='label+percent', textfont_size=18, textposition='auto', pull=[0.1 if v < type_kg['冷媒填充量'].sum()*0.05 else 0 for v in type_kg['冷媒填充量']],
                                     hovertemplate='<b>%{label}</b><br>填充量: %{value:.1f} kg<br>佔比: %{percent:.1%}<extra></extra>')
                 st.plotly_chart(fig3a, use_container_width=True)
                 
@@ -647,9 +656,8 @@ def render_admin_dashboard():
             
             st.markdown("---")
             
-            # --- Chart 4: 碳排結構 (Treemap) ---
+            # Chart 4: 碳排結構 (4位小數)
             st.subheader("🌍 全校冷媒填充碳排放量(公噸二氧化碳當量)結構")
-            # V272: 4 decimal places
             fig_tree = px.treemap(df_year, path=['校區', '填報單位名稱'], values='排放量(公噸)', 
                                   color='校區', color_discrete_sequence=MORANDI_PALETTE)
             fig_tree.update_traces(texttemplate='%{label}<br>%{value:.4f}<br>%{percentRoot:.1%}', textfont=dict(size=24))
