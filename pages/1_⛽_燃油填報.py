@@ -20,7 +20,7 @@ def get_taiwan_time():
     return datetime.utcnow() + timedelta(hours=8)
 
 # ==========================================
-# 1. CSS 樣式表 (V134.0 完整還原 + V202 上傳區)
+# 1. CSS 樣式表 (V134.0 完整還原)
 # ==========================================
 st.markdown("""
 <style>
@@ -233,7 +233,7 @@ with st.sidebar:
     authenticator.logout('登出系統', 'sidebar')
 
 # ==========================================
-# 3. 資料庫連線與設定 (V134)
+# 3. 資料庫連線與設定 (修正 Sheet 名稱)
 # ==========================================
 SHEET_ID = "1gqDU21YJeBoBOd8rMYzwwZ45offXWPGEODKTF6B8k-Y" 
 DRIVE_FOLDER_ID = "1Uryuk3-9FHJ39w5Uo8FYxuh9VOFndeqD"
@@ -257,8 +257,16 @@ try:
     sh = gc.open_by_key(SHEET_ID)
     try: ws_equip = sh.worksheet("設備清單") 
     except: ws_equip = sh.sheet1 
-    try: ws_record = sh.worksheet("填報紀錄")
-    except: ws_record = sh.add_worksheet(title="填報紀錄", rows="1000", cols="13")
+    
+    # 修正：優先讀取「油料填報紀錄」，若無則嘗試「填報紀錄」，再無則新建
+    try: 
+        ws_record = sh.worksheet("油料填報紀錄")
+    except:
+        try:
+            ws_record = sh.worksheet("填報紀錄")
+        except:
+            ws_record = sh.add_worksheet(title="油料填報紀錄", rows="1000", cols="13")
+            
     if len(ws_record.get_all_values()) == 0: ws_record.append_row(["填報時間", "填報單位", "填報人", "填報人分機", "設備名稱備註", "校內財產編號", "原燃物料名稱", "油卡編號", "加油日期", "加油量", "與其他設備共用加油單", "備註", "佐證資料"])
 except Exception as e: st.error(f"燃油資料庫連線失敗: {e}"); st.stop()
 
@@ -602,7 +610,7 @@ def render_admin_dashboard():
 
     admin_tabs = st.tabs(["🔍 申報資料異動", "⚠️ 篩選未申報名單", "📝 全校燃油設備總覽", "📊 全校油料使用儀表板"])
 
-    # === Tab 1: 申報資料異動 ===
+    # === Tab 1: 申報資料異動 (FIXED: V135.1 安全存檔邏輯) ===
     with admin_tabs[0]:
         st.subheader("🔍 申報資料異動")
         if not df_year.empty:
@@ -610,10 +618,49 @@ def render_admin_dashboard():
             edited = st.data_editor(df_year, column_config={"佐證資料": st.column_config.LinkColumn("佐證", display_text="🔗"), "加油日期": st.column_config.DateColumn("日期", format="YYYY-MM-DD"), "加油量": st.column_config.NumberColumn("油量", format="%.2f"), "填報時間": st.column_config.TextColumn("填報時間", disabled=True)}, num_rows="dynamic", use_container_width=True, key="editor_v122")
             if st.button("💾 儲存變更", type="primary"):
                 try:
+                    # -----------------------------------------------------
+                    # FIX START: 安全存檔邏輯 (合併而非覆蓋)
+                    # -----------------------------------------------------
+                    # 1. 取得完整原始資料的複本 (含所有年份)
+                    df_all_data = df_records.copy()
+                    
+                    # 2. 建立輔助年份欄位以利篩選 (因 df_records 可能沒有 '年份' 欄位)
+                    df_all_data['temp_date'] = pd.to_datetime(df_all_data['加油日期'], errors='coerce')
+                    df_all_data['temp_year'] = df_all_data['temp_date'].dt.year.fillna(0).astype(int)
+                    
+                    # 3. 分離出「非本年度」的資料 (這些要保留)
+                    df_keep = df_all_data[df_all_data['temp_year'] != selected_admin_year].copy()
+                    
+                    # 4. 準備「本年度」的新資料 (來自編輯器)
+                    df_new = edited.copy()
+                    
+                    # 5. 合併兩者
+                    df_final = pd.concat([df_keep, df_new], ignore_index=True)
+                    
+                    # 6. 清理輔助欄位與格式
+                    if 'temp_date' in df_final.columns: del df_final['temp_date']
+                    if 'temp_year' in df_final.columns: del df_final['temp_year']
+                    # 確保日期是字串格式寫入
+                    if '加油日期' in df_final.columns:
+                        df_final['加油日期'] = df_final['加油日期'].astype(str)
+                    
+                    # 移除後台分析時可能產生的額外欄位，確保與 Google Sheet 欄位一致
+                    # 欄位順序需與 sheet header 一致，這裡直接取 df_records 的 columns
+                    cols_to_write = df_records.columns.tolist()
+                    # 確保 df_final 只包含這些欄位
+                    df_final = df_final[cols_to_write]
+                    
+                    # 7. 排序 (選用，依日期降冪)
+                    df_final = df_final.sort_values(by='加油日期', ascending=False)
+
+                    # 8. 寫入 Google Sheet
                     ws_record.clear()
-                    exp = edited.copy(); exp['加油日期'] = exp['加油日期'].astype(str)
-                    ws_record.update([exp.columns.tolist()] + exp.astype(str).values.tolist())
-                    st.success("✅ 更新成功！"); st.cache_data.clear(); time.sleep(1); st.rerun()
+                    ws_record.update([df_final.columns.tolist()] + df_final.astype(str).values.tolist())
+                    # -----------------------------------------------------
+                    # FIX END
+                    # -----------------------------------------------------
+                    
+                    st.success("✅ 更新成功！資料已安全合併存檔。"); st.cache_data.clear(); time.sleep(1); st.rerun()
                 except Exception as e: st.error(f"更新失敗: {e}")
         else: st.info(f"{selected_admin_year} 年度尚無資料。")
 
