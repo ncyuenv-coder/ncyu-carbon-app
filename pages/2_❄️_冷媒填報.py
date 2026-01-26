@@ -171,7 +171,7 @@ except Exception as e:
     st.error(f"❌ 資料庫連線失敗: {e}")
     st.stop()
 
-# 4. 資料讀取 (V264.0 - 優化讀取穩定性)
+# 4. 資料讀取 (V266.0 - GWP Map Key 修正)
 @st.cache_data(ttl=3600)
 def load_data_all():
     max_retries = 3
@@ -209,11 +209,14 @@ def load_data_all():
                     name_idx, gwp_idx = 1, 2
                     for row in coef_data[1:]:
                         if len(row) > gwp_idx and row[name_idx]:
-                            r_name = row[name_idx].strip()
+                            r_name_full = row[name_idx].strip()
                             try: gwp_val = float(row[gwp_idx].replace(',', '').strip())
                             except: gwp_val = 0.0
-                            r_types.append(r_name)
-                            gwp_map[r_name] = gwp_val
+                            
+                            # V266 Fix: 這裡也必須同步做截斷，才能跟後台儀表板的簡化名稱對上
+                            r_name_clean = r_name_full.split('，')[0].split(',')[0].strip()
+                            r_types.append(r_name_full) # 下拉選單保留完整名稱
+                            gwp_map[r_name_clean] = gwp_val # Map 使用簡化名稱當 Key
                 except: pass
 
             records_data = ws_records.get_all_values()
@@ -331,7 +334,13 @@ def render_user_interface():
         else:
             df_records['冷媒填充量'] = pd.to_numeric(df_records['冷媒填充量'], errors='coerce').fillna(0)
             df_records['維修日期'] = pd.to_datetime(df_records['維修日期'], errors='coerce')
-            df_records['排放量(kgCO2e)'] = df_records.apply(lambda r: r['冷媒填充量'] * gwp_map.get(r['冷媒種類'], 0), axis=1)
+            
+            # V266 Fix: Use simplified name for map lookup on frontend too
+            def get_emission(row):
+                short_name = str(row['冷媒種類']).split('，')[0].split(',')[0].strip()
+                return row['冷媒填充量'] * gwp_map.get(short_name, 0)
+
+            df_records['排放量(kgCO2e)'] = df_records.apply(get_emission, axis=1)
 
             st.markdown("##### 🔍 查詢條件設定")
             c_f1, c_f2 = st.columns(2)
@@ -406,6 +415,8 @@ def render_admin_dashboard():
         df_clean['維修日期'] = pd.to_datetime(df_clean['維修日期'], errors='coerce')
         df_clean['年份'] = df_clean['維修日期'].dt.year.fillna(datetime.now().year).astype(int)
         df_clean['月份'] = df_clean['維修日期'].dt.month.fillna(0).astype(int)
+        
+        # V266 Fix: Use simplified name lookup
         df_clean['排放量(kgCO2e)'] = df_clean.apply(lambda r: r['冷媒填充量'] * gwp_map.get(r['冷媒種類'], 0), axis=1)
 
     # V265: 莫蘭迪色盤
@@ -422,7 +433,7 @@ def render_admin_dashboard():
         if not df_year.empty:
             st.markdown(f"<div class='dashboard-main-title'>{sel_year}年度 冷媒填充與碳排統計</div>", unsafe_allow_html=True)
             
-            # KPI (V265: 順序 Count -> KG -> CO2, 美觀配色, 單位公斤)
+            # KPI
             total_kg = df_year['冷媒填充量'].sum()
             total_co2_t = df_year['排放量(kgCO2e)'].sum() / 1000.0
             count = len(df_year)
@@ -439,20 +450,19 @@ def render_admin_dashboard():
             
             # --- Chart 1: 年度冷媒填充概況 ---
             st.subheader("📈 年度冷媒填充概況")
-            campus_opts = ["全校", "蘭潭校區", "民雄校區", "新民校區", "林森校區"] # V265: 指定排序
-            f_campus_1 = st.radio("填充概況校區選擇", campus_opts, horizontal=True, key="radio_c1", label_visibility="collapsed") # V265: 隱藏標籤
+            campus_opts = ["全校", "蘭潭校區", "民雄校區", "新民校區", "林森校區"]
+            f_campus_1 = st.radio("填充概況校區選擇", campus_opts, horizontal=True, key="radio_c1", label_visibility="collapsed")
             
             df_c1 = df_year.copy()
             if f_campus_1 != "全校":
                 df_c1 = df_c1[df_c1['校區'] == f_campus_1]
             
             if not df_c1.empty:
-                # V265: X=冷媒種類, Y=填充量, Stack=設備類型
                 c1_group = df_c1.groupby(['冷媒種類', '設備類型'])['冷媒填充量'].sum().reset_index()
                 fig1 = px.bar(c1_group, x='冷媒種類', y='冷媒填充量', color='設備類型', 
                               text_auto='.1f', color_discrete_sequence=MORANDI_PALETTE)
                 fig1.update_layout(yaxis_title="冷媒填充量(公斤)", xaxis_title="冷媒種類", font=dict(size=18), showlegend=True)
-                fig1.update_traces(width=0.5, textfont_size=20, textposition='inside') # V265: 寬度適中
+                fig1.update_traces(width=0.5, textfont_size=20, textposition='inside')
                 st.plotly_chart(fig1, use_container_width=True)
             else:
                 st.info("無資料")
@@ -461,18 +471,15 @@ def render_admin_dashboard():
             
             # --- Chart 2: 年度前十大填充單位 ---
             st.subheader("🏆 年度前十大填充單位")
-            # Logic: Find top 10 by total sum first
             top_units = df_year.groupby('填報單位名稱')['冷媒填充量'].sum().nlargest(10).index.tolist()
             df_top10 = df_year[df_year['填報單位名稱'].isin(top_units)].copy()
             
             if not df_top10.empty:
-                # V265: Stack by 冷媒種類
                 c2_group = df_top10.groupby(['填報單位名稱', '冷媒種類'])['冷媒填充量'].sum().reset_index()
                 fig2 = px.bar(c2_group, x='填報單位名稱', y='冷媒填充量', color='冷媒種類',
                               text_auto='.1f', color_discrete_sequence=MORANDI_PALETTE)
-                # Sort X axis by total descending
                 fig2.update_layout(xaxis={'categoryorder':'total descending'}, yaxis_title="冷媒填充量(公斤)", font=dict(size=18))
-                fig2.update_traces(width=0.5, textfont_size=20, textposition='inside') # V265: 寬度適中
+                fig2.update_traces(width=0.5, textfont_size=20, textposition='inside')
                 st.plotly_chart(fig2, use_container_width=True)
             else:
                 st.info("無資料")
@@ -481,30 +488,26 @@ def render_admin_dashboard():
             
             # --- Chart 3: 冷媒填充資訊分析 ---
             st.subheader("🍩 冷媒填充資訊分析")
-            f_campus_3 = st.radio("資訊分析校區選擇", campus_opts, horizontal=True, key="radio_c3", label_visibility="collapsed") # V265: 隱藏標籤
+            f_campus_3 = st.radio("資訊分析校區選擇", campus_opts, horizontal=True, key="radio_c3", label_visibility="collapsed")
             df_c3 = df_year.copy()
             if f_campus_3 != "全校":
                 df_c3 = df_c3[df_c3['校區'] == f_campus_3]
             
             if not df_c3.empty:
-                # Part A: 冷媒種類填充量佔比
                 st.markdown("##### 1. 冷媒種類填充量佔比")
                 type_kg = df_c3.groupby('冷媒種類')['冷媒填充量'].sum().reset_index()
                 fig3a = px.pie(type_kg, values='冷媒填充量', names='冷媒種類', hole=0.4, 
                                color_discrete_sequence=MORANDI_PALETTE)
                 fig3a.update_layout(font=dict(size=18), legend=dict(font=dict(size=16)))
-                # V265: Horizontal label, Large Font, Tooltip
                 fig3a.update_traces(textinfo='label+percent', textfont_size=24, textposition='inside', insidetextorientation='horizontal',
                                     hovertemplate='<b>%{label}</b><br>填充量: %{value:.1f} kg<br>佔比: %{percent:.1%}<extra></extra>')
                 st.plotly_chart(fig3a, use_container_width=True)
                 
                 st.markdown("<br>", unsafe_allow_html=True)
                 
-                # Part B: 設備類型統計 (Left: Count, Right: Weight)
                 st.markdown("##### 2. 冷媒填充設備類型統計")
                 c3_l, c3_r = st.columns(2)
                 
-                # Left: Count
                 eq_count = df_c3.groupby('設備類型')['冷媒填充量'].count().reset_index(name='count')
                 fig3b_l = px.pie(eq_count, values='count', names='設備類型', title='依填充次數統計', hole=0.4,
                                  color_discrete_sequence=MORANDI_PALETTE)
@@ -512,7 +515,6 @@ def render_admin_dashboard():
                 fig3b_l.update_traces(textinfo='label+percent', textfont_size=20, textposition='inside', insidetextorientation='horizontal',
                                       hovertemplate='<b>%{label}</b><br>填充次數: %{value} 次<br>佔比: %{percent:.1%}<extra></extra>')
                 
-                # Right: Weight
                 eq_weight = df_c3.groupby('設備類型')['冷媒填充量'].sum().reset_index()
                 fig3b_r = px.pie(eq_weight, values='冷媒填充量', names='設備類型', title='依填充重量統計', hole=0.4,
                                  color_discrete_sequence=MORANDI_PALETTE)
