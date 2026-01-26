@@ -164,7 +164,7 @@ except Exception as e:
     st.error(f"❌ 資料庫連線失敗: {e}")
     st.stop()
 
-# 4. 資料讀取 (V252/V260 - 整合後台所需邏輯)
+# 4. 資料讀取
 @st.cache_data(ttl=60)
 def load_data_all():
     # 單位資訊
@@ -298,7 +298,7 @@ def render_user_interface():
                     st.success("✅ 冷媒填報成功！"); st.balloons()
                 except Exception as e: st.error(f"上傳或寫入失敗: {e}")
 
-    # --- Tab 2: 申報動態查詢 (保留 V252 logic) ---
+    # --- Tab 2: 申報動態查詢 (V261.0 改版) ---
     with tabs[1]:
         st.markdown('<div class="morandi-header">📋 申報動態查詢</div>', unsafe_allow_html=True)
         if df_records.empty:
@@ -325,10 +325,20 @@ def render_user_interface():
                     left_html = f'<div class="dept-text">{sel_q_dept}</div>' if sel_q_dept==sel_q_unit else f'<div class="dept-text">{sel_q_dept}</div><div class="unit-text">{sel_q_unit}</div>'
                     campus_str = ", ".join(sorted(df_view['校區'].unique()))
                     build_str = ", ".join(sorted(df_view['建築物名稱'].unique())[:3])
-                    equip_str = ", ".join(sorted(df_view['設備類型'].unique()))
                     
-                    fill_details = "".join([f"<div>• {row['冷媒種類']}：{row['冷媒填充量']:.2f} kg</div>" for _, row in df_view.iterrows()])
-                    fill_summary = "".join([f"<div>• {row['冷媒種類']}：{row['冷媒填充量']:.2f} kg</div>" for _, row in df_view.groupby('冷媒種類')['冷媒填充量'].sum().reset_index().iterrows()])
+                    # V261.0: 資訊整合 (設備類型-冷媒種類)
+                    fill_info_list = []
+                    for _, row in df_view.iterrows():
+                        fill_info_list.append(f"<div>• {row['設備類型']}-{row['冷媒種類']}：{row['冷媒填充量']:.2f} kg</div>")
+                    fill_info_str = "".join(fill_info_list)
+
+                    # V261.0: 重量統計優化 (總計 + 分類)
+                    total_kg = df_view['冷媒填充量'].sum()
+                    type_sums = df_view.groupby('冷媒種類')['冷媒填充量'].sum().reset_index()
+                    weight_str = f"<div><strong>總計：{total_kg:.2f} kg</strong></div>"
+                    for _, row in type_sums.iterrows():
+                        weight_str += f"<div>• {row['冷媒種類']}：{row['冷媒填充量']:.2f} kg</div>"
+
                     total_emission = df_view['排放量(kgCO2e)'].sum()
 
                     st.markdown("---")
@@ -339,9 +349,8 @@ def render_user_interface():
                             <div class="info-row"><span class="info-icon">📅</span><span class="info-label">查詢區間</span><span class="info-value">{q_start_date} ~ {q_end_date}</span></div>
                             <div class="info-row"><span class="info-icon">🏫</span><span class="info-label">所在校區</span><span class="info-value">{campus_str}</span></div>
                             <div class="info-row"><span class="info-icon">🏢</span><span class="info-label">建築物</span><span class="info-value">{build_str}</span></div>
-                            <div class="info-row"><span class="info-icon">❄️</span><span class="info-label">設備類型</span><span class="info-value">{equip_str}</span></div>
-                            <div class="info-row"><span class="info-icon">📝</span><span class="info-label">填充明細</span><span class="info-value">{fill_details}</span></div>
-                            <div class="info-row"><span class="info-icon">⚖️</span><span class="info-label">重量統計</span><span class="info-value">{fill_summary}</span></div>
+                            <div class="info-row"><span class="info-icon">❄️</span><span class="info-label">冷媒填充資訊</span><span class="info-value">{fill_info_str}</span></div>
+                            <div class="info-row"><span class="info-icon">⚖️</span><span class="info-label">重量統計</span><span class="info-value">{weight_str}</span></div>
                             <div class="info-row"><span class="info-icon">🌍</span><span class="info-label">碳排放量</span><span class="info-value" style="color:#C0392B;font-size:1.8rem;font-weight:900;">{total_emission:,.2f} <span style="font-size:1rem;">kgCO2e</span></span></div>
                         </div>
                     </div>
@@ -352,11 +361,11 @@ def render_user_interface():
             else: st.info("請選擇單位進行查詢")
 
 # ==========================================
-# 6. 功能模組：管理員後台 (V260 - 旗艦重構)
+# 6. 功能模組：管理員後台 (V261 - 移除參數分頁)
 # ==========================================
 def render_admin_dashboard():
     st.markdown("### 👑 冷媒管理後台")
-    admin_tabs = st.tabs(["📊 全校冷媒填充儀表板", "📝 申報資料異動", "⚙️ 參數設定查詢"])
+    admin_tabs = st.tabs(["📊 全校冷媒填充儀表板", "📝 申報資料異動"]) # V261: 剩 2 頁
 
     # 資料預處理
     df_clean = df_records.copy()
@@ -367,7 +376,7 @@ def render_admin_dashboard():
         df_clean['月份'] = df_clean['維修日期'].dt.month.fillna(0).astype(int)
         df_clean['排放量(kgCO2e)'] = df_clean.apply(lambda r: r['冷媒填充量'] * gwp_map.get(r['冷媒種類'], 0), axis=1)
 
-    # --- Admin Tab 1: 儀表板 (V260: 比照燃油 V150 規格) ---
+    # --- Admin Tab 1: 儀表板 (維持 V260 規格) ---
     with admin_tabs[0]:
         all_years = sorted(df_clean['年份'].unique(), reverse=True) if not df_clean.empty else [datetime.now().year]
         c_year, _ = st.columns([1, 3])
@@ -389,17 +398,16 @@ def render_admin_dashboard():
             
             st.markdown("---")
             
-            # 1. 逐月填充統計 (Bar - Single value logic)
+            # 1. 逐月填充統計
             st.subheader("📈 年度逐月冷媒填充統計")
             monthly = df_year.groupby(['月份', '冷媒種類'])['冷媒填充量'].sum().reset_index()
             counts_db = df_year.groupby(['月份', '冷媒種類'])['冷媒填充量'].count()
             
-            # Logic for label hiding
             def get_text(row):
                 val = row['冷媒填充量']
                 if val <= 0: return ""
                 key = (row['月份'], row['冷媒種類'])
-                if key in counts_db and counts_db[key] == 1: return "" # Hide if single
+                if key in counts_db and counts_db[key] == 1: return "" 
                 return f"{val:.1f}"
             
             monthly['text_label'] = monthly.apply(get_text, axis=1)
@@ -411,7 +419,7 @@ def render_admin_dashboard():
             
             st.markdown("---")
             
-            # 2. 前十大填充單位 (Bar)
+            # 2. 前十大填充單位
             st.subheader("🏆 年度前十大填充單位")
             top10 = df_year.groupby('填報單位名稱')['冷媒填充量'].sum().nlargest(10).reset_index()
             fig_top = px.bar(top10, x='填報單位名稱', y='冷媒填充量', text_auto='.1f', color_discrete_sequence=['#5DADE2'])
@@ -421,10 +429,9 @@ def render_admin_dashboard():
             
             st.markdown("---")
             
-            # 3. 冷媒種類佔比 (Pie - V260 Optimized: Single Column, Font 30, Tooltip)
+            # 3. 冷媒種類佔比
             st.subheader("🍩 冷媒種類填充量佔比分析")
             type_kg = df_year.groupby('冷媒種類')['冷媒填充量'].sum().reset_index()
-            # Direct render, no columns
             fig_pie = px.pie(type_kg, values='冷媒填充量', names='冷媒種類', title='各冷媒種類填充分佈', hole=0.4, color_discrete_sequence=px.colors.qualitative.Set3)
             fig_pie.update_layout(height=650, font=dict(size=18), legend=dict(font=dict(size=16)))
             fig_pie.update_traces(textinfo='percent+label', textfont_size=30, textposition='inside', insidetextorientation='horizontal', hovertemplate='<b>項目: %{label}</b><br>統計填充量: %{value:.2f} kg<br>百分比: %{percent:.1%}<extra></extra>')
@@ -432,7 +439,7 @@ def render_admin_dashboard():
             
             st.markdown("---")
             
-            # 4. 碳排結構 (Treemap)
+            # 4. 碳排結構
             st.subheader("🌍 各校區冷媒碳排放量結構")
             fig_tree = px.treemap(df_year, path=['校區', '填報單位名稱'], values='排放量(kgCO2e)', color='校區', color_discrete_sequence=px.colors.qualitative.Pastel)
             fig_tree.update_traces(texttemplate='%{label}<br>%{value:.1f}<br>%{percentRoot:.1%}', textfont=dict(size=24))
@@ -441,7 +448,7 @@ def render_admin_dashboard():
         else:
             st.info("該年度無資料")
 
-    # --- Admin Tab 2: 資料維護 (V260 - 安全存檔 + 下載) ---
+    # --- Admin Tab 2: 資料維護 ---
     with admin_tabs[1]:
         st.subheader("📝 申報資料異動與下載")
         if not df_year.empty:
@@ -458,13 +465,11 @@ def render_admin_dashboard():
                 key="ref_editor"
             )
             
-            # V260: 下載年度完整資料
             csv_data = edited.to_csv(index=False).encode('utf-8-sig')
             st.download_button(label="📥 下載年度填報紀錄 (CSV)", data=csv_data, file_name=f"{sel_year}_冷媒填報紀錄.csv", mime="text/csv", key="dl_ref_csv")
             
             if st.button("💾 儲存變更", type="primary"):
                 try:
-                    # V260: 安全存檔邏輯 (比照燃油)
                     df_all_data = df_records.copy()
                     df_all_data['temp_date'] = pd.to_datetime(df_all_data['維修日期'], errors='coerce')
                     df_all_data['temp_year'] = df_all_data['temp_date'].dt.year.fillna(0).astype(int)
@@ -474,7 +479,6 @@ def render_admin_dashboard():
                     
                     df_final = pd.concat([df_keep, df_new], ignore_index=True)
                     
-                    # Cleanup
                     if 'temp_date' in df_final.columns: del df_final['temp_date']
                     if 'temp_year' in df_final.columns: del df_final['temp_year']
                     if '年份' in df_final.columns: del df_final['年份']
@@ -483,9 +487,7 @@ def render_admin_dashboard():
                     
                     df_final['維修日期'] = df_final['維修日期'].astype(str)
                     
-                    # Ensure columns match sheet
                     cols_to_write = df_records.columns.tolist()
-                    # Filter existing cols only
                     cols_to_write = [c for c in cols_to_write if c in df_final.columns]
                     df_final = df_final[cols_to_write]
                     
@@ -499,11 +501,6 @@ def render_admin_dashboard():
                     st.error(f"更新失敗: {e}")
         else:
             st.info("無資料可編輯")
-
-    # --- Admin Tab 3: 參數 ---
-    with admin_tabs[2]:
-        st.info("這裡顯示目前系統讀取的 GWP 係數，如需修改請至 Google Sheet「冷媒係數表」。")
-        st.dataframe(pd.DataFrame(list(gwp_map.items()), columns=['冷媒種類', 'GWP值']), use_container_width=True)
 
 # ==========================================
 # 7. 主程式入口
