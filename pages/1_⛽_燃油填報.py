@@ -176,7 +176,7 @@ st.markdown("""
     .alert-box { background-color: #FCF3CF; border: 2px solid #F1C40F; padding: 15px; border-radius: 10px; margin-bottom: 20px; color: #9A7D0A !important; font-weight: bold; text-align: center; }
     .privacy-box { background-color: #F8F9F9; border: 1px solid #BDC3C7; padding: 15px; border-radius: 10px; font-size: 0.9rem; color: #566573; margin-bottom: 10px; }
     .privacy-title { font-weight: bold; color: #2C3E50; margin-bottom: 5px; font-size: 1rem; }
-    .pie-chart-box { background-color: #FFFFFF; border: 2px solid #BDC3C7; border-radius: 15px; padding: 20px; margin-bottom: 20px; min-height: 650px; } /* V137 Modified */
+    /* V139 移除 pie-chart-box 的 class, 改用原生渲染 */
     .dashboard-main-title {
         font-size: 1.8rem; font-weight: 900; text-align: center; color: #2C3E50; margin-bottom: 20px;
         background-color: #F8F9F9; padding: 10px; border-radius: 10px; border: 1px solid #BDC3C7;
@@ -610,7 +610,7 @@ def render_user_interface():
                 if not sel_q_dept: st.info("👈 請先選擇「所屬單位」以開始查詢。")
         else: st.info("尚無資料庫連線或無資料。")
 
-    st.markdown('<div class="contact-footer">管理員系統版本 V138.0 (Fuel Final Perfect)</div>', unsafe_allow_html=True)
+    st.markdown('<div class="contact-footer">管理員系統版本 V139.0 (Clean Layout & Complete Data Export)</div>', unsafe_allow_html=True)
 
 def render_admin_dashboard():
     """ 顯示管理員後台 """
@@ -632,43 +632,27 @@ def render_admin_dashboard():
 
     admin_tabs = st.tabs(["🔍 申報資料異動", "⚠️ 篩選未申報名單", "📝 全校燃油設備總覽", "📊 全校油料使用儀表板"])
 
-    # === Tab 1: 申報資料異動 (V138.0 - 匯出邏輯優化) ===
+    # === Tab 1: 申報資料異動 (V139.0 - 匯出欄位補全) ===
     with admin_tabs[0]:
         st.subheader("🔍 申報資料異動")
         if not df_year.empty:
             df_year['加油日期'] = pd.to_datetime(df_year['加油日期']).dt.date
             edited = st.data_editor(df_year, column_config={"佐證資料": st.column_config.LinkColumn("佐證", display_text="🔗"), "加油日期": st.column_config.DateColumn("日期", format="YYYY-MM-DD"), "加油量": st.column_config.NumberColumn("油量", format="%.2f"), "填報時間": st.column_config.TextColumn("填報時間", disabled=True)}, num_rows="dynamic", use_container_width=True, key="editor_v122")
             
-            # V138.0 優化：下載邏輯 (Merge 回 Sheet1 設備清單)
-            # 1. 計算該年度每台設備的加油總量
+            # V139.0: 匯出完整設備清單 + 年度統計
             df_stats = df_year.groupby(['設備名稱備註'])['加油量'].sum().reset_index()
-            
-            # 2. 以 df_equip 為主體進行合併 (Left Join)
-            # 確保欄位名稱對應 (sheet1 的 '設備名稱備註' vs df_stats 的 '設備名稱備註')
             df_export = pd.merge(df_equip, df_stats, on='設備名稱備註', how='left')
-            
-            # 3. 填補空值 (未加油者補0)
             df_export['加油量'] = df_export['加油量'].fillna(0)
-            
-            # 4. 新增欄位 J (假設 Excel A=0, B=1... I=8, J=9) -> 加油量已在最後，重新命名
             df_export.rename(columns={'加油量': f'{selected_admin_year}年度總加油量'}, inplace=True)
             
-            # 5. 整理匯出欄位 (保留原始欄位 + 年度總量)
-            # 假設原始欄位為: 填報單位, 設備名稱備註, 校內財產編號, 原燃物料名稱...
-            # 這裡簡單列出關鍵欄位供下載
-            export_cols = ['填報單位', '設備名稱備註', '校內財產編號', '原燃物料名稱', f'{selected_admin_year}年度總加油量']
-            # 確保欄位存在
-            valid_export_cols = [c for c in export_cols if c in df_export.columns]
-            df_final_export = df_export[valid_export_cols]
+            # 指定匯出欄位 (依使用者需求)
+            target_cols = ['填報單位', '設備名稱備註', '校內財產編號', '原燃物料名稱', '保管人', '設備所屬單位/部門', '設備詳細位置/樓層', '設備數量', '設備編號', f'{selected_admin_year}年度總加油量']
+            # 過濾存在的欄位
+            final_cols = [c for c in target_cols if c in df_export.columns]
+            df_final_export = df_export[final_cols]
             
             csv_data = df_final_export.to_csv(index=False).encode('utf-8-sig')
-            st.download_button(
-                label="📥 下載設備年度加油量統計表 (CSV)",
-                data=csv_data,
-                file_name=f"{selected_admin_year}_設備年度加油統計.csv",
-                mime="text/csv",
-                key="dl_stats_csv_v138"
-            )
+            st.download_button(label="📥 下載設備年度加油量統計表 (CSV)", data=csv_data, file_name=f"{selected_admin_year}_設備年度加油統計.csv", mime="text/csv", key="dl_stats_csv_v139")
 
             if st.button("💾 儲存變更", type="primary"):
                 try:
@@ -713,7 +697,7 @@ def render_admin_dashboard():
                 else: st.success("🎉 太棒了！全數已申報。")
             else: st.warning("無資料可供篩選。")
 
-    # === Tab 3: 全校總覽 (V138.0 移除空白框) ===
+    # === Tab 3: 全校總覽 (V139.0 移除空白框 - 設備總覽) ===
     with admin_tabs[2]:
         if not df_year.empty and not df_equip.empty:
             total_eq = int(df_equip['設備數量_num'].sum())
@@ -750,29 +734,25 @@ def render_admin_dashboard():
             st.subheader("🍩 油品設備用油量佔比分析")
             color_map = { "公務車輛(GV-1-)": "#B0C4DE", "乘坐式割草機(GV-2-)": "#F5CBA7", "乘坐式農用機具(GV-3-)": "#D7BDE2", "鍋爐(GS-1-)": "#E6B0AA", "發電機(GS-2-)": "#A9CCE3", "肩背或手持式割草機、吹葉機(GS-3-)": "#A3E4D7", "肩背或手持式農用機具(GS-4-)": "#F9E79F" }
             
-            # V138: 移除 st.columns 與不必要的 div，直接渲染圖表
+            # V139: 直接渲染，不使用 columns 或額外 div
             gas_data = df_year[(df_year['油品大類'] == '汽油') & (df_year['統計類別'].isin(DEVICE_ORDER))].groupby('統計類別')['加油量'].sum().reset_index()
             if not gas_data.empty:
-                st.markdown('<div class="pie-chart-box">', unsafe_allow_html=True)
                 fig_g = px.pie(gas_data, values='加油量', names='統計類別', title='⛽ 汽油用量佔比', hole=0.4, color='統計類別', color_discrete_map=color_map)
                 fig_g.update_layout(height=600, font=dict(size=18), legend=dict(font=dict(size=16)))
                 fig_g.update_traces(textinfo='percent+label', textfont_size=20, textposition='inside', insidetextorientation='horizontal')
                 st.plotly_chart(fig_g, use_container_width=True)
-                st.markdown('</div>', unsafe_allow_html=True)
             else: st.info("無汽油數據")
             
             dsl_data = df_year[(df_year['油品大類'] == '柴油') & (df_year['統計類別'].isin(DEVICE_ORDER))].groupby('統計類別')['加油量'].sum().reset_index()
             if not dsl_data.empty:
-                st.markdown('<div class="pie-chart-box">', unsafe_allow_html=True)
                 fig_d = px.pie(dsl_data, values='加油量', names='統計類別', title='🚛 柴油用量佔比', hole=0.4, color='統計類別', color_discrete_map=color_map)
                 fig_d.update_layout(height=600, font=dict(size=18), legend=dict(font=dict(size=16)))
                 fig_d.update_traces(textinfo='percent+label', textfont_size=20, textposition='inside', insidetextorientation='horizontal')
                 st.plotly_chart(fig_d, use_container_width=True)
-                st.markdown('</div>', unsafe_allow_html=True)
             else: st.info("無柴油數據")
         else: st.warning("尚無資料可供統計。")
 
-    # === Tab 4: 儀表板 (V138.0 移除空白框) ===
+    # === Tab 4: 儀表板 (V139.0 移除空白框 - 單位佔比) ===
     with admin_tabs[3]:
         if not df_year.empty:
             st.markdown(f"<div class='dashboard-main-title'>{selected_admin_year}年度 能源使用與碳排統計</div>", unsafe_allow_html=True)
@@ -815,25 +795,21 @@ def render_admin_dashboard():
             st.markdown("---")
             st.subheader("🍩 全校加油量單位佔比")
             
-            # V138: 移除 st.columns 與不必要的 div
+            # V139: 直接渲染
             df_gas = df_year[df_year['油品大類'] == '汽油']
             if not df_gas.empty:
-                st.markdown('<div class="pie-chart-box">', unsafe_allow_html=True)
                 fig_dg = px.pie(df_gas, values='加油量', names='填報單位', title='⛽ 汽油用量分佈', hole=0.4, color_discrete_sequence=DASH_PALETTE)
                 fig_dg.update_layout(height=600, font=dict(size=18), legend=dict(font=dict(size=16)))
                 fig_dg.update_traces(textposition='inside', textinfo='label+percent', hovertemplate='%{label}<br>加油量: %{value:.2f} L<br>佔比: %{percent}', textfont_size=20, insidetextorientation='horizontal')
                 st.plotly_chart(fig_dg, use_container_width=True)
-                st.markdown('</div>', unsafe_allow_html=True)
             else: st.info("無汽油數據")
             
             df_dsl = df_year[df_year['油品大類'] == '柴油']
             if not df_dsl.empty:
-                st.markdown('<div class="pie-chart-box">', unsafe_allow_html=True)
                 fig_dd = px.pie(df_dsl, values='加油量', names='填報單位', title='🚛 柴油用量分佈', hole=0.4, color_discrete_sequence=DASH_PALETTE)
                 fig_dd.update_layout(height=600, font=dict(size=18), legend=dict(font=dict(size=16)))
                 fig_dd.update_traces(textposition='inside', textinfo='label+percent', hovertemplate='%{label}<br>加油量: %{value:.2f} L<br>佔比: %{percent}', textfont_size=20, insidetextorientation='horizontal')
                 st.plotly_chart(fig_dd, use_container_width=True)
-                st.markdown('</div>', unsafe_allow_html=True)
             else: st.info("無柴油數據")
 
             st.markdown("---")
@@ -846,7 +822,7 @@ def render_admin_dashboard():
             else: st.info("無數據")
         else: st.info("尚無該年度資料，無法顯示儀表板。")
 
-    st.markdown('<div class="contact-footer">管理員系統版本 V138.0 (Fuel Final Perfect)</div>', unsafe_allow_html=True)
+    st.markdown('<div class="contact-footer">管理員系統版本 V139.0 (Clean Layout & Complete Data Export)</div>', unsafe_allow_html=True)
 
 # ==========================================
 # 5. 主程式入口
