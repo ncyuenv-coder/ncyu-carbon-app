@@ -152,7 +152,7 @@ st.markdown("""
     .top-kpi-title { font-size: 1.15rem; color: #7F8C8D; font-weight: bold; margin-bottom: 5px; }
     .top-kpi-value { font-size: 3.5rem; color: #2C3E50; font-weight: 900; line-height: 1.1; }
 
-    /* 看板 KPI (V134 還原) */
+    /* 看板 KPI */
     .kpi-card {
         padding: 20px; border-radius: 15px; text-align: center; background-color: #FFFFFF;
         box-shadow: 0 4px 10px rgba(0,0,0,0.1); border: 1px solid #BDC3C7; height: 100%; transition: transform 0.2s;
@@ -206,6 +206,17 @@ st.markdown("""
         margin-bottom: 20px;
         box-shadow: 0 2px 4px rgba(0,0,0,0.05);
     }
+    
+    /* 橫式資訊卡 (Info Card V135) */
+    .horizontal-card { display: flex; border: 1px solid #BDC3C7; border-radius: 12px; overflow: hidden; margin-bottom: 25px; box-shadow: 0 4px 8px rgba(0,0,0,0.08); background-color: #FFFFFF; min-height: 250px; }
+    .card-left { flex: 3; background-color: var(--morandi-blue); color: #FFFFFF; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 20px; text-align: center; border-right: 1px solid #2C3E50; }
+    .dept-text { font-size: 1.6rem; font-weight: 700; margin-bottom: 8px; line-height: 1.4; }
+    .card-right { flex: 7; padding: 20px 30px; display: flex; flex-direction: column; justify-content: center; }
+    .info-row { display: flex; align-items: flex-start; padding: 10px 0; font-size: 1rem; color: #566573; border-bottom: 1px dashed #F2F3F4; }
+    .info-row:last-child { border-bottom: none; }
+    .info-icon { margin-right: 12px; font-size: 1.1rem; width: 25px; text-align: center; margin-top: 2px; }
+    .info-label { font-weight: 700; margin-right: 10px; min-width: 150px; color: #2E4053; }
+    .info-value { font-weight: 500; color: #17202A; flex: 1; line-height: 1.5; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -601,7 +612,7 @@ def render_user_interface():
                 else: st.warning(f"⚠️ {query_dept} 在 {query_year} 年度尚無填報紀錄。")
         else: st.info("尚無該年度資料，無法顯示儀表板。")
 
-    st.markdown('<div class="contact-footer">管理員系統版本 V142.0 (Fuel Dashboard Refined)</div>', unsafe_allow_html=True)
+    st.markdown('<div class="contact-footer">管理員系統版本 V143.0 (Fuel Final Perfect)</div>', unsafe_allow_html=True)
 
 def render_admin_dashboard():
     """ 顯示管理員後台 """
@@ -623,18 +634,22 @@ def render_admin_dashboard():
 
     admin_tabs = st.tabs(["🔍 申報資料異動", "⚠️ 篩選未申報名單", "📝 全校燃油設備總覽", "📊 全校油料使用儀表板"])
 
-    # === Tab 1: 申報資料異動 (V139.0) ===
+    # === Tab 1: 申報資料異動 (V139.0 - 匯出欄位補全) ===
     with admin_tabs[0]:
         st.subheader("🔍 申報資料異動")
         if not df_year.empty:
             df_year['加油日期'] = pd.to_datetime(df_year['加油日期']).dt.date
             edited = st.data_editor(df_year, column_config={"佐證資料": st.column_config.LinkColumn("佐證", display_text="🔗"), "加油日期": st.column_config.DateColumn("日期", format="YYYY-MM-DD"), "加油量": st.column_config.NumberColumn("油量", format="%.2f"), "填報時間": st.column_config.TextColumn("填報時間", disabled=True)}, num_rows="dynamic", use_container_width=True, key="editor_v122")
             
+            # V139.0: 匯出完整設備清單 + 年度統計
             df_stats = df_year.groupby(['設備名稱備註'])['加油量'].sum().reset_index()
             df_export = pd.merge(df_equip, df_stats, on='設備名稱備註', how='left')
             df_export['加油量'] = df_export['加油量'].fillna(0)
             df_export.rename(columns={'加油量': f'{selected_admin_year}年度總加油量'}, inplace=True)
+            
+            # 指定匯出欄位 (依使用者需求)
             target_cols = ['填報單位', '設備名稱備註', '校內財產編號', '原燃物料名稱', '保管人', '設備所屬單位/部門', '設備詳細位置/樓層', '設備數量', '設備編號', f'{selected_admin_year}年度總加油量']
+            # 過濾存在的欄位
             final_cols = [c for c in target_cols if c in df_export.columns]
             df_final_export = df_export[final_cols]
             
@@ -684,7 +699,7 @@ def render_admin_dashboard():
                 else: st.success("🎉 太棒了！全數已申報。")
             else: st.warning("無資料可供篩選。")
 
-    # === Tab 3: 全校總覽 ===
+    # === Tab 3: 全校總覽 (V143.0 補回 7大類統計卡片 + 移除空白框) ===
     with admin_tabs[2]:
         if not df_year.empty and not df_equip.empty:
             total_eq = int(df_equip['設備數量_num'].sum())
@@ -696,6 +711,7 @@ def render_admin_dashboard():
             k3.markdown(f"""<div class="top-kpi-card"><div class="top-kpi-title">🚛 全校柴油設備數</div><div class="top-kpi-value">{diesel_eq}</div></div>""", unsafe_allow_html=True)
             st.markdown("---")
 
+            # V143.0: 嚴格還原 V134 的 7大類統計卡片 (2個為1列)
             st.subheader("📂 各類設備數量及用油統計")
             eq_sums = df_equip.groupby('統計類別')['設備數量_num'].sum()
             eq_gas_sums = df_equip[df_equip['原燃物料名稱'].str.contains('汽油', na=False)].groupby('統計類別')['設備數量_num'].sum()
@@ -721,7 +737,7 @@ def render_admin_dashboard():
             st.subheader("🍩 油品設備用油量佔比分析")
             color_map = { "公務車輛(GV-1-)": "#B0C4DE", "乘坐式割草機(GV-2-)": "#F5CBA7", "乘坐式農用機具(GV-3-)": "#D7BDE2", "鍋爐(GS-1-)": "#E6B0AA", "發電機(GS-2-)": "#A9CCE3", "肩背或手持式割草機、吹葉機(GS-3-)": "#A3E4D7", "肩背或手持式農用機具(GS-4-)": "#F9E79F" }
             
-            # V139: 直接渲染
+            # V139: 直接渲染，不使用 columns 或額外 div
             gas_data = df_year[(df_year['油品大類'] == '汽油') & (df_year['統計類別'].isin(DEVICE_ORDER))].groupby('統計類別')['加油量'].sum().reset_index()
             if not gas_data.empty:
                 fig_g = px.pie(gas_data, values='加油量', names='統計類別', title='⛽ 汽油用量佔比', hole=0.4, color='統計類別', color_discrete_map=color_map)
@@ -739,7 +755,7 @@ def render_admin_dashboard():
             else: st.info("無柴油數據")
         else: st.warning("尚無資料可供統計。")
 
-    # === Tab 4: 儀表板 ===
+    # === Tab 4: 儀表板 (V139.0 移除空白框 - 單位佔比) ===
     with admin_tabs[3]:
         if not df_year.empty:
             st.markdown(f"<div class='dashboard-main-title'>{selected_admin_year}年度 能源使用與碳排統計</div>", unsafe_allow_html=True)
@@ -782,6 +798,7 @@ def render_admin_dashboard():
             st.markdown("---")
             st.subheader("🍩 全校加油量單位佔比")
             
+            # V139: 直接渲染
             df_gas = df_year[df_year['油品大類'] == '汽油']
             if not df_gas.empty:
                 fig_dg = px.pie(df_gas, values='加油量', names='填報單位', title='⛽ 汽油用量分佈', hole=0.4, color_discrete_sequence=DASH_PALETTE)
@@ -808,7 +825,7 @@ def render_admin_dashboard():
             else: st.info("無數據")
         else: st.info("尚無該年度資料，無法顯示儀表板。")
 
-    st.markdown('<div class="contact-footer">管理員系統版本 V142.0 (Fuel Dashboard Refined)</div>', unsafe_allow_html=True)
+    st.markdown('<div class="contact-footer">管理員系統版本 V143.0 (Fuel Final Perfect)</div>', unsafe_allow_html=True)
 
 # ==========================================
 # 5. 主程式入口
