@@ -165,13 +165,13 @@ except Exception as e:
     st.error(f"❌ 資料庫連線失敗: {e}")
     st.stop()
 
-# 4. 資料讀取 (V275.0 - 靜態Local優先 / 動態Cloud唯一)
-# 檔案名稱對應 (1150126 更新)
+# 4. 資料讀取 (V278.0 - 檔名校正回歸)
+# 檔案名稱對應 (回復為無日期版本)
 CSV_FILES = {
-    "unit": "冷媒設備盤查資料庫_標準化 (1150126更新).xlsx - 單位資訊.csv",
-    "build": "冷媒設備盤查資料庫_標準化 (1150126更新).xlsx - 建築物清單.csv",
-    "type": "冷媒設備盤查資料庫_標準化 (1150126更新).xlsx - 設備類型.csv",
-    "coef": "冷媒設備盤查資料庫_標準化 (1150126更新).xlsx - 冷媒係數表.csv"
+    "unit": "冷媒設備盤查資料庫_標準化.xlsx - 單位資訊.csv",
+    "build": "冷媒設備盤查資料庫_標準化.xlsx - 建築物清單.csv",
+    "type": "冷媒設備盤查資料庫_標準化.xlsx - 設備類型.csv",
+    "coef": "冷媒設備盤查資料庫_標準化.xlsx - 冷媒係數表.csv"
 }
 
 def load_static_data(source='local'):
@@ -205,7 +205,7 @@ def load_static_data(source='local'):
             df_types = pd.DataFrame(ws_types.get_all_records()).astype(str)
             df_coef = pd.DataFrame(ws_coef.get_all_records())
             
-            # 存回本地 CSV 供下次快速讀取
+            # 存回本地
             df_units.to_csv(CSV_FILES["unit"], index=False)
             df_build.to_csv(CSV_FILES["build"], index=False)
             df_types.to_csv(CSV_FILES["type"], index=False)
@@ -235,6 +235,7 @@ def load_static_data(source='local'):
         # 4. 係數 (使用完整名稱，不做截斷)
         if not df_coef.empty:
             for _, row in df_coef.iterrows():
+                # V278: 完整名稱讀取 (因 Excel 內容已標準化)
                 r_name_full = str(row.iloc[1]).strip().replace('\u3000', ' ').replace('\xa0', ' ')
                 try: 
                     gwp = float(str(row.iloc[2]).replace(',', ''))
@@ -453,11 +454,10 @@ def render_admin_dashboard():
     
     admin_tabs = st.tabs(["📊 全校冷媒填充儀表板", "📝 申報資料異動"])
 
-    # V273: 按鈕放置於 Tab 2 內
+    # V275: 按鈕維持在 Tab 2
     with admin_tabs[1]:
         st.subheader("📝 申報資料異動與下載")
         
-        # 強制從雲端更新本地靜態資料 CSV
         if st.button("🔄 更新背景資料庫 (從 Google Sheet 同步)", key="btn_update_db"):
             with st.spinner("正在從雲端下載最新資料..."):
                 st.session_state['unit_dict'], st.session_state['build_dict'], st.session_state['e_types'], st.session_state['r_types'], st.session_state['gwp_map'] = load_static_data('cloud')
