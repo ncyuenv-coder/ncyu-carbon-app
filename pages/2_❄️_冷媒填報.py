@@ -10,6 +10,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import time
 import re
+import os
 
 # ==========================================
 # 0. 系統設定
@@ -142,7 +143,7 @@ if st.session_state.get("authentication_status") is not True:
     st.warning("🔒 請先至首頁 (Hello) 登入系統")
     st.stop()
 
-# 3. 資料庫連線
+# 3. 資料庫連線 (保持 Google Sheets 連線以供寫入)
 REF_SHEET_ID = "1p7GsW-nrjerXhnn3pNgZzu_CdIh1Yxsm-fLJDqQ6MqA"
 REF_FOLDER_ID = "1o0S56OyStDjvC5tgBWiUNqNjrpXuCQMI"
 
@@ -156,95 +157,138 @@ def init_google_ref():
 try:
     gc, drive_service = init_google_ref()
     sh_ref = gc.open_by_key(REF_SHEET_ID)
-    
-    ws_units = sh_ref.worksheet("單位資訊") 
-    ws_buildings = sh_ref.worksheet("建築物清單")
-    ws_types = sh_ref.worksheet("設備類型")
-    ws_coef = sh_ref.worksheet("冷媒係數表")
-    
+    # 動態資料表 (填報紀錄) 必須維持連線
     try: ws_records = sh_ref.worksheet("冷媒填報紀錄")
     except: 
         ws_records = sh_ref.add_worksheet(title="冷媒填報紀錄", rows="1000", cols="15")
         ws_records.append_row(["填報時間","填報人","填報人分機","校區","所屬單位","填報單位名稱","建築物名稱","辦公室編號","維修日期","設備類型","設備品牌型號","冷媒種類","冷媒填充量","備註","佐證資料"])
-
 except Exception as e:
     st.error(f"❌ 資料庫連線失敗: {e}")
     st.stop()
 
-# 4. 資料讀取 (V266.0 - GWP Map Key 修正)
-@st.cache_data(ttl=3600)
-def load_data_all():
-    max_retries = 3
-    delay = 1
-    for attempt in range(max_retries):
-        try:
-            unit_data = ws_units.get_all_values()
-            unit_dict = {}
-            if len(unit_data) > 1:
-                for row in unit_data[1:]:
-                    if len(row) >= 2:
-                        dept, unit = str(row[0]).strip(), str(row[1]).strip()
-                        if dept and unit:
-                            if dept not in unit_dict: unit_dict[dept] = []
-                            if unit not in unit_dict[dept]: unit_dict[dept].append(unit)
+# 4. 資料讀取 (V267.0 - 混合讀取模式)
+# 檔案名稱對應
+CSV_FILES = {
+    "unit": "冷媒設備盤查資料庫_標準化.xlsx - 單位資訊.csv",
+    "build": "冷媒設備盤查資料庫_標準化.xlsx - 建築物清單.csv",
+    "type": "冷媒設備盤查資料庫_標準化.xlsx - 設備類型.csv",
+    "coef": "冷媒設備盤查資料庫_標準化.xlsx - 冷媒係數表.csv"
+}
+
+def load_static_data(source='local'):
+    """讀取靜態資料：優先讀取 Local CSV，若 source='cloud' 則讀取 Google Sheet 並更新 CSV"""
+    unit_dict = {}
+    build_dict = {}
+    e_types = []
+    r_types = []
+    gwp_map = {}
+    
+    try:
+        if source == 'local':
+            # 嘗試讀取 CSV
+            try:
+                df_units = pd.read_csv(CSV_FILES["unit"])
+                df_build = pd.read_csv(CSV_FILES["build"])
+                df_types = pd.read_csv(CSV_FILES["type"])
+                df_coef = pd.read_csv(CSV_FILES["coef"])
+            except FileNotFoundError:
+                # 若檔案不存在，強制轉為雲端讀取
+                return load_static_data(source='cloud')
+        else:
+            # 讀取 Google Sheets
+            ws_units = sh_ref.worksheet("單位資訊")
+            ws_buildings = sh_ref.worksheet("建築物清單")
+            ws_types = sh_ref.worksheet("設備類型")
+            ws_coef = sh_ref.worksheet("冷媒係數表")
             
-            building_data = ws_buildings.get_all_values()
-            build_dict = {}
-            if len(building_data) > 1:
-                for row in building_data[1:]:
-                    if len(row) >= 2:
-                        campus, b_name = str(row[0]).strip(), str(row[1]).strip()
-                        if campus and b_name:
-                            if campus not in build_dict: build_dict[campus] = []
-                            if b_name not in build_dict[campus]: build_dict[campus].append(b_name)
-
-            type_data = ws_types.get_all_values()
-            e_types = sorted([row[0] for row in type_data[1:] if row]) if len(type_data) > 1 else []
+            df_units = pd.DataFrame(ws_units.get_all_records()).astype(str)
+            df_build = pd.DataFrame(ws_buildings.get_all_records()).astype(str)
+            df_types = pd.DataFrame(ws_types.get_all_records()).astype(str)
+            df_coef = pd.DataFrame(ws_coef.get_all_records()) # 數值需保留
             
-            coef_data = ws_coef.get_all_values()
-            r_types = []
-            gwp_map = {}
-            if len(coef_data) > 1:
-                try:
-                    name_idx, gwp_idx = 1, 2
-                    for row in coef_data[1:]:
-                        if len(row) > gwp_idx and row[name_idx]:
-                            r_name_full = row[name_idx].strip()
-                            try: gwp_val = float(row[gwp_idx].replace(',', '').strip())
-                            except: gwp_val = 0.0
-                            
-                            # V266 Fix: 這裡也必須同步做截斷，才能跟後台儀表板的簡化名稱對上
-                            r_name_clean = r_name_full.split('，')[0].split(',')[0].strip()
-                            r_types.append(r_name_full) # 下拉選單保留完整名稱
-                            gwp_map[r_name_clean] = gwp_val # Map 使用簡化名稱當 Key
-                except: pass
+            # 更新本地 CSV (快取)
+            df_units.to_csv(CSV_FILES["unit"], index=False)
+            df_build.to_csv(CSV_FILES["build"], index=False)
+            df_types.to_csv(CSV_FILES["type"], index=False)
+            df_coef.to_csv(CSV_FILES["coef"], index=False)
 
-            records_data = ws_records.get_all_values()
-            if len(records_data) > 1:
-                raw_headers = records_data[0]
-                col_mapping = {}
-                for h in raw_headers:
-                    clean_h = str(h).strip()
-                    if "填充量" in clean_h or "重量" in clean_h: col_mapping[h] = "冷媒填充量"
-                    elif "種類" in clean_h or "品項" in clean_h: col_mapping[h] = "冷媒種類"
-                    elif "日期" in clean_h or "維修" in clean_h: col_mapping[h] = "維修日期"
-                    else: col_mapping[h] = clean_h
-                
-                df_records = pd.DataFrame(records_data[1:], columns=raw_headers)
-                df_records.rename(columns=col_mapping, inplace=True)
-            else:
-                df_records = pd.DataFrame(columns=["填報時間","填報人","填報人分機","校區","所屬單位","填報單位名稱","建築物名稱","辦公室編號","維修日期","設備類型","設備品牌型號","冷媒種類","冷媒填充量","備註","佐證資料"])
-
-            return unit_dict, build_dict, e_types, sorted(r_types), gwp_map, df_records
+        # 處理資料格式 (V267: 移除名稱簡化邏輯)
+        # 1. 單位
+        for _, row in df_units.iterrows():
+            d = str(row.iloc[0]).strip()
+            u = str(row.iloc[1]).strip()
+            if d and u:
+                if d not in unit_dict: unit_dict[d] = []
+                if u not in unit_dict[d]: unit_dict[d].append(u)
+        
+        # 2. 建築
+        for _, row in df_build.iterrows():
+            c = str(row.iloc[0]).strip()
+            b = str(row.iloc[1]).strip()
+            if c and b:
+                if c not in build_dict: build_dict[c] = []
+                if b not in build_dict[c]: build_dict[c].append(b)
+        
+        # 3. 設備類型
+        if not df_types.empty:
+            e_types = sorted(df_types.iloc[:, 0].dropna().unique().tolist())
             
-        except Exception as e:
-            if attempt < max_retries - 1:
-                time.sleep(delay)
-                delay *= 2
-            else:
-                raise e
+        # 4. 係數
+        if not df_coef.empty:
+            # 假設欄位順序: 代碼, 種類, GWP
+            # V267 Fix: 不做截斷，直接讀取
+            for _, row in df_coef.iterrows():
+                r_name = str(row.iloc[1]).strip()
+                try: 
+                    gwp = float(str(row.iloc[2]).replace(',', ''))
+                except: 
+                    gwp = 0.0
+                if r_name:
+                    r_types.append(r_name)
+                    gwp_map[r_name] = gwp
+            r_types = sorted(list(set(r_types)))
 
-unit_dict, build_dict, e_types, r_types, gwp_map, df_records = load_data_all()
+    except Exception as e:
+        st.error(f"靜態資料讀取錯誤 ({source}): {e}")
+    
+    return unit_dict, build_dict, e_types, r_types, gwp_map
+
+@st.cache_data(ttl=60)
+def load_records_data():
+    """只讀取動態填報紀錄 (Google Sheets)"""
+    try:
+        data = ws_records.get_all_values()
+        if len(data) > 1:
+            raw_headers = data[0]
+            col_mapping = {}
+            for h in raw_headers:
+                clean_h = str(h).strip()
+                if "填充量" in clean_h or "重量" in clean_h: col_mapping[h] = "冷媒填充量"
+                elif "種類" in clean_h or "品項" in clean_h: col_mapping[h] = "冷媒種類"
+                elif "日期" in clean_h or "維修" in clean_h: col_mapping[h] = "維修日期"
+                else: col_mapping[h] = clean_h
+            
+            df = pd.DataFrame(data[1:], columns=raw_headers)
+            df.rename(columns=col_mapping, inplace=True)
+            return df
+        else:
+            return pd.DataFrame(columns=["填報時間","填報人","填報人分機","校區","所屬單位","填報單位名稱","建築物名稱","辦公室編號","維修日期","設備類型","設備品牌型號","冷媒種類","冷媒填充量","備註","佐證資料"])
+    except Exception as e:
+        st.error(f"填報紀錄讀取失敗: {e}")
+        return pd.DataFrame()
+
+# 初始化載入 (預設 local)
+if 'static_data_loaded' not in st.session_state:
+    st.session_state['unit_dict'], st.session_state['build_dict'], st.session_state['e_types'], st.session_state['r_types'], st.session_state['gwp_map'] = load_static_data('local')
+    st.session_state['static_data_loaded'] = True
+
+unit_dict = st.session_state['unit_dict']
+build_dict = st.session_state['build_dict']
+e_types = st.session_state['e_types']
+r_types = st.session_state['r_types']
+gwp_map = st.session_state['gwp_map']
+
+df_records = load_records_data()
 
 # ==========================================
 # 5. 功能模組：一般使用者介面
@@ -334,13 +378,8 @@ def render_user_interface():
         else:
             df_records['冷媒填充量'] = pd.to_numeric(df_records['冷媒填充量'], errors='coerce').fillna(0)
             df_records['維修日期'] = pd.to_datetime(df_records['維修日期'], errors='coerce')
-            
-            # V266 Fix: Use simplified name for map lookup on frontend too
-            def get_emission(row):
-                short_name = str(row['冷媒種類']).split('，')[0].split(',')[0].strip()
-                return row['冷媒填充量'] * gwp_map.get(short_name, 0)
-
-            df_records['排放量(kgCO2e)'] = df_records.apply(get_emission, axis=1)
+            # V267: 移除名稱簡化，直接對應
+            df_records['排放量(kgCO2e)'] = df_records.apply(lambda r: r['冷媒填充量'] * gwp_map.get(r['冷媒種類'], 0), axis=1)
 
             st.markdown("##### 🔍 查詢條件設定")
             c_f1, c_f2 = st.columns(2)
@@ -399,6 +438,13 @@ def render_user_interface():
 # ==========================================
 def render_admin_dashboard():
     st.markdown("### 👑 冷媒管理後台")
+    
+    # V267: Refresh DB Button
+    if st.sidebar.button("🔄 更新背景資料庫 (從 Google Sheet 同步)"):
+        with st.spinner("正在從雲端下載最新資料..."):
+            st.session_state['unit_dict'], st.session_state['build_dict'], st.session_state['e_types'], st.session_state['r_types'], st.session_state['gwp_map'] = load_static_data('cloud')
+        st.sidebar.success("✅ 資料庫已更新！")
+    
     admin_tabs = st.tabs(["📊 全校冷媒填充儀表板", "📝 申報資料異動"])
 
     # 資料預處理
@@ -408,21 +454,21 @@ def render_admin_dashboard():
         campus_map = {"林森校區-民國路": "林森校區", "社口林場": "蘭潭校區"}
         df_clean['校區'] = df_clean['校區'].replace(campus_map)
         
-        # V265: 冷媒名稱截斷 (取逗號前)
-        df_clean['冷媒種類'] = df_clean['冷媒種類'].apply(lambda x: str(x).split('，')[0].split(',')[0].strip())
+        # V267 Fix: 不截斷名稱，保持完整
+        # df_clean['冷媒種類'] = ... (removed)
 
         df_clean['冷媒填充量'] = pd.to_numeric(df_clean['冷媒填充量'], errors='coerce').fillna(0)
         df_clean['維修日期'] = pd.to_datetime(df_clean['維修日期'], errors='coerce')
         df_clean['年份'] = df_clean['維修日期'].dt.year.fillna(datetime.now().year).astype(int)
         df_clean['月份'] = df_clean['維修日期'].dt.month.fillna(0).astype(int)
-        
-        # V266 Fix: Use simplified name lookup
         df_clean['排放量(kgCO2e)'] = df_clean.apply(lambda r: r['冷媒填充量'] * gwp_map.get(r['冷媒種類'], 0), axis=1)
+        # V267: 新增公噸欄位
+        df_clean['排放量(公噸)'] = df_clean['排放量(kgCO2e)'] / 1000.0
 
     # V265: 莫蘭迪色盤
     MORANDI_PALETTE = ['#88B04B', '#92A8D1', '#F7CAC9', '#B565A7', '#009B77', '#DD4124', '#D65076', '#45B8AC', '#EFC050', '#5B5EA6', '#9B2335', '#DFCFBE']
 
-    # --- Admin Tab 1: 儀表板 (V265.0 視覺與邏輯升級) ---
+    # --- Admin Tab 1: 儀表板 (V267.0 精修版) ---
     with admin_tabs[0]:
         all_years = sorted(df_clean['年份'].unique(), reverse=True) if not df_clean.empty else [datetime.now().year]
         c_year, _ = st.columns([1, 3])
@@ -435,7 +481,7 @@ def render_admin_dashboard():
             
             # KPI
             total_kg = df_year['冷媒填充量'].sum()
-            total_co2_t = df_year['排放量(kgCO2e)'].sum() / 1000.0
+            total_co2_t = df_year['排放量(公噸)'].sum() # V267: 使用公噸
             count = len(df_year)
             
             k1, k2, k3 = st.columns(3)
@@ -461,8 +507,9 @@ def render_admin_dashboard():
                 c1_group = df_c1.groupby(['冷媒種類', '設備類型'])['冷媒填充量'].sum().reset_index()
                 fig1 = px.bar(c1_group, x='冷媒種類', y='冷媒填充量', color='設備類型', 
                               text_auto='.1f', color_discrete_sequence=MORANDI_PALETTE)
-                fig1.update_layout(yaxis_title="冷媒填充量(公斤)", xaxis_title="冷媒種類", font=dict(size=18), showlegend=True)
-                fig1.update_traces(width=0.5, textfont_size=20, textposition='inside')
+                # V267: Font +2 size, Black
+                fig1.update_layout(yaxis_title="冷媒填充量(公斤)", xaxis_title="冷媒種類", font=dict(size=20, color='black'), showlegend=True)
+                fig1.update_traces(width=0.5, textfont_size=22, textposition='inside')
                 st.plotly_chart(fig1, use_container_width=True)
             else:
                 st.info("無資料")
@@ -478,8 +525,9 @@ def render_admin_dashboard():
                 c2_group = df_top10.groupby(['填報單位名稱', '冷媒種類'])['冷媒填充量'].sum().reset_index()
                 fig2 = px.bar(c2_group, x='填報單位名稱', y='冷媒填充量', color='冷媒種類',
                               text_auto='.1f', color_discrete_sequence=MORANDI_PALETTE)
-                fig2.update_layout(xaxis={'categoryorder':'total descending'}, yaxis_title="冷媒填充量(公斤)", font=dict(size=18))
-                fig2.update_traces(width=0.5, textfont_size=20, textposition='inside')
+                # V267: Font +2 size, Black
+                fig2.update_layout(xaxis={'categoryorder':'total descending'}, yaxis_title="冷媒填充量(公斤)", font=dict(size=20, color='black'))
+                fig2.update_traces(width=0.5, textfont_size=22, textposition='inside')
                 st.plotly_chart(fig2, use_container_width=True)
             else:
                 st.info("無資料")
@@ -498,7 +546,8 @@ def render_admin_dashboard():
                 type_kg = df_c3.groupby('冷媒種類')['冷媒填充量'].sum().reset_index()
                 fig3a = px.pie(type_kg, values='冷媒填充量', names='冷媒種類', hole=0.4, 
                                color_discrete_sequence=MORANDI_PALETTE)
-                fig3a.update_layout(font=dict(size=18), legend=dict(font=dict(size=16)))
+                # V267: Uniform Text size logic
+                fig3a.update_layout(font=dict(size=18), legend=dict(font=dict(size=16)), uniformtext_minsize=20, uniformtext_mode='show')
                 fig3a.update_traces(textinfo='label+percent', textfont_size=24, textposition='inside', insidetextorientation='horizontal',
                                     hovertemplate='<b>%{label}</b><br>填充量: %{value:.1f} kg<br>佔比: %{percent:.1%}<extra></extra>')
                 st.plotly_chart(fig3a, use_container_width=True)
@@ -511,14 +560,14 @@ def render_admin_dashboard():
                 eq_count = df_c3.groupby('設備類型')['冷媒填充量'].count().reset_index(name='count')
                 fig3b_l = px.pie(eq_count, values='count', names='設備類型', title='依填充次數統計', hole=0.4,
                                  color_discrete_sequence=MORANDI_PALETTE)
-                fig3b_l.update_layout(font=dict(size=18), legend=dict(font=dict(size=16)))
+                fig3b_l.update_layout(font=dict(size=18), legend=dict(font=dict(size=16)), uniformtext_minsize=20, uniformtext_mode='show')
                 fig3b_l.update_traces(textinfo='label+percent', textfont_size=20, textposition='inside', insidetextorientation='horizontal',
                                       hovertemplate='<b>%{label}</b><br>填充次數: %{value} 次<br>佔比: %{percent:.1%}<extra></extra>')
                 
                 eq_weight = df_c3.groupby('設備類型')['冷媒填充量'].sum().reset_index()
                 fig3b_r = px.pie(eq_weight, values='冷媒填充量', names='設備類型', title='依填充重量統計', hole=0.4,
                                  color_discrete_sequence=MORANDI_PALETTE)
-                fig3b_r.update_layout(font=dict(size=18), legend=dict(font=dict(size=16)))
+                fig3b_r.update_layout(font=dict(size=18), legend=dict(font=dict(size=16)), uniformtext_minsize=20, uniformtext_mode='show')
                 fig3b_r.update_traces(textinfo='label+percent', textfont_size=20, textposition='inside', insidetextorientation='horizontal',
                                       hovertemplate='<b>%{label}</b><br>填充重量: %{value:.1f} kg<br>佔比: %{percent:.1%}<extra></extra>')
                 
@@ -531,9 +580,10 @@ def render_admin_dashboard():
             
             # --- Chart 4: 碳排結構 (Treemap) ---
             st.subheader("🌍 全校冷媒填充碳排放量(公噸二氧化碳當量)結構")
-            fig_tree = px.treemap(df_year, path=['校區', '填報單位名稱'], values='排放量(kgCO2e)', 
+            # V267: 使用公噸欄位
+            fig_tree = px.treemap(df_year, path=['校區', '填報單位名稱'], values='排放量(公噸)', 
                                   color='校區', color_discrete_sequence=MORANDI_PALETTE)
-            fig_tree.update_traces(texttemplate='%{label}<br>%{value:.1f}<br>%{percentRoot:.1%}', textfont=dict(size=24))
+            fig_tree.update_traces(texttemplate='%{label}<br>%{value:.4f}<br>%{percentRoot:.1%}', textfont=dict(size=24))
             st.plotly_chart(fig_tree, use_container_width=True)
             
         else:
@@ -570,11 +620,10 @@ def render_admin_dashboard():
                     
                     df_final = pd.concat([df_keep, df_new], ignore_index=True)
                     
-                    if 'temp_date' in df_final.columns: del df_final['temp_date']
-                    if 'temp_year' in df_final.columns: del df_final['temp_year']
-                    if '年份' in df_final.columns: del df_final['年份']
-                    if '月份' in df_final.columns: del df_final['月份']
-                    if '排放量(kgCO2e)' in df_final.columns: del df_final['排放量(kgCO2e)']
+                    # Cleanup calculated columns before save
+                    cols_to_remove = ['temp_date', 'temp_year', '年份', '月份', '排放量(kgCO2e)', '排放量(公噸)']
+                    for c in cols_to_remove:
+                        if c in df_final.columns: del df_final[c]
                     
                     df_final['維修日期'] = df_final['維修日期'].astype(str)
                     
