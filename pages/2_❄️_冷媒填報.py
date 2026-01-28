@@ -116,7 +116,7 @@ if st.session_state.get("authentication_status") is not True:
     st.warning("🔒 請先至首頁 (Hello) 登入系統")
     st.stop()
 
-# 3. 資料庫連線
+# 3. 資料庫連線 (保持 Google Sheets 連線以供寫入)
 REF_SHEET_ID = "1p7GsW-nrjerXhnn3pNgZzu_CdIh1Yxsm-fLJDqQ6MqA"
 REF_FOLDER_ID = "1o0S56OyStDjvC5tgBWiUNqNjrpXuCQMI"
 
@@ -140,6 +140,7 @@ except Exception as e:
 
 # ==========================================
 # 4. 內建靜態資料庫 (Hardcoded Data)
+#    解決檔案讀取問題，確保系統穩定
 # ==========================================
 
 # 單位資訊
@@ -180,7 +181,7 @@ DATA_BUILDINGS = {
 # 設備類型
 DATA_TYPES = ['冰水主機', '冰箱', '冷凍櫃', '冷氣', '冷藏櫃', '飲水機']
 
-# 冷媒係數表 (GWP) - 依照您上傳的檔案
+# 冷媒係數表 (GWP) - 完整對應
 DATA_GWP = {
     'HFC-1234yf (R-1234yf)': 0.0,
     'HFC-125 (R-125)': 3170.0,
@@ -289,6 +290,7 @@ def load_records_data():
 
 # 初始化 (Session State)
 if 'static_data_loaded' not in st.session_state:
+    # 預設使用內建資料
     st.session_state['unit_dict'], st.session_state['build_dict'], st.session_state['e_types'], st.session_state['r_types'], st.session_state['gwp_map'] = load_static_data('local')
     st.session_state['static_data_loaded'] = True
 
@@ -565,7 +567,7 @@ def render_admin_dashboard():
             
             st.markdown("---")
             
-            # Chart 1: 橫向標籤 V275.1 fix
+            # Chart 1: 橫向標籤修正版 (Fix for Crash)
             st.subheader("📈 年度冷媒填充概況")
             campus_opts = ["全校", "蘭潭校區", "民雄校區", "新民校區", "林森校區"]
             f_campus_1 = st.radio("填充概況校區選擇", campus_opts, horizontal=True, key="radio_c1", label_visibility="collapsed")
@@ -578,18 +580,18 @@ def render_admin_dashboard():
                 c1_group = df_c1.groupby(['冷媒顯示名稱', '設備類型'])['冷媒填充量'].sum().reset_index()
                 fig1 = px.bar(c1_group, x='冷媒顯示名稱', y='冷媒填充量', color='設備類型', 
                               text_auto='.1f', color_discrete_sequence=MORANDI_PALETTE)
-                # V275.1: Force horizontal text
+                # 使用 textangle=0 強制水平，不使用 insidetextorientation 以避免舊版 Plotly 錯誤
                 fig1.update_layout(yaxis_title="冷媒填充量(公斤)", xaxis_title="冷媒種類", font=dict(size=18), showlegend=True)
                 fig1.update_xaxes(tickfont=dict(size=16, color='#000000'))
                 fig1.update_yaxes(tickfont=dict(size=16, color='#000000'))
-                fig1.update_traces(width=0.5, textfont_size=14, textposition='inside', insidetextorientation='horizontal')
+                fig1.update_traces(width=0.5, textfont_size=14, textposition='inside', textangle=0)
                 st.plotly_chart(fig1, use_container_width=True)
             else:
                 st.info("無資料")
 
             st.markdown("---")
             
-            # Chart 2
+            # Chart 2: 橫向標籤修正版 (Fix for Crash)
             st.subheader("🏆 年度前十大填充單位")
             top_units = df_year.groupby('填報單位名稱')['冷媒填充量'].sum().nlargest(10).index.tolist()
             df_top10 = df_year[df_year['填報單位名稱'].isin(top_units)].copy()
@@ -601,7 +603,7 @@ def render_admin_dashboard():
                 fig2.update_layout(xaxis={'categoryorder':'total descending'}, yaxis_title="冷媒填充量(公斤)", font=dict(size=18))
                 fig2.update_xaxes(tickfont=dict(size=16, color='#000000'))
                 fig2.update_yaxes(tickfont=dict(size=16, color='#000000'))
-                fig2.update_traces(width=0.5, textfont_size=14, textposition='inside', insidetextorientation='horizontal')
+                fig2.update_traces(width=0.5, textfont_size=14, textposition='inside', textangle=0)
                 st.plotly_chart(fig2, use_container_width=True)
             else:
                 st.info("無資料")
