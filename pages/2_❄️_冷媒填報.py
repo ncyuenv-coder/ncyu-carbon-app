@@ -24,7 +24,7 @@ def get_taiwan_time():
 username = st.session_state.get("username")
 name = st.session_state.get("name")
 
-# 初始化 form_id 以確保清空功能
+# 初始化 form_id 以確保清空功能 (V289 新增)
 if 'form_id' not in st.session_state:
     st.session_state['form_id'] = 0
 
@@ -271,7 +271,7 @@ def load_records_data():
         else:
             return pd.DataFrame(columns=["填報時間","填報人","填報人分機","校區","所屬單位","填報單位名稱","建築物名稱","辦公室編號","維修日期","設備類型","設備品牌型號","冷媒種類","冷媒填充量","備註","佐證資料"])
     except Exception as e:
-        # Fallback to local record CSV if available (safety net)
+        # Fallback to local record CSV if available
         try:
             df = pd.read_csv("冷媒設備盤查資料庫_標準化.xlsx - 冷媒填報紀錄.csv")
             st.warning("⚠️ 雲端連線失敗，目前顯示為本地備份資料。")
@@ -300,9 +300,8 @@ def render_user_interface():
     st.markdown("### ❄️ 冷媒填報專區")
     tabs = st.tabs(["📝 新增填報", "📋 申報動態查詢"])
 
-    # --- Tab 1: 新增填報 ---
     with tabs[0]:
-        # V287: 使用 form_id 動態重置 key
+        # V289: 使用 form_id 動態重置 key
         fid = st.session_state['form_id']
         
         st.markdown('<div class="morandi-header">填報單位基本資訊區</div>', unsafe_allow_html=True)
@@ -374,7 +373,6 @@ def render_user_interface():
                     
                 except Exception as e: st.error(f"上傳或寫入失敗: {e}")
 
-    # --- Tab 2: 申報動態查詢 ---
     with tabs[1]:
         st.markdown('<div class="morandi-header">📋 申報動態查詢</div>', unsafe_allow_html=True)
         col_r1, col_r2 = st.columns([4, 1])
@@ -431,7 +429,7 @@ def render_user_interface():
                             <div class="info-row"><span class="info-icon">🏢</span><span class="info-label">建築物</span><span class="info-value">{build_str}</span></div>
                             <div class="info-row"><span class="info-icon">❄️</span><span class="info-label">冷媒填充資訊</span><span class="info-value">{fill_info_str}</span></div>
                             <div class="info-row"><span class="info-icon">⚖️</span><span class="info-label">重量統計</span><span class="info-value">{weight_str}</span></div>
-                            <div class="info-row"><span class="info-icon">🌍</span><span class="info-label">碳排放量</span><span class="info-value" style="color:#C0392B;font-size:1.8rem;font-weight:900;">{total_emission:,.2f} <span style="font-size:1rem;">kgCO2e</span></span></div>
+                            <div class="info-row"><span class="info-icon">🌍</span><span class="info-label">碳排放量</span><span class="info-value" style="color:#C0392B;font-size:1.8rem;font-weight:900;">{total_emission:,.4f} <span style="font-size:1rem;">kgCO2e</span></span></div>
                         </div>
                     </div>
                     """, unsafe_allow_html=True)
@@ -545,7 +543,7 @@ def render_admin_dashboard():
             
             st.markdown("---")
             
-            # Chart 1: V287 Fix (Total Labels + Horizontal)
+            # Chart 1: V289 Fix (Selector to fix crash + Total labels + 2 decimals)
             st.subheader("📈 年度冷媒填充概況")
             campus_opts = ["全校", "蘭潭校區", "民雄校區", "新民校區", "林森校區"]
             f_campus_1 = st.radio("填充概況校區選擇", campus_opts, horizontal=True, key="radio_c1", label_visibility="collapsed")
@@ -556,14 +554,12 @@ def render_admin_dashboard():
             
             if not df_c1.empty:
                 c1_group = df_c1.groupby(['冷媒顯示名稱', '設備類型'])['冷媒填充量'].sum().reset_index()
-                
-                # 計算每個冷媒的總量 (為了顯示 Total Label)
                 c1_totals = c1_group.groupby('冷媒顯示名稱')['冷媒填充量'].sum().reset_index()
                 
                 fig1 = px.bar(c1_group, x='冷媒顯示名稱', y='冷媒填充量', color='設備類型', 
                               text_auto='.2f', color_discrete_sequence=MORANDI_PALETTE)
                 
-                # Add Total Labels on top
+                # Add Total Labels (Scatter trace)
                 fig1.add_trace(go.Scatter(
                     x=c1_totals['冷媒顯示名稱'], 
                     y=c1_totals['冷媒填充量'],
@@ -571,29 +567,28 @@ def render_admin_dashboard():
                     mode='text',
                     textposition='top center',
                     textfont=dict(size=18, color='black'),
-                    showlegend=False
+                    showlegend=False,
+                    hoverinfo='skip'
                 ))
 
                 fig1.update_layout(yaxis_title="冷媒填充量(公斤)", xaxis_title="冷媒種類", font=dict(size=20), showlegend=True, margin=dict(t=50))
                 fig1.update_xaxes(tickfont=dict(size=18, color='#000000'))
                 fig1.update_yaxes(tickfont=dict(size=18, color='#000000'))
-                # V287: textangle=0 for horizontal labels
-                fig1.update_traces(width=0.5, textfont_size=16, textposition='inside', textangle=0)
+                # V289 Fix: selector=dict(type='bar') prevents crash
+                fig1.update_traces(selector=dict(type='bar'), width=0.5, textfont_size=16, textposition='inside', textangle=0)
                 st.plotly_chart(fig1, use_container_width=True)
             else:
                 st.info("無資料")
 
             st.markdown("---")
             
-            # Chart 2: V287 Fix (Total Labels + Horizontal)
+            # Chart 2: V289 Fix (Selector to fix crash + Total labels + 2 decimals)
             st.subheader("🏆 年度前十大填充單位")
             top_units = df_year.groupby('填報單位名稱')['冷媒填充量'].sum().nlargest(10).index.tolist()
             df_top10 = df_year[df_year['填報單位名稱'].isin(top_units)].copy()
             
             if not df_top10.empty:
                 c2_group = df_top10.groupby(['填報單位名稱', '冷媒顯示名稱'])['冷媒填充量'].sum().reset_index()
-                
-                # Calculate totals for top labels
                 c2_totals = c2_group.groupby('填報單位名稱')['冷媒填充量'].sum().reset_index()
                 
                 fig2 = px.bar(c2_group, x='填報單位名稱', y='冷媒填充量', color='冷媒顯示名稱',
@@ -607,20 +602,22 @@ def render_admin_dashboard():
                     mode='text',
                     textposition='top center',
                     textfont=dict(size=18, color='black'),
-                    showlegend=False
+                    showlegend=False,
+                    hoverinfo='skip'
                 ))
 
                 fig2.update_layout(xaxis={'categoryorder':'total descending'}, yaxis_title="冷媒填充量(公斤)", font=dict(size=18), margin=dict(t=50))
                 fig2.update_xaxes(tickfont=dict(size=16, color='#000000'))
                 fig2.update_yaxes(tickfont=dict(size=16, color='#000000'))
-                fig2.update_traces(width=0.5, textfont_size=14, textposition='inside', textangle=0)
+                # V289 Fix: selector=dict(type='bar') prevents crash
+                fig2.update_traces(selector=dict(type='bar'), width=0.5, textfont_size=14, textposition='inside', textangle=0)
                 st.plotly_chart(fig2, use_container_width=True)
             else:
                 st.info("無資料")
             
             st.markdown("---")
             
-            # Chart 3: V287 Fix (Horizontal Labels + 2 decimals)
+            # Chart 3: V289 (Horizontal + 2 decimals)
             st.subheader("🍩 冷媒填充資訊分析")
             f_campus_3 = st.radio("資訊分析校區選擇", campus_opts, horizontal=True, key="radio_c3", label_visibility="collapsed")
             df_c3 = df_year.copy()
@@ -633,7 +630,7 @@ def render_admin_dashboard():
                 fig3a = px.pie(type_kg, values='冷媒填充量', names='冷媒顯示名稱', hole=0.4, 
                                color_discrete_sequence=MORANDI_PALETTE)
                 fig3a.update_layout(font=dict(size=18), legend=dict(font=dict(size=16)), uniformtext_minsize=16, uniformtext_mode='show')
-                # V287 Fix: Horizontal labels (insidetextorientation='horizontal')
+                # V289: Horizontal labels (insidetextorientation='horizontal')
                 fig3a.update_traces(textinfo='label+percent', textfont_size=18, textposition='auto', insidetextorientation='horizontal',
                                     pull=[0.1 if v < type_kg['冷媒填充量'].sum()*0.05 else 0 for v in type_kg['冷媒填充量']],
                                     hovertemplate='<b>%{label}</b><br>填充量: %{value:.2f} kg<br>佔比: %{percent:.1%}<extra></extra>')
