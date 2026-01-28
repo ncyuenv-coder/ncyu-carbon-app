@@ -25,7 +25,7 @@ username = st.session_state.get("username")
 name = st.session_state.get("name")
 
 # ==========================================
-# 1. CSS 樣式表 (同步燃油 V150.0 規格)
+# 1. CSS 樣式表
 # ==========================================
 st.markdown("""
 <style>
@@ -43,20 +43,14 @@ st.markdown("""
         --kpi-co2: #AF7AC5;
         --morandi-blue: #34495E;
     }
-
-    /* 背景色還原 */
     [data-testid="stAppViewContainer"] { background-color: #EAEDED; color: var(--text-main); }
     [data-testid="stHeader"] { background-color: rgba(0,0,0,0); }
     [data-testid="stSidebar"] { background-color: #FFFFFF; border-right: 1px solid #BDC3C7; }
-
-    /* 輸入元件優化 */
     div[data-baseweb="input"] > div, div[data-baseweb="base-input"] > input, textarea, input {
         background-color: #FFFFFF !important; border-color: #BDC3C7 !important; color: #000000 !important; font-size: 1.15rem !important;
     }
     div[data-baseweb="select"] > div { border-color: #BDC3C7 !important; background-color: #FFFFFF !important; }
     ul[data-baseweb="menu"] { background-color: #FFFFFF !important; }
-
-    /* 按鈕樣式 */
     div.stButton > button, button[kind="primary"], [data-testid="stFormSubmitButton"] > button {
         background-color: var(--orange-bg) !important; 
         color: #FFFFFF !important; border: 2px solid var(--orange-dark) !important; border-radius: 12px !important;
@@ -67,29 +61,17 @@ st.markdown("""
     div.stButton > button:hover, [data-testid="stFormSubmitButton"] > button:hover { 
         background-color: var(--orange-dark) !important; transform: translateY(-2px) !important; color: #FFFFFF !important;
     }
-
-    /* Tab 分頁字體 */
     button[data-baseweb="tab"] div p { font-size: 1.3rem !important; font-weight: 900 !important; color: var(--text-sub); }
     button[data-baseweb="tab"][aria-selected="true"] div p { color: #E67E22 !important; border-bottom: 3px solid #E67E22; }
-
-    /* 個資聲明勾選文字 */
     div[data-testid="stCheckbox"] label p { font-size: 1.2rem !important; color: #1F618D !important; font-weight: 900 !important; }
-
-    /* 莫蘭迪色標題區塊 */
     .morandi-header {
         background-color: #EBF5FB; color: #2E4053; padding: 15px; border-radius: 8px;
         border-left: 8px solid #5499C7; font-size: 1.35rem; font-weight: 700;
         margin-top: 25px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);
     }
-
-    /* 個資聲明區塊 */
     .privacy-box { background-color: #F8F9F9; border: 1px solid #BDC3C7; padding: 15px; border-radius: 10px; font-size: 0.95rem; color: #566573; margin-bottom: 10px; }
     .privacy-title { font-weight: bold; color: #2C3E50; margin-bottom: 5px; font-size: 1.1rem; }
-    
-    /* 誤繕提醒文字 */
     .correction-note { color: #566573; font-size: 0.95rem; font-weight: bold; margin-top: 5px; margin-bottom: 20px; }
-
-    /* 橫式資訊卡 (User Side) */
     .horizontal-card {
         display: flex; border: 1px solid #BDC3C7; border-radius: 12px; overflow: hidden;
         margin-bottom: 25px; box-shadow: 0 4px 8px rgba(0,0,0,0.08); background-color: #FFFFFF; min-height: 280px;
@@ -101,15 +83,12 @@ st.markdown("""
     }
     .dept-text { font-size: 1.6rem; font-weight: 700; margin-bottom: 8px; line-height: 1.4; }
     .unit-text { font-size: 1.3rem; font-weight: 500; opacity: 0.9; }
-    
     .card-right { flex: 7; padding: 20px 30px; display: flex; flex-direction: column; justify-content: center; }
     .info-row { display: flex; align-items: flex-start; padding: 10px 0; font-size: 1.05rem; color: #566573; border-bottom: 1px dashed #F2F3F4; }
     .info-row:last-child { border-bottom: none; }
     .info-icon { margin-right: 12px; font-size: 1.2rem; width: 30px; text-align: center; }
     .info-label { font-weight: 700; margin-right: 10px; min-width: 160px; color: #2E4053; }
     .info-value { font-weight: 500; color: #17202A; flex: 1; line-height: 1.6; }
-    
-    /* Admin 儀表板 KPI (同步燃油) */
     .admin-kpi-card {
         background-color: #FFFFFF; border: 1px solid #BDC3C7; border-radius: 12px; overflow: hidden;
         box-shadow: 0 4px 10px rgba(0,0,0,0.1); height: 100%; text-align: center; margin-bottom: 20px;
@@ -118,21 +97,15 @@ st.markdown("""
     .admin-kpi-body { padding: 20px; }
     .admin-kpi-value { font-size: 2.8rem; font-weight: 900; color: #2C3E50; margin-bottom: 5px; }
     .admin-kpi-unit { font-size: 1rem; color: #7F8C8D; font-weight: normal; margin-left: 5px; }
-    
-    /* 儀表板標題 */
     .dashboard-main-title {
         font-size: 1.8rem; font-weight: 900; text-align: center; color: #2C3E50; margin-bottom: 20px;
         background-color: #F8F9F9; padding: 10px; border-radius: 10px; border: 1px solid #BDC3C7;
     }
-
-    /* Radio Button 優化 (儀表板切換用) */
     .stRadio div[role="radiogroup"] label {
         background-color: #D6EAF8 !important; border: 1px solid #AED6F1 !important;
         border-radius: 8px !important; padding: 8px 15px !important; margin-right: 10px !important;
     }
     .stRadio div[role="radiogroup"] label p { font-size: 1.0rem !important; font-weight: 800 !important; color: #154360 !important; }
-
-    /* 上傳區樣式 */
     [data-testid="stFileUploaderDropzone"] { background-color: #D6EAF8 !important; border: 2px dashed #2E86C1 !important; padding: 20px; border-radius: 12px; }
     [data-testid="stFileUploaderDropzone"] div, span, small { color: #154360 !important; font-weight: bold !important; }
 </style>
@@ -165,35 +138,25 @@ except Exception as e:
     st.error(f"❌ 資料庫連線失敗: {e}")
     st.stop()
 
-# 4. 資料讀取 (V279.0 - 檔名修正為標準版)
-CSV_FILES = {
-    "unit": "冷媒設備盤查資料庫_標準化.xlsx - 單位資訊.csv",
-    "build": "冷媒設備盤查資料庫_標準化.xlsx - 建築物清單.csv",
-    "type": "冷媒設備盤查資料庫_標準化.xlsx - 設備類型.csv",
-    "coef": "冷媒設備盤查資料庫_標準化.xlsx - 冷媒係數表.csv"
-}
+# 4. 資料讀取 (V280.0 - 內建資料庫 + 雲端更新)
+
+# 內建預設資料 (Fallback)
+DEFAULT_UNITS = {'教務處': ['教務長室/副教務長室/專門委員室', '註冊與課務組', '教學發展組', '招生與出版組', '綜合行政組', '通識教育中心', '民雄教務'], '學生事務處': ['學務長室/副學務長室', '住宿服務組', '生活輔導組', '課外活動組', '學生輔導中心', '學生職涯發展中心', '衛生保健組', '原住民族學生資源中心', '特殊教育學生資源中心', '民雄學務'], '總務處': ['總務長室/副總務長室/簡任秘書室', '事務組', '出納組', '文書組', '資產經營管理組', '營繕組', '民雄總務', '新民聯辦', '駐衛警察隊'], '研究發展處': ['研發長室/副研發長室', '綜合企劃組', '學術發展組', '校務研究組'], '產學營運及推廣處': ['產學營運及推廣處長室', '行政管理組', '產學創育推廣中心'], '國際事務處': ['國際事務長室', '境外生事務組', '國際合作組'], '圖書資訊處': ['圖資長室', '圖資管理組', '資訊網路組', '諮詢服務組', '系統資訊組', '民雄圖書資訊', '新民分館', '民雄分館'], '校長室': ['校長室'], '行政副校長室': ['行政副校長室'], '學術副校長室': ['學術副校長室'], '國際副校長室': ['國際副校長室'], '秘書室': ['綜合業務組', '公共關係組', '校友服務組'], '體育室': ['蘭潭場館', '民雄場館', '林森場館', '新民場館'], '主計室': ['主計室'], '人事室': ['人事室'], '環境保護及安全管理中心': ['環境保護及安全管理中心'], '師資培育中心': ['師資培育中心主任室', '教育課程組', '實習輔導組', '綜合行政組'], '語言中心': ['主任室', '蘭潭語言中心', '民雄語言中心', '新民語言中心'], '理工學院': ['理工學院辦公室', '應用數學系', '電子物理學系', '應用化學系', '資訊工程學系', '生物機電工程學系', '土木與水資源工程學系', '水工與材料試驗場', '電機工程學系', '機械與能源工程學系'], '農學院': ['農學院辦公室', '農藝學系', '園藝學系', '森林暨自然資源學系', '木質材料與設計學系', '動物科學系', '農業經濟學系', '生物農業科技學系', '景觀學系', '植物醫學系', '農場管理進修學士學位學程'], '生命科學院': ['生命科學院辦公室', '食品科學系', '水生生物科學系', '生物資源學系', '生化科技學系', '微生物免疫與生物藥學系'], '管理學院': ['管理學院辦公室', '企業管理學系', '應用經濟學系', '生物事業管理學系', '資訊管理學系', '財務金融學系', '行銷與觀光管理學系', '全英文授課觀光暨管理學士學位學程'], '獸醫學院': ['獸醫學院辦公室', '獸醫學系', '雲嘉南動物疾病診斷中心', '動物醫院'], '師範學院': ['師範學院辦公室', '教育學系', '輔導與諮商學系', '體育與健康休閒學系', '特殊教育學系', '幼兒教育學系', '教育行政與政策發展研究所', '數理教育研究所'], '人文藝術學院': ['人文藝術學院辦公室', '中國文學系', '外國語言學系', '應用歷史學系', '視覺藝術學系', '音樂學系']}
+DEFAULT_BUILDINGS = {'蘭潭校區': ['A01行政中心', 'A02森林館', 'A03動物科學館', 'A04農園館', 'A05工程館', 'A06食品科學館', 'A07嘉禾館', 'A08瑞穗館', 'A09游泳池', 'A10機械與能源工程學系創新育成大樓', 'A11木材利用工廠', 'A12動物試驗場', 'A13司令台', 'A14學生活動中心', 'A15電物一館', 'A16理工大樓', 'A17應化一館', 'A18A應化二館', 'A18B電物二館', 'A19農藝場管理室', 'A20國際交流學園', 'A21水工與材料試驗場', 'A22食品加工廠', 'A23機電館', 'A24生物資源館', 'A25生命科學館', 'A26農業科學館', 'A27植物醫學系館', 'A28水生生物科學館', 'A29園藝場管理室', 'A30園藝技藝中心', 'A31圖書資訊館', 'A32綜合教學大樓', 'A33生物農業科技二館', 'A34嘉大植物園', 'A35生技健康館', 'A36景觀學系大樓', 'A37森林生物多樣性館', 'A38動物產品研發推廣中心', 'A39學生活動廣場', 'A40焚化爐設備車倉庫', 'A41生物機械產業實驗室', 'A44有機蔬菜溫室', 'A45蝴蝶蘭溫室', 'A46魚類保育研究中心', 'A71員工單身宿舍', 'A72學苑餐廳', 'A73學一舍', 'A74學二舍', 'A75學三舍', 'A76學五舍', 'A77學六舍', 'A78農產品展售中心', 'A79綠建築', 'A80嘉大昆蟲館', 'A81蘭潭招待所', 'A82警衛室', '回收場'], '民雄校區': ['B01創意樓', 'B02大學館', 'B03教育館', 'B04新藝樓', 'B06警衛室', 'B07鍋爐間', 'B08司令台', 'B09加氯室', 'B10游泳池', 'B12工友室', 'BA行政大樓', 'BB初等教育館', 'BC圖書館', 'BD樂育堂', 'BE學人單身宿舍', 'BF綠園二舍', 'BG餐廳', 'BH綠園一舍', 'BI科學館', 'BJ人文館', 'BK音樂館', 'BL藝術館', 'BM文薈廳', 'BN社團教室'], '林森校區': ['C01警衛室', 'C02司令台', 'CA第一棟大樓', 'CB進修部大樓', 'CD國民輔導大樓', 'CE第二棟大樓', 'CF實輔室', 'CG圖書館', 'CH視聽教室', 'CI明德齋', 'CK餐廳', 'CL青雲齋', 'CN樂育堂', 'CP空大學習指導中心'], '新民校區': ['D01管理學院大樓A棟', 'D02管理學院大樓B棟', 'D03明德樓', 'D04獸醫館(獸醫學系、動物醫院、雲嘉南動物疾病診斷中心)', 'D05游泳池', 'D06溫室', 'D07司令台', 'D08警衛室', 'D09賢德樓'], '社口林場': ['E01林場實習館'], '林森校區-民國路': ['F01民國路進德樓']}
+DEFAULT_TYPES = ['冰水主機', '冰箱', '冷凍櫃', '冷氣', '冷藏櫃', '飲水機']
+DEFAULT_GWP = {'HFC-1234yf (R-1234yf)': 0.0, 'HFC-125 (R-125)': 3170.0, 'HFC-134a (R-134a)': 1300.0, 'HFC-143a (R-143a)': 4800.0, 'HFC-245fa (R-245fa)': 858.0, 'R404a': 3942.8, 'R407c': 1624.21, 'R-407D': 1487.05, 'R408a': 2429.9, 'R410a': 1923.5, 'R-507A': 3985.0, 'R-508A': 11607.0, 'R-508B': 11698.0, 'HFC-23 (R-23)': 12400.0, 'HFC-32 (R-32)': 677.0, 'R-411A': 0.0, 'R-402A': 0.0}
 
 def load_static_data(source='local'):
-    """讀取靜態資料：優先讀取 Local CSV (最穩)，若強制更新則讀 Sheet 並覆蓋 Local"""
-    unit_dict = {}
-    build_dict = {}
-    e_types = []
-    r_types = []
-    gwp_map = {}
-    
-    try:
-        if source == 'local':
-            try:
-                # 嘗試讀取本地檔案
-                df_units = pd.read_csv(CSV_FILES["unit"])
-                df_build = pd.read_csv(CSV_FILES["build"])
-                df_types = pd.read_csv(CSV_FILES["type"])
-                df_coef = pd.read_csv(CSV_FILES["coef"])
-            except FileNotFoundError:
-                # 找不到檔案就去雲端抓
-                return load_static_data(source='cloud')
-        else:
-            # 讀取 Google Sheets (Admin 更新用)
+    """
+    讀取靜態資料。
+    source='local': 直接回傳內建的字典 (速度最快，永不報錯)。
+    source='cloud': 連線 Google Sheets 下載最新資料並更新。
+    """
+    if source == 'local':
+        return DEFAULT_UNITS, DEFAULT_BUILDINGS, DEFAULT_TYPES, sorted(list(DEFAULT_GWP.keys())), DEFAULT_GWP
+    else:
+        # Cloud update
+        try:
             ws_units = sh_ref.worksheet("單位資訊")
             ws_buildings = sh_ref.worksheet("建築物清單")
             ws_types = sh_ref.worksheet("設備類型")
@@ -204,56 +167,48 @@ def load_static_data(source='local'):
             df_types = pd.DataFrame(ws_types.get_all_records()).astype(str)
             df_coef = pd.DataFrame(ws_coef.get_all_records())
             
-            # 存回本地 CSV 供下次快速讀取
-            df_units.to_csv(CSV_FILES["unit"], index=False)
-            df_build.to_csv(CSV_FILES["build"], index=False)
-            df_types.to_csv(CSV_FILES["type"], index=False)
-            df_coef.to_csv(CSV_FILES["coef"], index=False)
-
-        # 處理資料格式 (建立字典與清單)
-        # 1. 單位
-        for _, row in df_units.iterrows():
-            d = str(row.iloc[0]).strip()
-            u = str(row.iloc[1]).strip()
-            if d and u:
-                if d not in unit_dict: unit_dict[d] = []
-                if u not in unit_dict[d]: unit_dict[d].append(u)
-        
-        # 2. 建築
-        for _, row in df_build.iterrows():
-            c = str(row.iloc[0]).strip()
-            b = str(row.iloc[1]).strip()
-            if c and b:
-                if c not in build_dict: build_dict[c] = []
-                if b not in build_dict[c]: build_dict[c].append(b)
-        
-        # 3. 設備
-        if not df_types.empty:
-            e_types = sorted(df_types.iloc[:, 0].dropna().unique().tolist())
+            # Process Units
+            unit_dict = {}
+            for _, row in df_units.iterrows():
+                d = str(row.iloc[0]).strip()
+                u = str(row.iloc[1]).strip()
+                if d and u:
+                    if d not in unit_dict: unit_dict[d] = []
+                    if u not in unit_dict[d]: unit_dict[d].append(u)
             
-        # 4. 係數 (使用完整名稱，不做截斷)
-        if not df_coef.empty:
-            for _, row in df_coef.iterrows():
-                r_name_full = str(row.iloc[1]).strip().replace('\u3000', ' ').replace('\xa0', ' ')
-                try: 
-                    gwp = float(str(row.iloc[2]).replace(',', ''))
-                except: 
-                    gwp = 0.0
-                
-                if r_name_full:
-                    r_types.append(r_name_full)
-                    gwp_map[r_name_full] = gwp
+            # Process Buildings
+            build_dict = {}
+            for _, row in df_build.iterrows():
+                c = str(row.iloc[0]).strip()
+                b = str(row.iloc[1]).strip()
+                if c and b:
+                    if c not in build_dict: build_dict[c] = []
+                    if b not in build_dict[c]: build_dict[c].append(b)
             
-            r_types = sorted(list(set(r_types)))
-
-    except Exception as e:
-        st.error(f"靜態資料讀取錯誤 ({source}): {e}")
-    
-    return unit_dict, build_dict, e_types, r_types, gwp_map
+            # Process Types
+            e_types = sorted(df_types.iloc[:, 0].dropna().unique().tolist()) if not df_types.empty else []
+            
+            # Process Coef
+            gwp_map = {}
+            r_types = []
+            if not df_coef.empty:
+                for _, row in df_coef.iterrows():
+                    r_name_full = str(row.iloc[1]).strip().replace('\u3000', ' ').replace('\xa0', ' ')
+                    try: gwp = float(str(row.iloc[2]).replace(',', ''))
+                    except: gwp = 0.0
+                    if r_name_full:
+                        r_types.append(r_name_full)
+                        gwp_map[r_name_full] = gwp
+            
+            return unit_dict, build_dict, e_types, sorted(list(set(r_types))), gwp_map
+            
+        except Exception as e:
+            st.error(f"雲端更新失敗: {e}")
+            return DEFAULT_UNITS, DEFAULT_BUILDINGS, DEFAULT_TYPES, sorted(list(DEFAULT_GWP.keys())), DEFAULT_GWP
 
 @st.cache_data(ttl=60)
 def load_records_data():
-    """動態填報紀錄 (嚴格只讀取 Google Sheets，不讀取本地 CSV)"""
+    """動態填報紀錄 (嚴格只讀取 Google Sheets)"""
     try:
         data = ws_records.get_all_values()
         if len(data) > 1:
@@ -277,7 +232,7 @@ def load_records_data():
 
 # 初始化 (Session State)
 if 'static_data_loaded' not in st.session_state:
-    # 預設從 Local 讀取靜態資料，速度快
+    # 預設使用內建資料
     st.session_state['unit_dict'], st.session_state['build_dict'], st.session_state['e_types'], st.session_state['r_types'], st.session_state['gwp_map'] = load_static_data('local')
     st.session_state['static_data_loaded'] = True
 
@@ -452,7 +407,7 @@ def render_admin_dashboard():
     
     admin_tabs = st.tabs(["📊 全校冷媒填充儀表板", "📝 申報資料異動"])
 
-    # V275: 按鈕位置維持在 Tab 2
+    # V273: 按鈕放置於 Tab 2 內
     with admin_tabs[1]:
         st.subheader("📝 申報資料異動與下載")
         
