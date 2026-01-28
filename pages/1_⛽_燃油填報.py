@@ -21,7 +21,7 @@ def get_taiwan_time():
     return datetime.utcnow() + timedelta(hours=8)
 
 # ==========================================
-# 1. CSS 樣式表 (V157.0 基底 + V158 修正)
+# 1. CSS 樣式表 (V157.0 基底 + V158/V160 修正)
 # ==========================================
 st.markdown("""
 <style>
@@ -38,7 +38,7 @@ st.markdown("""
         --kpi-total: #5DADE2;
         --kpi-co2: #AF7AC5;
         --morandi-blue: #34495E;
-        --deep-gray: #333333; /* V158: 統一深灰色 */
+        --deep-gray: #333333;
     }
 
     [data-testid="stAppViewContainer"] { background-color: #EAEDED; color: var(--text-main); }
@@ -73,7 +73,7 @@ st.markdown("""
     [data-testid="stFileUploaderDropzone"] { background-color: #D6EAF8 !important; border: 2px dashed #2E86C1 !important; padding: 20px; border-radius: 12px; }
     [data-testid="stFileUploaderDropzone"] div, span, small { color: #154360 !important; font-weight: bold !important; }
 
-    /* V157 需求: 選項標籤設計 (淺藍底、黑字、字體放大) */
+    /* 選項標籤設計 (淺藍底、黑字、字體放大) */
     .stRadio div[role="radiogroup"] label {
         background-color: #D6EAF8 !important; 
         border: 1px solid #AED6F1 !important;
@@ -87,11 +87,11 @@ st.markdown("""
         color: #000000 !important; 
     }
 
-    /* V157 需求: 表格字體放大 */
+    /* 表格字體放大 */
     [data-testid="stDataFrame"] { font-size: 1.25rem !important; }
     [data-testid="stDataFrame"] div { font-size: 1.25rem !important; }
 
-    /* --- V150/V158：設備詳細卡片樣式 (Admin Tab 3) --- */
+    /* --- 設備詳細卡片樣式 --- */
     .dev-card-v148 {
         background-color: #FFFFFF; border: 1px solid #BDC3C7; border-radius: 12px; overflow: hidden;
         box-shadow: 0 3px 6px rgba(0,0,0,0.08); margin-bottom: 20px; display: flex; flex-direction: column;
@@ -109,11 +109,9 @@ st.markdown("""
     }
     
     .dev-header-right { text-align: right; display: flex; flex-direction: column; align-items: flex-end; justify-content: center; }
-    /* V150: 右側標題只顯示紅字油量 */
     .dev-vol { font-size: 1.8rem; color: #C0392B !important; font-weight: 900; line-height: 1.1; text-shadow: none !important; }
     .dev-unit { font-size: 0.95rem; color: var(--deep-gray); font-weight: bold; margin-left: 2px; }
 
-    /* V158: 統一深灰色 */
     .dev-body {
         padding: 15px; font-size: 0.95rem; color: var(--deep-gray);
         display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
@@ -241,7 +239,7 @@ FLEET_CARDS = {"總務處事務組-柴油": "TZI510508", "總務處事務組-汽
 DEVICE_ORDER = ["公務車輛(GV-1-)", "乘坐式割草機(GV-2-)", "乘坐式農用機具(GV-3-)", "鍋爐(GS-1-)", "發電機(GS-2-)", "肩背或手持式割草機、吹葉機(GS-3-)", "肩背或手持式農用機具(GS-4-)"]
 DEVICE_CODE_MAP = {"GV-1": "公務車輛(GV-1-)", "GV-2": "乘坐式割草機(GV-2-)", "GV-3": "乘坐式農用機具(GV-3-)", "GS-1": "鍋爐(GS-1-)", "GS-2": "發電機(GS-2-)", "GS-3": "肩背或手持式割草機、吹葉機(GS-3-)", "GS-4": "肩背或手持式農用機具(GS-4-)"}
 MORANDI_COLORS = { "公務車輛(GV-1-)": "#B0C4DE", "乘坐式割草機(GV-2-)": "#F5CBA7", "乘坐式農用機具(GV-3-)": "#D7BDE2", "鍋爐(GS-1-)": "#E6B0AA", "發電機(GS-2-)": "#A9CCE3", "肩背或手持式割草機、吹葉機(GS-3-)": "#A3E4D7", "肩背或手持式農用機具(GS-4-)": "#F9E79F" }
-DASH_PALETTE = ['#B0C4DE', '#F5CBA7', '#A9CCE3', '#E6B0AA', '#D7BDE2', '#A3E4D7', '#F9E79F', '#95A5A6']
+DASH_PALETTE = ['#B0C4DE', '#F5CBA7', '#A9CCE3', '#E6B0AA', '#D7BDE2', '#A3E4D7', '#F9E79F', '#95A5A6', '#85C1E9', '#D2B4DE', '#F1948A', '#76D7C4'] # Extended Palette
 UNREPORTED_COLORS = ["#D5DBDB", "#FAD7A0", "#D2B4DE", "#AED6F1", "#A3E4D7", "#F5B7B1"]
 
 @st.cache_resource
@@ -294,7 +292,7 @@ if 'reset_counter' not in st.session_state: st.session_state['reset_counter'] = 
 # ==========================================
 
 def render_user_interface():
-    """ 一般使用者 / 管理員的前台填報介面 (V134 Logic) """
+    """ 一般使用者 / 管理員的前台填報介面 """
     st.markdown("### ⛽ 燃油設備填報專區")
     tabs = st.tabs(["📝 新增填報", "📊 動態查詢看板"])
     
@@ -351,8 +349,9 @@ def render_user_interface():
                         st.markdown("---"); st.markdown("**📂 上傳中油加油明細 (只需一份)**")
                         f_file = st.file_uploader("支援 PDF/JPG/PNG", type=['pdf', 'jpg', 'png', 'jpeg'])
                         
-                        # V158: 備註調整
+                        # V158: 備註調整 & 間距
                         st.text_input("備註", key="batch_note", placeholder="備註 (選填)", label_visibility="collapsed")
+                        st.write("") # V160: 空行
                         st.markdown(typo_note_simple, unsafe_allow_html=True); st.markdown(privacy_html, unsafe_allow_html=True)
                         
                         agree_privacy = st.checkbox("我已閱讀並同意個資聲明，且確認所填資料無誤。", value=False)
@@ -399,6 +398,8 @@ def render_user_interface():
                     # V158: 增加空行
                     st.write("") 
                     st.markdown('<p style="color:#566573; font-size:1rem; font-weight:bold; margin-bottom:-10px;">請選擇申報類型：</p>', unsafe_allow_html=True)
+                    # V160: 增加空行
+                    st.write("") 
                     report_mode = st.radio("類型選擇", ["用油量申報 (含單筆/多筆/油卡)", "無使用"], horizontal=True, label_visibility="collapsed")
                     
                     if report_mode == "用油量申報 (含單筆/多筆/油卡)":
@@ -485,7 +486,7 @@ def render_user_interface():
                                 ws_record.append_rows(rows); st.success("✅ 申報成功！"); st.balloons(); st.session_state['reset_counter'] += 1; st.cache_data.clear()
         else: st.warning("📭 目前資料庫尚無有效資料，請先至「新增填報」分頁填寫。")
 
-    # === Tab 2: 看板 (V134 logic + V142 Fix) ===
+    # === Tab 2: 看板 (V160: 大幅優化) ===
     with tabs[1]:
         st.markdown("### 📊 動態查詢看板 (年度檢視)")
         st.info("請選擇「單位」與「年份」，檢視該年度的用油統計與碳排放分析。")
@@ -529,6 +530,7 @@ def render_user_interface():
                     with r2c2: st.markdown(f"""<div class="kpi-card kpi-co2"><div class="kpi-title">☁️ 碳排放量</div><div class="kpi-value">{total_co2:,.4f}<span class="kpi-unit"> 公噸CO<sub>2</sub>e</span></div><div class="kpi-sub" style="background-color: #F4ECF7; color: #AF7AC5 !important;">ESG 指標</div></div>""", unsafe_allow_html=True)
                     st.markdown("---")
                     
+                    # Chart 4: 逐月油料 (V160: 橫向標籤)
                     st.subheader(f"📊 {query_year}年度 逐月油料統計", anchor=False)
                     filter_mode = st.radio("顯示類別", ["全部顯示", "只看汽油", "只看柴油"], horizontal=True)
                     df_final['月份'] = df_final['日期格式'].dt.month
@@ -540,65 +542,103 @@ def render_user_interface():
                     base_x = pd.MultiIndex.from_product([months, target_fuels], names=['月份', '油品類別']).to_frame(index=False)
                     unique_devices = df_final['設備名稱備註'].unique()
                     
-                    # V142 Fix: Pre-calculate counts to hide labels if only 1 device
                     counts_db = df_final[df_final['加油量'] > 0].groupby(['月份', '油品類別'])['設備名稱備註'].nunique()
 
                     fig = go.Figure()
-                    morandi_colors = ['#88B04B', '#92A8D1', '#F7CAC9', '#B565A7', '#009B77', '#DD4124', '#D65076', '#45B8AC', '#EFC050', '#5B5EA6']
-                    device_color_map = {dev: morandi_colors[i % len(morandi_colors)] for i, dev in enumerate(unique_devices)}
+                    device_color_map = {dev: DASH_PALETTE[i % len(DASH_PALETTE)] for i, dev in enumerate(unique_devices)}
+                    
                     for dev in unique_devices:
                         dev_data = df_final[df_final['設備名稱備註'] == dev]
                         dev_grouped = dev_data.groupby(['月份', '油品類別'])['加油量'].sum().reset_index()
                         merged_dev = pd.merge(base_x, dev_grouped, on=['月份', '油品類別'], how='left').fillna(0)
                         
-                        # Apply Logic: If count == 1, hide text
                         def get_text(row):
                             val = row['加油量']
                             if val <= 0: return ""
-                            key = (row['月份'], row['油品類別'])
-                            if key in counts_db and counts_db[key] == 1: return "" # Hide if single
                             return f"{val:.1f}"
 
                         text_vals = merged_dev.apply(get_text, axis=1)
-                        fig.add_trace(go.Bar(x=[merged_dev['月份'], merged_dev['油品類別']], y=merged_dev['加油量'], name=dev, marker_color=device_color_map[dev], text=text_vals, texttemplate='%{text}', textposition='inside'))
+                        # V160: 橫向標籤
+                        fig.add_trace(go.Bar(x=[merged_dev['月份'], merged_dev['油品類別']], y=merged_dev['加油量'], name=dev, marker_color=device_color_map[dev], text=text_vals, texttemplate='%{text}', textposition='inside', textangle=0))
                     
-                    total_grouped = df_final.groupby(['月份', '油品類別'])['加油量'].sum().reset_index()
-                    merged_total = pd.merge(base_x, total_grouped, on=['月份', '油品類別'], how='left').fillna(0)
-                    label_data = merged_total[merged_total['加油量'] > 0]
-                    fig.add_trace(go.Scatter(x=[label_data['月份'], label_data['油品類別']], y=label_data['加油量'], text=label_data['加油量'].apply(lambda x: f"{x:.1f}"), mode='text', textposition='top center', textfont=dict(size=14, color='black'), showlegend=False))
                     fig.update_layout(barmode='stack', font=dict(size=14), xaxis=dict(title="月份 / 油品"), yaxis=dict(title="加油量 (公升)"), height=550, margin=dict(t=50, b=120))
                     st.plotly_chart(fig, use_container_width=True)
                     
+                    # V160: 新增設備申報資訊統計區
+                    st.markdown("---")
+                    st.subheader(f"📋 {query_dept} - 設備申報資訊統計區", anchor=False)
+                    target_devices = df_equip[df_equip['填報單位'] == query_dept]
+                    if not target_devices.empty:
+                        device_list = []
+                        for _, row in target_devices.iterrows():
+                            d_name = row['設備名稱備註']
+                            d_id = row.get('設備編號', '無編號')
+                            d_unit = row.get('填報單位', '-')
+                            d_sub = row.get('設備所屬單位/部門', '-')
+                            d_keeper = row.get('保管人', '-')
+                            d_loc = row.get('設備詳細位置/樓層', '-')
+                            d_qty = row.get('設備數量', '1')
+                            d_prop = row.get('校內財產編號', '-')
+                            raw_fuel = row.get('原燃物料名稱', '-')
+                            d_fuel = '汽油' if '汽油' in raw_fuel else ('柴油' if '柴油' in raw_fuel else raw_fuel)
+                            d_vol = df_year[df_year['設備名稱備註'] == d_name]['加油量'].sum()
+                            d_count = len(df_year[df_year['設備名稱備註'] == d_name])
+                            status_html = '<span class="alert-status">⚠️ 尚未申報</span>' if d_count == 0 else ""
+                            device_list.append({ "id": d_id, "name": d_name, "vol": d_vol, "fuel": d_fuel, "unit": d_unit, "sub": d_sub, "keeper": d_keeper, "loc": d_loc, "qty": d_qty, "prop": d_prop, "count": d_count, "status": status_html })
+                        
+                        for k in range(0, len(device_list), 2):
+                            d_cols = st.columns(2)
+                            for m in range(2):
+                                if k + m < len(device_list):
+                                    item = device_list[k + m]
+                                    with d_cols[m]:
+                                        st.markdown(f"""
+                                        <div class="dev-card-v148">
+                                            <div class="dev-header" style="background-color: {MORANDI_COLORS.get(item.get('cat', '其他'), '#34495E')};">
+                                                <div class="dev-header-left"><div class="dev-id">{item['id']}</div><div class="dev-name-row"><span class="dev-name">{item['name']}</span><span class="qty-badge">數量: {item['qty']}</span></div></div>
+                                                <div class="dev-header-right"><div class="dev-vol">{item['vol']:.1f}<span class="dev-unit">公升</span></div></div>
+                                            </div>
+                                            <div class="dev-body">
+                                                <div class="dev-item"><span class="dev-label">燃料種類:</span><span class="dev-val">{item['fuel']}</span></div><div class="dev-item"><span class="dev-label">保管人:</span><span class="dev-val">{item['keeper']}</span></div>
+                                            </div>
+                                            <div class="dev-footer"><div class="dev-count">年度申報次數: {item['count']} 次</div><div>{item['status']}</div></div>
+                                        </div>
+                                        """, unsafe_allow_html=True)
+
+                    st.markdown("---")
+                    # V160: 油品設備佔比分析 (位置上移，完整橫式版面，標籤放大)
+                    st.subheader("🍩 油品設備用油量佔比分析", anchor=False)
+                    
+                    gas_df = df_final[df_final['原燃物料名稱'].str.contains('汽油', na=False)]
+                    if not gas_df.empty:
+                        # V160: 獨立橫式，標籤外置
+                        fig_gas = px.pie(gas_df, values='加油量', names='設備名稱備註', title='⛽ 汽油設備用油量分析', color_discrete_sequence=px.colors.sequential.Teal, hole=0.5)
+                        pull_g = [0.1 if v < gas_df['加油量'].sum()*0.05 else 0 for v in gas_df['加油量']]
+                        fig_gas.update_traces(textinfo='percent+label', textfont_size=20, textposition='outside', insidetextorientation='horizontal', pull=pull_g, hovertemplate='<b>項目: %{label}</b><br>統計加油量: %{value:.1f} L<br>百分比: %{percent:.1%}<extra></extra>')
+                        fig_gas.update_layout(legend=dict(orientation="h", yanchor="top", y=-0.1, xanchor="center", x=0.5), margin=dict(l=40, r=40, t=40, b=40))
+                        st.plotly_chart(fig_gas, use_container_width=True)
+                    else: st.info("無汽油使用紀錄")
+                    
+                    st.write("") # 間隔
+
+                    diesel_df = df_final[df_final['原燃物料名稱'].str.contains('柴油', na=False)]
+                    if not diesel_df.empty:
+                        # V160: 獨立橫式，標籤外置
+                        fig_diesel = px.pie(diesel_df, values='加油量', names='設備名稱備註', title='🚛 柴油設備用油量分析', color_discrete_sequence=px.colors.sequential.Oranges, hole=0.5)
+                        pull_d = [0.1 if v < diesel_df['加油量'].sum()*0.05 else 0 for v in diesel_df['加油量']]
+                        fig_diesel.update_traces(textinfo='percent+label', textfont_size=20, textposition='outside', insidetextorientation='horizontal', pull=pull_d, hovertemplate='<b>項目: %{label}</b><br>統計加油量: %{value:.1f} L<br>百分比: %{percent:.1%}<extra></extra>')
+                        fig_diesel.update_layout(legend=dict(orientation="h", yanchor="top", y=-0.1, xanchor="center", x=0.5), margin=dict(l=40, r=40, t=40, b=40))
+                        st.plotly_chart(fig_diesel, use_container_width=True)
+                    else: st.info("無柴油使用紀錄")
+                    
                     st.markdown("---")
                     st.subheader(f"🌞 單位油料使用碳排放量(公噸二氧化碳當量)結構", anchor=False)
-                    df_final['CO2e'] = df_final.apply(lambda r: r['加油量']*0.0022 if '汽油' in r['原燃物料名稱'] else r['加油量']*0.0027, axis=1)
                     treemap_data = df_final.groupby(['設備名稱備註'])['CO2e'].sum().reset_index()
                     fig_tree = px.treemap(treemap_data, path=['設備名稱備註'], values='CO2e', title=f"{query_dept} - 設備碳排放量權重分析", color='CO2e', color_continuous_scale='Teal')
                     fig_tree.update_traces(texttemplate='%{label}<br>%{value:.4f}<br>%{percentEntry:.1%}', textfont=dict(size=24))
                     fig_tree.update_coloraxes(showscale=False)
                     st.plotly_chart(fig_tree, use_container_width=True)
 
-                    st.subheader("🍩 油品設備用油量佔比分析", anchor=False)
-                    c_pie1, c_pie2 = st.columns(2)
-                    with c_pie1:
-                        gas_df = df_final[df_final['原燃物料名稱'].str.contains('汽油', na=False)]
-                        if not gas_df.empty:
-                            fig_gas = px.pie(gas_df, values='加油量', names='設備名稱備註', title='⛽ 汽油設備用油量分析', color_discrete_sequence=px.colors.sequential.Teal, hole=0.5)
-                            # V142 Fix: Custom Tooltip
-                            fig_gas.update_traces(textinfo='percent+label', textfont_size=20, textposition='inside', insidetextorientation='horizontal', hovertemplate='<b>項目: %{label}</b><br>統計加油量: %{value:.1f} L<br>百分比: %{percent:.1%}<extra></extra>')
-                            fig_gas.update_layout(legend=dict(orientation="h", yanchor="top", y=-0.1, xanchor="center", x=0.5), margin=dict(l=40, r=40, t=40, b=40))
-                            st.plotly_chart(fig_gas, use_container_width=True)
-                        else: st.info("無汽油使用紀錄")
-                    with c_pie2:
-                        diesel_df = df_final[df_final['原燃物料名稱'].str.contains('柴油', na=False)]
-                        if not diesel_df.empty:
-                            fig_diesel = px.pie(diesel_df, values='加油量', names='設備名稱備註', title='🚛 柴油設備用油量分析', color_discrete_sequence=px.colors.sequential.Oranges, hole=0.5)
-                            # V142 Fix: Custom Tooltip
-                            fig_diesel.update_traces(textinfo='percent+label', textfont_size=20, textposition='inside', insidetextorientation='horizontal', hovertemplate='<b>項目: %{label}</b><br>統計加油量: %{value:.1f} L<br>百分比: %{percent:.1%}<extra></extra>')
-                            fig_diesel.update_layout(legend=dict(orientation="h", yanchor="top", y=-0.1, xanchor="center", x=0.5), margin=dict(l=40, r=40, t=40, b=40))
-                            st.plotly_chart(fig_diesel, use_container_width=True)
-                        else: st.info("無柴油使用紀錄")
-                    
                     st.markdown("---")
                     st.subheader(f"📋 {query_year}年度 填報明細")
                     df_display = df_final[["加油日期", "設備名稱備註", "原燃物料名稱", "油卡編號", "加油量", "填報人", "備註"]].sort_values(by='加油日期', ascending=False).rename(columns={'加油量': '加油量(公升)'})
@@ -606,7 +646,7 @@ def render_user_interface():
                 else: st.warning(f"⚠️ {query_dept} 在 {query_year} 年度尚無填報紀錄。")
         else: st.info("尚無該年度資料，無法顯示儀表板。")
 
-    st.markdown('<div class="contact-footer">管理員系統版本 V150.0 (Fuel Final Refined)</div>', unsafe_allow_html=True)
+    st.markdown('<div class="contact-footer">管理員系統版本 V160.0 (Fuel User Dashboard Enhanced)</div>', unsafe_allow_html=True)
 
 def render_admin_dashboard():
     """ 顯示管理員後台 """
@@ -628,22 +668,19 @@ def render_admin_dashboard():
 
     admin_tabs = st.tabs(["🔍 申報資料異動", "⚠️ 篩選未申報名單", "📝 全校燃油設備總覽", "📊 全校油料使用儀表板"])
 
-    # === Tab 1: 申報資料異動 (V139.0 - 匯出欄位補全) ===
+    # === Tab 1: 申報資料異動 ===
     with admin_tabs[0]:
         st.subheader("🔍 申報資料異動")
         if not df_year.empty:
             df_year['加油日期'] = pd.to_datetime(df_year['加油日期']).dt.date
             edited = st.data_editor(df_year, column_config={"佐證資料": st.column_config.LinkColumn("佐證", display_text="🔗"), "加油日期": st.column_config.DateColumn("日期", format="YYYY-MM-DD"), "加油量": st.column_config.NumberColumn("油量", format="%.2f"), "填報時間": st.column_config.TextColumn("填報時間", disabled=True)}, num_rows="dynamic", use_container_width=True, key="editor_v122")
             
-            # V139.0: 匯出完整設備清單 + 年度統計
             df_stats = df_year.groupby(['設備名稱備註'])['加油量'].sum().reset_index()
             df_export = pd.merge(df_equip, df_stats, on='設備名稱備註', how='left')
             df_export['加油量'] = df_export['加油量'].fillna(0)
             df_export.rename(columns={'加油量': f'{selected_admin_year}年度總加油量'}, inplace=True)
             
-            # 指定匯出欄位 (依使用者需求)
             target_cols = ['填報單位', '設備名稱備註', '校內財產編號', '原燃物料名稱', '保管人', '設備所屬單位/部門', '設備詳細位置/樓層', '設備數量', '設備編號', f'{selected_admin_year}年度總加油量']
-            # 過濾存在的欄位
             final_cols = [c for c in target_cols if c in df_export.columns]
             df_final_export = df_export[final_cols]
             
@@ -693,7 +730,7 @@ def render_admin_dashboard():
                 else: st.success("🎉 太棒了！全數已申報。")
             else: st.warning("無資料可供篩選。")
 
-    # === Tab 3: 全校總覽 (V150.0 - 卡片精修 + 移除空白) ===
+    # === Tab 3: 全校總覽 ===
     with admin_tabs[2]:
         if not df_year.empty and not df_equip.empty:
             total_eq = int(df_equip['設備數量_num'].sum())
@@ -726,14 +763,12 @@ def render_admin_dashboard():
                             header_color = MORANDI_COLORS.get(category, "#CFD8DC")
                             st.markdown(f"""<div class="stat-card-v119"><div class="stat-header" style="background-color: {header_color};"><span class="stat-title">{category}</span><span class="stat-count">{count_tot}</span></div><div class="stat-body-split"><div class="stat-col-left"><div class="stat-item"><span class="stat-item-label">⛽ 汽油設備數</span><span class="stat-item-val">{count_gas}</span></div><div class="stat-item"><span class="stat-item-label">🚛 柴油設備數</span><span class="stat-item-val">{count_dsl}</span></div><div class="stat-item"><span class="stat-item-label">🔥 燃油設備數</span><span class="stat-item-val">{count_tot}</span></div></div><div class="stat-col-right"><div class="stat-item"><span class="stat-item-label">汽油加油量(公升)</span><span class="stat-item-val">{gas_vol:,.1f}</span></div><div class="stat-item"><span class="stat-item-label">柴油加油量(公升)</span><span class="stat-item-val">{diesel_vol:,.1f}</span></div><div class="stat-item"><span class="stat-item-label">總計加油量(公升)</span><span class="stat-item-val">{total_vol:,.1f}</span></div></div></div></div>""", unsafe_allow_html=True)
             
-            # V150.0: 設備詳情卡 (Visual Final Fix)
             st.markdown("---")
             st.subheader("📋 各類設備詳細申報紀錄一覽")
             
             for category in DEVICE_ORDER:
                 target_devices = df_equip[df_equip['統計類別'] == category]
                 if not target_devices.empty:
-                    # Title Style (No border, Spaced)
                     st.markdown(f"<h3 style='color: #2874A6; font-size: 1.6rem; margin-top: 40px; margin-bottom: 25px;'>{category}</h3>", unsafe_allow_html=True)
                     
                     device_list = []
@@ -743,23 +778,14 @@ def render_admin_dashboard():
                         d_unit = row.get('填報單位', '-')
                         d_sub = row.get('設備所屬單位/部門', '-')
                         d_keeper = row.get('保管人', '-')
-                        d_loc = row.get('設備詳細位置/樓層', '-')
                         d_qty = row.get('設備數量', '1')
-                        d_prop = row.get('校內財產編號', '-')
-                        
                         raw_fuel = row.get('原燃物料名稱', '-')
                         d_fuel = '汽油' if '汽油' in raw_fuel else ('柴油' if '柴油' in raw_fuel else raw_fuel)
-                        
                         d_vol = df_year[df_year['設備名稱備註'] == d_name]['加油量'].sum()
                         d_count = len(df_year[df_year['設備名稱備註'] == d_name])
                         status_html = '<span class="alert-status">⚠️ 尚未申報</span>' if d_count == 0 else ""
 
-                        device_list.append({
-                            "id": d_id, "name": d_name, "vol": d_vol, "fuel": d_fuel,
-                            "unit": d_unit, "sub": d_sub, "keeper": d_keeper,
-                            "loc": d_loc, "qty": d_qty, "prop": d_prop,
-                            "count": d_count, "status": status_html
-                        })
+                        device_list.append({ "id": d_id, "name": d_name, "vol": d_vol, "fuel": d_fuel, "unit": d_unit, "sub": d_sub, "keeper": d_keeper, "qty": d_qty, "count": d_count, "status": status_html })
                     
                     for k in range(0, len(device_list), 2):
                         d_cols = st.columns(2)
@@ -767,45 +793,18 @@ def render_admin_dashboard():
                             if k + m < len(device_list):
                                 item = device_list[k + m]
                                 with d_cols[m]:
-                                    # V158: 使用統一深灰色
-                                    st.markdown(f"""
-                                    <div class="dev-card-v148">
-                                        <div class="dev-header" style="background-color: {MORANDI_COLORS.get(category, '#34495E')};">
-                                            <div class="dev-header-left">
-                                                <div class="dev-id">{item['id']}</div>
-                                                <div class="dev-name-row">
-                                                    <span class="dev-name">{item['name']}</span>
-                                                    <span class="qty-badge">數量: {item['qty']}</span>
-                                                </div>
-                                            </div>
-                                            <div class="dev-header-right">
-                                                <div class="dev-vol">{item['vol']:.1f}<span class="dev-unit">公升</span></div>
-                                            </div>
-                                        </div>
-                                        <div class="dev-body">
-                                            <div class="dev-item"><span class="dev-label">燃料種類:</span><span class="dev-val">{item['fuel']}</span></div>
-                                            <div class="dev-item"><span class="dev-label">填報單位:</span><span class="dev-val">{item['unit']}</span></div>
-                                            <div class="dev-item"><span class="dev-label">所屬部門:</span><span class="dev-val">{item['sub']}</span></div>
-                                            <div class="dev-item"><span class="dev-label">保管人:</span><span class="dev-val">{item['keeper']}</span></div>
-                                        </div>
-                                        <div class="dev-footer">
-                                            <div class="dev-count">年度申報次數: {item['count']} 次</div>
-                                            <div>{item['status']}</div>
-                                        </div>
-                                    </div>
-                                    """, unsafe_allow_html=True)
+                                    st.markdown(f"""<div class="dev-card-v148"><div class="dev-header" style="background-color: {MORANDI_COLORS.get(category, '#34495E')};"><div class="dev-header-left"><div class="dev-id">{item['id']}</div><div class="dev-name-row"><span class="dev-name">{item['name']}</span><span class="qty-badge">數量: {item['qty']}</span></div></div><div class="dev-header-right"><div class="dev-vol">{item['vol']:.1f}<span class="dev-unit">公升</span></div></div></div><div class="dev-body"><div class="dev-item"><span class="dev-label">燃料種類:</span><span class="dev-val">{item['fuel']}</span></div><div class="dev-item"><span class="dev-label">填報單位:</span><span class="dev-val">{item['unit']}</span></div><div class="dev-item"><span class="dev-label">所屬部門:</span><span class="dev-val">{item['sub']}</span></div><div class="dev-item"><span class="dev-label">保管人:</span><span class="dev-val">{item['keeper']}</span></div></div><div class="dev-footer"><div class="dev-count">年度申報次數: {item['count']} 次</div><div>{item['status']}</div></div></div>""", unsafe_allow_html=True)
 
             st.markdown("---")
             st.subheader("🍩 油品設備用油量佔比分析")
             color_map = { "公務車輛(GV-1-)": "#B0C4DE", "乘坐式割草機(GV-2-)": "#F5CBA7", "乘坐式農用機具(GV-3-)": "#D7BDE2", "鍋爐(GS-1-)": "#E6B0AA", "發電機(GS-2-)": "#A9CCE3", "肩背或手持式割草機、吹葉機(GS-3-)": "#A3E4D7", "肩背或手持式農用機具(GS-4-)": "#F9E79F" }
             
-            # V158: Auto textposition, Pull small slices
             gas_data = df_year[(df_year['油品大類'] == '汽油') & (df_year['統計類別'].isin(DEVICE_ORDER))].groupby('統計類別')['加油量'].sum().reset_index()
             if not gas_data.empty:
                 st.markdown('<div class="pie-chart-box">', unsafe_allow_html=True)
                 fig_g = px.pie(gas_data, values='加油量', names='統計類別', title='⛽ 汽油用量佔比', hole=0.4, color='統計類別', color_discrete_map=color_map)
                 fig_g.update_layout(height=650, font=dict(size=18), legend=dict(font=dict(size=16)))
-                # V158: Pull logic
+                # V160 Fix: Auto position, Pull
                 pull_g = [0.1 if v < gas_data['加油量'].sum()*0.05 else 0 for v in gas_data['加油量']]
                 fig_g.update_traces(textinfo='percent+label', textfont_size=20, textposition='auto', insidetextorientation='horizontal', pull=pull_g, hovertemplate='<b>項目: %{label}</b><br>統計加油量: %{value:.2f} L<br>百分比: %{percent:.1%}<extra></extra>')
                 st.plotly_chart(fig_g, use_container_width=True)
@@ -817,7 +816,6 @@ def render_admin_dashboard():
                 st.markdown('<div class="pie-chart-box">', unsafe_allow_html=True)
                 fig_d = px.pie(dsl_data, values='加油量', names='統計類別', title='🚛 柴油用量佔比', hole=0.4, color='統計類別', color_discrete_map=color_map)
                 fig_d.update_layout(height=650, font=dict(size=18), legend=dict(font=dict(size=16)))
-                # V158: Pull logic
                 pull_d = [0.1 if v < dsl_data['加油量'].sum()*0.05 else 0 for v in dsl_data['加油量']]
                 fig_d.update_traces(textinfo='percent+label', textfont_size=20, textposition='auto', insidetextorientation='horizontal', pull=pull_d, hovertemplate='<b>項目: %{label}</b><br>統計加油量: %{value:.2f} L<br>百分比: %{percent:.1%}<extra></extra>')
                 st.plotly_chart(fig_d, use_container_width=True)
@@ -825,7 +823,7 @@ def render_admin_dashboard():
             else: st.info("無柴油數據")
         else: st.warning("尚無資料可供統計。")
 
-    # === Tab 4: 儀表板 (V158 Fix) ===
+    # === Tab 4: 儀表板 (V160 Fix) ===
     with admin_tabs[3]:
         if not df_year.empty:
             st.markdown(f"<div class='dashboard-main-title'>{selected_admin_year}年度 能源使用與碳排統計</div>", unsafe_allow_html=True)
@@ -845,73 +843,59 @@ def render_admin_dashboard():
             with c4: st.markdown(f"""<div class="admin-kpi-card"><div class="admin-kpi-header" style="background-color: #E6B0AA;">☁️ 碳排放量</div><div class="admin-kpi-body"><div class="admin-kpi-value">{total_co2:,.4f}<span class="admin-kpi-unit">公噸CO<sub>2</sub>e</span></div><div class="admin-kpi-sub">ESG 指標</div></div></div>""", unsafe_allow_html=True)
             st.markdown("---")
 
-            # Chart 4: V158 Fix (Labels on top, no inside labels, 2 decimals)
+            # Chart 4: V160 Fix (Grouped Bar + Labels on Top)
             st.subheader("📈 全校逐月加油量統計")
             monthly = df_year.groupby(['月份', '油品大類'])['加油量'].sum().reset_index()
             full_months = pd.DataFrame({'月份': range(1, 13)})
             monthly = full_months.merge(monthly, on='月份', how='left').fillna({'加油量':0, '油品大類':'汽油'})
-            monthly_totals = monthly.groupby('月份')['加油量'].sum().reset_index()
-
-            fig_month = px.bar(monthly, x='月份', y='加油量', color='油品大類', barmode='group', color_discrete_sequence=DASH_PALETTE)
             
-            # Add Totals
-            fig_month.add_trace(go.Scatter(
-                x=monthly_totals['月份'], y=monthly_totals['加油量'],
-                text=monthly_totals['加油量'].apply(lambda x: f'{x:.2f}'),
-                mode='text', textposition='top center', textfont=dict(size=16, color='black'), showlegend=False
-            ))
-
+            # V160: Grouped Mode, Text Outside
+            fig_month = px.bar(monthly, x='月份', y='加油量', color='油品大類', barmode='group', text_auto='.2f', color_discrete_sequence=DASH_PALETTE)
             fig_month.update_layout(xaxis=dict(tickmode='linear', tick0=1, dtick=1, title_font=dict(size=20), tickfont=dict(size=18, color='#566573')), yaxis=dict(title="加油量(公升)", title_font=dict(size=20), tickfont=dict(size=18, color='#566573')), font=dict(size=18), showlegend=True, height=500, margin=dict(t=50))
-            fig_month.update_traces(selector=dict(type='bar'), textposition='none') # Hide inside
+            fig_month.update_traces(textfont_size=14, textangle=0, textposition='outside')
             st.plotly_chart(fig_month, use_container_width=True)
 
             st.markdown("---")
 
-            # Chart 5: V158 Fix (Width=0.5, Labels on top, 2 decimals)
+            # Chart 5: V160 Fix (Labels Outside, Thinner Bars)
             st.subheader("🏆 全校前十大加油量單位")
             top_fuel = st.radio("選擇油品類型", ["汽油", "柴油"], horizontal=True, label_visibility="collapsed")
             df_top = df_year[df_year['油品大類'] == top_fuel]
             if not df_top.empty:
                 top10_data = df_top.groupby('填報單位')['加油量'].sum().nlargest(10).reset_index()
-                
-                fig_top = px.bar(top10_data, x='填報單位', y='加油量', title=f"{top_fuel}用量前十大單位", color_discrete_sequence=DASH_PALETTE)
-                
-                # Add Totals (Top labels)
-                fig_top.add_trace(go.Scatter(
-                    x=top10_data['填報單位'], y=top10_data['加油量'],
-                    text=top10_data['加油量'].apply(lambda x: f'{x:.2f}'),
-                    mode='text', textposition='top center', textfont=dict(size=16, color='black'), showlegend=False
-                ))
-
+                fig_top = px.bar(top10_data, x='填報單位', y='加油量', text_auto='.2f', title=f"{top_fuel}用量前十大單位", color_discrete_sequence=DASH_PALETTE)
                 fig_top.update_layout(xaxis=dict(categoryorder='total descending', title_font=dict(size=20), tickfont=dict(size=18, color='#566573')), yaxis=dict(title="加油量(公升)", title_font=dict(size=20), tickfont=dict(size=18, color='#566573')), font=dict(size=18), height=600, margin=dict(t=50))
-                fig_top.update_traces(selector=dict(type='bar'), width=0.5, textposition='none')
+                # V160: Width 0.5, Outside
+                fig_top.update_traces(textfont_size=14, textangle=0, textposition='outside', width=0.5)
                 st.plotly_chart(fig_top, use_container_width=True)
             else: st.info("無此油品數據。")
 
             st.markdown("---")
-            # Chart 6: V158 Fix (Auto/Outside labels, Hide 0s, 2 decimals)
+            # Chart 6: V160 Fix (Labels Outside, Hide 0s, 2 decimals)
             st.subheader("🍩 全校加油量單位佔比")
             
-            df_gas = df_year[(df_year['油品大類'] == '汽油') & (df_year['加油量'] > 0)] # Filter 0
+            df_gas = df_year[(df_year['油品大類'] == '汽油') & (df_year['加油量'] > 0)]
             if not df_gas.empty:
                 pull_dg = [0.1 if v < df_gas['加油量'].sum()*0.05 else 0 for v in df_gas['加油量']]
                 fig_dg = px.pie(df_gas, values='加油量', names='填報單位', title='⛽ 汽油用量分佈', hole=0.4, color_discrete_sequence=DASH_PALETTE)
                 fig_dg.update_layout(height=650, font=dict(size=18), legend=dict(font=dict(size=16)))
+                # V160: Outside labels
                 fig_dg.update_traces(textposition='outside', textinfo='label+percent', hovertemplate='<b>項目: %{label}</b><br>統計加油量: %{value:.2f} L<br>百分比: %{percent:.1%}<extra></extra>', textfont_size=20, insidetextorientation='horizontal', pull=pull_dg)
                 st.plotly_chart(fig_dg, use_container_width=True)
             else: st.info("無汽油數據")
             
-            df_dsl = df_year[(df_year['油品大類'] == '柴油') & (df_year['加油量'] > 0)] # Filter 0
+            df_dsl = df_year[(df_year['油品大類'] == '柴油') & (df_year['加油量'] > 0)]
             if not df_dsl.empty:
                 pull_dd = [0.1 if v < df_dsl['加油量'].sum()*0.05 else 0 for v in df_dsl['加油量']]
                 fig_dd = px.pie(df_dsl, values='加油量', names='填報單位', title='🚛 柴油用量分佈', hole=0.4, color_discrete_sequence=DASH_PALETTE)
                 fig_dd.update_layout(height=650, font=dict(size=18), legend=dict(font=dict(size=16)))
+                # V160: Outside labels
                 fig_dd.update_traces(textposition='outside', textinfo='label+percent', hovertemplate='<b>項目: %{label}</b><br>統計加油量: %{value:.2f} L<br>百分比: %{percent:.1%}<extra></extra>', textfont_size=20, insidetextorientation='horizontal', pull=pull_dd)
                 st.plotly_chart(fig_dd, use_container_width=True)
             else: st.info("無柴油數據")
 
             st.markdown("---")
-            # Chart 7: V158 Fix (Height=700)
+            # Chart 7: V160 Fix (Height=700)
             st.subheader("🌍 全校油料使用碳排放量(公噸二氧化碳當量)結構")
             df_year['CO2e'] = df_year.apply(lambda r: r['加油量']*0.0022 if '汽油' in str(r['原燃物料名稱']) else r['加油量']*0.0027, axis=1)
             if not df_year.empty:
@@ -922,7 +906,7 @@ def render_admin_dashboard():
             else: st.info("無數據")
         else: st.info("尚無該年度資料，無法顯示儀表板。")
 
-    st.markdown('<div class="contact-footer">管理員系統版本 V150.0 (Fuel Final Refined)</div>', unsafe_allow_html=True)
+    st.markdown('<div class="contact-footer">管理員系統版本 V160.0 (Fuel Final Refined)</div>', unsafe_allow_html=True)
 
 # ==========================================
 # 5. 主程式入口
