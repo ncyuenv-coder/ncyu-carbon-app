@@ -25,7 +25,7 @@ username = st.session_state.get("username")
 name = st.session_state.get("name")
 
 # ==========================================
-# 1. CSS 樣式表
+# 1. CSS 樣式表 (定案勿動)
 # ==========================================
 st.markdown("""
 <style>
@@ -116,33 +116,12 @@ if st.session_state.get("authentication_status") is not True:
     st.warning("🔒 請先至首頁 (Hello) 登入系統")
     st.stop()
 
-# 3. 資料庫連線
-REF_SHEET_ID = "1p7GsW-nrjerXhnn3pNgZzu_CdIh1Yxsm-fLJDqQ6MqA"
-REF_FOLDER_ID = "1o0S56OyStDjvC5tgBWiUNqNjrpXuCQMI"
-
-@st.cache_resource
-def init_google_ref():
-    oauth = st.secrets["gcp_oauth"]
-    creds = Credentials(token=None, refresh_token=oauth["refresh_token"], token_uri="https://oauth2.googleapis.com/token", client_id=oauth["client_id"], client_secret=oauth["client_secret"], scopes=["https://www.googleapis.com/auth/drive", "https://www.googleapis.com/auth/spreadsheets"])
-    gc = gspread.authorize(creds); drive = build('drive', 'v3', credentials=creds)
-    return gc, drive
-
-try:
-    gc, drive_service = init_google_ref()
-    sh_ref = gc.open_by_key(REF_SHEET_ID)
-    try: ws_records = sh_ref.worksheet("冷媒填報紀錄")
-    except: 
-        ws_records = sh_ref.add_worksheet(title="冷媒填報紀錄", rows="1000", cols="15")
-        ws_records.append_row(["填報時間","填報人","填報人分機","校區","所屬單位","填報單位名稱","建築物名稱","辦公室編號","維修日期","設備類型","設備品牌型號","冷媒種類","冷媒填充量","備註","佐證資料"])
-except Exception as e:
-    st.error(f"❌ 資料庫連線失敗: {e}")
-    st.stop()
-
 # ==========================================
-# 4. 內建資料庫 (Hardcoded Data) - 解決讀取問題
+# 3. 內建背景資料庫 (Hardcoded Data)
+#    解決檔案讀取路徑與編碼問題，確保系統穩定
 # ==========================================
 
-# 單位資訊
+# 單位資訊 (Dept -> [Units])
 DATA_UNITS = {
     '教務處': ['教務長室/副教務長室/專門委員室', '註冊與課務組', '教學發展組', '招生與出版組', '綜合行政組', '通識教育中心', '民雄教務'],
     '學生事務處': ['學務長室/副學務長室', '住宿服務組', '生活輔導組', '課外活動組', '學生輔導中心', '學生職涯發展中心', '衛生保健組', '原住民族學生資源中心', '特殊教育學生資源中心', '民雄學務'],
@@ -167,7 +146,7 @@ DATA_UNITS = {
     '人文藝術學院': ['人文藝術學院辦公室', '中國文學系', '外國語言學系', '應用歷史學系', '視覺藝術學系', '音樂學系']
 }
 
-# 建築物清單
+# 建築物清單 (Campus -> [Buildings])
 DATA_BUILDINGS = {
     '蘭潭校區': ['A01行政中心', 'A02森林館', 'A03動物科學館', 'A04農園館', 'A05工程館', 'A06食品科學館', 'A07嘉禾館', 'A08瑞穗館', 'A09游泳池', 'A10機械與能源工程學系創新育成大樓', 'A11木材利用工廠', 'A12動物試驗場', 'A13司令台', 'A14學生活動中心', 'A15電物一館', 'A16理工大樓', 'A17應化一館', 'A18A應化二館', 'A18B電物二館', 'A19農藝場管理室', 'A20國際交流學園', 'A21水工與材料試驗場', 'A22食品加工廠', 'A23機電館', 'A24生物資源館', 'A25生命科學館', 'A26農業科學館', 'A27植物醫學系館', 'A28水生生物科學館', 'A29園藝場管理室', 'A30園藝技藝中心', 'A31圖書資訊館', 'A32綜合教學大樓', 'A33生物農業科技二館', 'A34嘉大植物園', 'A35生技健康館', 'A36景觀學系大樓', 'A37森林生物多樣性館', 'A38動物產品研發推廣中心', 'A39學生活動廣場', 'A40焚化爐設備車倉庫', 'A41生物機械產業實驗室', 'A44有機蔬菜溫室', 'A45蝴蝶蘭溫室', 'A46魚類保育研究中心', 'A71員工單身宿舍', 'A72學苑餐廳', 'A73學一舍', 'A74學二舍', 'A75學三舍', 'A76學五舍', 'A77學六舍', 'A78農產品展售中心', 'A79綠建築', 'A80嘉大昆蟲館', 'A81蘭潭招待所', 'A82警衛室', '回收場'],
     '民雄校區': ['B01創意樓', 'B02大學館', 'B03教育館', 'B04新藝樓', 'B06警衛室', 'B07鍋爐間', 'B08司令台', 'B09加氯室', 'B10游泳池', 'B12工友室', 'BA行政大樓', 'BB初等教育館', 'BC圖書館', 'BD樂育堂', 'BE學人單身宿舍', 'BF綠園二舍', 'BG餐廳', 'BH綠園一舍', 'BI科學館', 'BJ人文館', 'BK音樂館', 'BL藝術館', 'BM文薈廳', 'BN社團教室'],
@@ -180,7 +159,7 @@ DATA_BUILDINGS = {
 # 設備類型
 DATA_TYPES = ['冰水主機', '冰箱', '冷凍櫃', '冷氣', '冷藏櫃', '飲水機']
 
-# 冷媒係數表 (GWP) - 完整名稱對應
+# 冷媒係數表 (GWP) - 完整對應名稱
 DATA_GWP = {
     'HFC-1234yf (R-1234yf)': 0.0,
     'HFC-125 (R-125)': 3170.0,
@@ -201,16 +180,40 @@ DATA_GWP = {
     'R-402A': 0.0
 }
 
+# 4. 資料庫連線 (保持 Google Sheets 連線以供寫入和讀取紀錄)
+REF_SHEET_ID = "1p7GsW-nrjerXhnn3pNgZzu_CdIh1Yxsm-fLJDqQ6MqA"
+REF_FOLDER_ID = "1o0S56OyStDjvC5tgBWiUNqNjrpXuCQMI"
+
+@st.cache_resource
+def init_google_ref():
+    oauth = st.secrets["gcp_oauth"]
+    creds = Credentials(token=None, refresh_token=oauth["refresh_token"], token_uri="https://oauth2.googleapis.com/token", client_id=oauth["client_id"], client_secret=oauth["client_secret"], scopes=["https://www.googleapis.com/auth/drive", "https://www.googleapis.com/auth/spreadsheets"])
+    gc = gspread.authorize(creds); drive = build('drive', 'v3', credentials=creds)
+    return gc, drive
+
+try:
+    gc, drive_service = init_google_ref()
+    sh_ref = gc.open_by_key(REF_SHEET_ID)
+    try: ws_records = sh_ref.worksheet("冷媒填報紀錄")
+    except: 
+        ws_records = sh_ref.add_worksheet(title="冷媒填報紀錄", rows="1000", cols="15")
+        ws_records.append_row(["填報時間","填報人","填報人分機","校區","所屬單位","填報單位名稱","建築物名稱","辦公室編號","維修日期","設備類型","設備品牌型號","冷媒種類","冷媒填充量","備註","佐證資料"])
+except Exception as e:
+    st.error(f"❌ 資料庫連線失敗: {e}")
+    st.stop()
+
+# 5. 資料讀取函式 (混合模式)
 def load_static_data(source='local'):
     """
     讀取靜態資料。
-    source='local': 直接回傳內建的字典 (速度最快，永不報錯)。
-    source='cloud': 連線 Google Sheets 下載最新資料並更新。
+    source='local': 直接回傳內建字典 (秒開，不報錯)。
+    source='cloud': 連線 Google Sheets 下載最新資料 (用於管理員手動更新)。
     """
     if source == 'local':
+        # 回傳內建的 Hardcoded Data
         return DATA_UNITS, DATA_BUILDINGS, DATA_TYPES, sorted(list(DATA_GWP.keys())), DATA_GWP
     else:
-        # Cloud update
+        # Cloud update (Admin Manual Trigger)
         try:
             ws_units = sh_ref.worksheet("單位資訊")
             ws_buildings = sh_ref.worksheet("建築物清單")
@@ -259,11 +262,11 @@ def load_static_data(source='local'):
             
         except Exception as e:
             st.error(f"雲端更新失敗: {e}")
-            return DEFAULT_UNITS, DEFAULT_BUILDINGS, DEFAULT_TYPES, sorted(list(DEFAULT_GWP.keys())), DEFAULT_GWP
+            return DATA_UNITS, DATA_BUILDINGS, DATA_TYPES, sorted(list(DATA_GWP.keys())), DATA_GWP
 
 @st.cache_data(ttl=60)
 def load_records_data():
-    """動態填報紀錄 (嚴格只讀取 Google Sheets，失敗則嘗試讀取本地備援檔)"""
+    """動態填報紀錄 (只讀取 Google Sheets，確保即時性)"""
     try:
         data = ws_records.get_all_values()
         if len(data) > 1:
@@ -282,18 +285,12 @@ def load_records_data():
         else:
             return pd.DataFrame(columns=["填報時間","填報人","填報人分機","校區","所屬單位","填報單位名稱","建築物名稱","辦公室編號","維修日期","設備類型","設備品牌型號","冷媒種類","冷媒填充量","備註","佐證資料"])
     except Exception as e:
-        # V280: 嘗試讀取本地 CSV 備援 (檔名對應)
-        try:
-            df = pd.read_csv("冷媒設備盤查資料庫_標準化.xlsx - 冷媒填報紀錄.csv")
-            st.warning("⚠️ 雲端連線失敗，目前顯示為本地備份資料。")
-            return df
-        except:
-            st.error(f"⚠️ 無法讀取資料 (雲端與本地皆失效): {e}")
-            return pd.DataFrame()
+        st.error(f"⚠️ 無法讀取雲端填報紀錄: {e}。請檢查網路連線。")
+        return pd.DataFrame()
 
 # 初始化 (Session State)
 if 'static_data_loaded' not in st.session_state:
-    # 預設使用內建資料
+    # 預設從 Local (Hardcoded) 讀取靜態資料，速度快且不報錯
     st.session_state['unit_dict'], st.session_state['build_dict'], st.session_state['e_types'], st.session_state['r_types'], st.session_state['gwp_map'] = load_static_data('local')
     st.session_state['static_data_loaded'] = True
 
@@ -382,7 +379,6 @@ def render_user_interface():
                     st.success("✅ 冷媒填報成功！欄位已清空，可繼續填寫下一筆。")
                     st.balloons()
                     
-                    # 清空欄位並重新執行
                     reset_input_states()
                     st.cache_data.clear()
                     time.sleep(1)
@@ -468,7 +464,7 @@ def render_admin_dashboard():
     
     admin_tabs = st.tabs(["📊 全校冷媒填充儀表板", "📝 申報資料異動"])
 
-    # V275: 按鈕位置維持在 Tab 2
+    # V275: 按鈕放置於 Tab 2 內
     with admin_tabs[1]:
         st.subheader("📝 申報資料異動與下載")
         
@@ -513,6 +509,7 @@ def render_admin_dashboard():
                 try:
                     df_final = edited.copy()
                     
+                    # Cleanup
                     cols_to_remove = ['年份', '月份', '排放量(kgCO2e)', '排放量(公噸)', '冷媒顯示名稱']
                     for c in cols_to_remove:
                         if c in df_final.columns: del df_final[c]
