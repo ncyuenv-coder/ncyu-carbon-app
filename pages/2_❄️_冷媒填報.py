@@ -25,7 +25,7 @@ username = st.session_state.get("username")
 name = st.session_state.get("name")
 
 # ==========================================
-# 1. CSS 樣式表 (V275.0 定案版)
+# 1. CSS 樣式表 (同步燃油 V150.0 規格)
 # ==========================================
 st.markdown("""
 <style>
@@ -43,14 +43,20 @@ st.markdown("""
         --kpi-co2: #AF7AC5;
         --morandi-blue: #34495E;
     }
+
+    /* 背景色還原 */
     [data-testid="stAppViewContainer"] { background-color: #EAEDED; color: var(--text-main); }
     [data-testid="stHeader"] { background-color: rgba(0,0,0,0); }
     [data-testid="stSidebar"] { background-color: #FFFFFF; border-right: 1px solid #BDC3C7; }
+
+    /* 輸入元件優化 */
     div[data-baseweb="input"] > div, div[data-baseweb="base-input"] > input, textarea, input {
         background-color: #FFFFFF !important; border-color: #BDC3C7 !important; color: #000000 !important; font-size: 1.15rem !important;
     }
     div[data-baseweb="select"] > div { border-color: #BDC3C7 !important; background-color: #FFFFFF !important; }
     ul[data-baseweb="menu"] { background-color: #FFFFFF !important; }
+
+    /* 按鈕樣式 */
     div.stButton > button, button[kind="primary"], [data-testid="stFormSubmitButton"] > button {
         background-color: var(--orange-bg) !important; 
         color: #FFFFFF !important; border: 2px solid var(--orange-dark) !important; border-radius: 12px !important;
@@ -61,17 +67,29 @@ st.markdown("""
     div.stButton > button:hover, [data-testid="stFormSubmitButton"] > button:hover { 
         background-color: var(--orange-dark) !important; transform: translateY(-2px) !important; color: #FFFFFF !important;
     }
+
+    /* Tab 分頁字體 */
     button[data-baseweb="tab"] div p { font-size: 1.3rem !important; font-weight: 900 !important; color: var(--text-sub); }
     button[data-baseweb="tab"][aria-selected="true"] div p { color: #E67E22 !important; border-bottom: 3px solid #E67E22; }
+
+    /* 個資聲明勾選文字 */
     div[data-testid="stCheckbox"] label p { font-size: 1.2rem !important; color: #1F618D !important; font-weight: 900 !important; }
+
+    /* 莫蘭迪色標題區塊 */
     .morandi-header {
         background-color: #EBF5FB; color: #2E4053; padding: 15px; border-radius: 8px;
         border-left: 8px solid #5499C7; font-size: 1.35rem; font-weight: 700;
         margin-top: 25px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);
     }
+
+    /* 個資聲明區塊 */
     .privacy-box { background-color: #F8F9F9; border: 1px solid #BDC3C7; padding: 15px; border-radius: 10px; font-size: 0.95rem; color: #566573; margin-bottom: 10px; }
     .privacy-title { font-weight: bold; color: #2C3E50; margin-bottom: 5px; font-size: 1.1rem; }
+    
+    /* 誤繕提醒文字 */
     .correction-note { color: #566573; font-size: 0.95rem; font-weight: bold; margin-top: 5px; margin-bottom: 20px; }
+
+    /* 橫式資訊卡 (User Side) */
     .horizontal-card {
         display: flex; border: 1px solid #BDC3C7; border-radius: 12px; overflow: hidden;
         margin-bottom: 25px; box-shadow: 0 4px 8px rgba(0,0,0,0.08); background-color: #FFFFFF; min-height: 280px;
@@ -83,12 +101,15 @@ st.markdown("""
     }
     .dept-text { font-size: 1.6rem; font-weight: 700; margin-bottom: 8px; line-height: 1.4; }
     .unit-text { font-size: 1.3rem; font-weight: 500; opacity: 0.9; }
+    
     .card-right { flex: 7; padding: 20px 30px; display: flex; flex-direction: column; justify-content: center; }
     .info-row { display: flex; align-items: flex-start; padding: 10px 0; font-size: 1.05rem; color: #566573; border-bottom: 1px dashed #F2F3F4; }
     .info-row:last-child { border-bottom: none; }
     .info-icon { margin-right: 12px; font-size: 1.2rem; width: 30px; text-align: center; }
     .info-label { font-weight: 700; margin-right: 10px; min-width: 160px; color: #2E4053; }
     .info-value { font-weight: 500; color: #17202A; flex: 1; line-height: 1.6; }
+    
+    /* Admin 儀表板 KPI (同步燃油) */
     .admin-kpi-card {
         background-color: #FFFFFF; border: 1px solid #BDC3C7; border-radius: 12px; overflow: hidden;
         box-shadow: 0 4px 10px rgba(0,0,0,0.1); height: 100%; text-align: center; margin-bottom: 20px;
@@ -97,15 +118,21 @@ st.markdown("""
     .admin-kpi-body { padding: 20px; }
     .admin-kpi-value { font-size: 2.8rem; font-weight: 900; color: #2C3E50; margin-bottom: 5px; }
     .admin-kpi-unit { font-size: 1rem; color: #7F8C8D; font-weight: normal; margin-left: 5px; }
+    
+    /* 儀表板標題 */
     .dashboard-main-title {
         font-size: 1.8rem; font-weight: 900; text-align: center; color: #2C3E50; margin-bottom: 20px;
         background-color: #F8F9F9; padding: 10px; border-radius: 10px; border: 1px solid #BDC3C7;
     }
+
+    /* Radio Button 優化 (儀表板切換用) */
     .stRadio div[role="radiogroup"] label {
         background-color: #D6EAF8 !important; border: 1px solid #AED6F1 !important;
         border-radius: 8px !important; padding: 8px 15px !important; margin-right: 10px !important;
     }
     .stRadio div[role="radiogroup"] label p { font-size: 1.0rem !important; font-weight: 800 !important; color: #154360 !important; }
+
+    /* 上傳區樣式 */
     [data-testid="stFileUploaderDropzone"] { background-color: #D6EAF8 !important; border: 2px dashed #2E86C1 !important; padding: 20px; border-radius: 12px; }
     [data-testid="stFileUploaderDropzone"] div, span, small { color: #154360 !important; font-weight: bold !important; }
 </style>
@@ -139,7 +166,7 @@ except Exception as e:
     st.stop()
 
 # ==========================================
-# 4. 內建靜態資料庫 (Hardcoded Data) - 解決讀取問題
+# 4. 內建靜態資料庫 (Hardcoded Data) - 確保啟動無誤
 # ==========================================
 
 # 單位資訊
@@ -201,17 +228,16 @@ DATA_GWP = {
     'R-402A': 0.0
 }
 
-# 資料讀取函式
 def load_static_data(source='local'):
     """
     讀取靜態資料。
     source='local': 直接回傳內建字典 (秒開，不報錯)。
-    source='cloud': 連線 Google Sheets 下載最新資料並更新。
+    source='cloud': 連線 Google Sheets 下載最新資料 (用於管理員手動更新)。
     """
     if source == 'local':
         return DATA_UNITS, DATA_BUILDINGS, DATA_TYPES, sorted(list(DATA_GWP.keys())), DATA_GWP
     else:
-        # Cloud update
+        # Cloud update (Admin Manual Trigger)
         try:
             ws_units = sh_ref.worksheet("單位資訊")
             ws_buildings = sh_ref.worksheet("建築物清單")
@@ -264,7 +290,7 @@ def load_static_data(source='local'):
 
 @st.cache_data(ttl=60)
 def load_records_data():
-    """動態填報紀錄 (嚴格只讀取 Google Sheets，失敗則嘗試讀取本地備援檔)"""
+    """動態填報紀錄 (只讀取 Google Sheets，確保即時性)"""
     try:
         data = ws_records.get_all_values()
         if len(data) > 1:
@@ -283,18 +309,11 @@ def load_records_data():
         else:
             return pd.DataFrame(columns=["填報時間","填報人","填報人分機","校區","所屬單位","填報單位名稱","建築物名稱","辦公室編號","維修日期","設備類型","設備品牌型號","冷媒種類","冷媒填充量","備註","佐證資料"])
     except Exception as e:
-        # 嘗試讀取本地 CSV 備援 (使用您提供的檔案名稱)
-        try:
-            df = pd.read_csv("冷媒設備盤查資料庫_標準化 (1150126更新).xlsx - 冷媒填報紀錄.csv")
-            st.warning("⚠️ 雲端連線失敗，目前顯示為本地備份資料。")
-            return df
-        except:
-            st.error(f"⚠️ 無法讀取資料 (雲端與本地皆失效): {e}")
-            return pd.DataFrame()
+        st.error(f"⚠️ 無法讀取雲端填報紀錄: {e}。請檢查網路連線。")
+        return pd.DataFrame()
 
 # 初始化 (Session State)
 if 'static_data_loaded' not in st.session_state:
-    # 預設使用內建資料
     st.session_state['unit_dict'], st.session_state['build_dict'], st.session_state['e_types'], st.session_state['r_types'], st.session_state['gwp_map'] = load_static_data('local')
     st.session_state['static_data_loaded'] = True
 
@@ -383,6 +402,7 @@ def render_user_interface():
                     st.success("✅ 冷媒填報成功！欄位已清空，可繼續填寫下一筆。")
                     st.balloons()
                     
+                    # 清空欄位並重新執行
                     reset_input_states()
                     st.cache_data.clear()
                     time.sleep(1)
@@ -468,7 +488,7 @@ def render_admin_dashboard():
     
     admin_tabs = st.tabs(["📊 全校冷媒填充儀表板", "📝 申報資料異動"])
 
-    # V273: 按鈕放置於 Tab 2 內
+    # V275: 按鈕維持在 Tab 2
     with admin_tabs[1]:
         st.subheader("📝 申報資料異動與下載")
         
