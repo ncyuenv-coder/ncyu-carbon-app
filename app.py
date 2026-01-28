@@ -8,20 +8,37 @@ st.set_page_config(
     layout="wide"
 )
 
-# 1. CSS 樣式 (定義首頁漂亮的標題)
+# 1. CSS 樣式 (定義首頁標題與按鈕樣式)
 st.markdown("""
 <style>
+    /* 主標題樣式 */
     .main-header {
         font-size: 2.2rem; font-weight: 800; color: #2C3E50; text-align: center; 
         margin-bottom: 20px; padding: 20px; background-color: #FFFFFF; 
         border-bottom: 3px solid #F4D03F; border-radius: 10px;
         box-shadow: 0 4px 6px rgba(0,0,0,0.1);
     }
+    /* 資訊框樣式 */
     .info-box {
         background-color: #EBF5FB; border-left: 5px solid #3498DB; 
         padding: 20px; border-radius: 5px; margin-bottom: 20px;
     }
     .stApp { background-color: #F8F9F9; }
+
+    /* 修改 Login 按鈕樣式 (橘色底 + 白字) */
+    div.stButton > button {
+        background-color: #E67E22 !important;
+        color: #FFFFFF !important;
+        border: 2px solid #D35400 !important;
+        border-radius: 12px !important;
+        font-size: 1.1rem !important;
+        font-weight: 800 !important;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
+    }
+    div.stButton > button:hover {
+        background-color: #D35400 !important;
+        transform: translateY(-2px);
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -51,20 +68,21 @@ try:
         
         # 側邊欄：顯示歡迎與登出
         with st.sidebar:
-            st.header(f"👤 歡迎, {name}")
+            # 修改點 3: 文字改成 "歡迎，師長/同仁"
+            st.header(f"👤 歡迎，師長/同仁")
             st.success("☁️ 連線成功")
             authenticator.logout('登出系統', 'sidebar')
             st.markdown("---")
-            st.info("👇 請點擊上方頁面切換功能")
+            # 修改點 2: 移除了 "👇 請點擊上方頁面切換功能"
 
-        # 主畫面：顯示導引說明
+        # 主畫面：顯示導引說明 (修改點 1: 更新歡迎詞)
         st.markdown(f"""
         <div class="info-box">
-            <h4>👋 歡迎回來，{name}！</h4>
-            <p>本系統已升級為<strong>分流架構</strong>，請查看 <strong>👈 左側側邊欄 (Sidebar)</strong> 的選單來進入功能：</p>
+            <h4>👋 您好！歡迎來到本校「溫室氣體盤查填報系統」</h4>
+            <p>請查看 <strong>👈 左側側邊欄 (Sidebar)</strong> 的選單來進入功能：</p>
             <ul>
-                <li><strong>1_⛽_燃油填報</strong>：公務車輛、農用機具、發電機等油料使用申報。</li>
-                <li><strong>2_❄️_冷媒填報</strong>：冷氣機、冰水主機等冷媒填充維修申報。</li>
+                <li><strong>1_⛽_燃油填報</strong>：公務車輛、發電機、除草機、農用機具等油料使用申報。</li>
+                <li><strong>2_❄️_冷媒填報</strong>：冷氣機、冷凍/藏設備等冷媒填充維修申報。</li>
             </ul>
         </div>
         """, unsafe_allow_html=True)
