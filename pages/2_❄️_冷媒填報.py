@@ -198,7 +198,8 @@ DATA_GWP = {
     'HFC-23 (R-23)': 12400.0,
     'HFC-32 (R-32)': 677.0,
     'R-411A': 0.0,
-    'R-402A': 0.0
+    'R-402A': 0.0,
+    '其他': 0.0  # V291 新增
 }
 
 def load_static_data(source='local'):
@@ -245,6 +246,11 @@ def load_static_data(source='local'):
                         r_types.append(r_name_full)
                         gwp_map[r_name_full] = gwp
             
+            # V291: 確保 '其他' 存在
+            if '其他' not in r_types:
+                r_types.append('其他')
+                gwp_map['其他'] = 0.0
+            
             return unit_dict, build_dict, e_types, sorted(list(set(r_types))), gwp_map
             
         except Exception as e:
@@ -271,6 +277,7 @@ def load_records_data():
         else:
             return pd.DataFrame(columns=["填報時間","填報人","填報人分機","校區","所屬單位","填報單位名稱","建築物名稱","辦公室編號","維修日期","設備類型","設備品牌型號","冷媒種類","冷媒填充量","備註","佐證資料"])
     except Exception as e:
+        # Fallback to local record CSV if available
         try:
             df = pd.read_csv("冷媒設備盤查資料庫_標準化.xlsx - 冷媒填報紀錄.csv")
             st.warning("⚠️ 雲端連線失敗，目前顯示為本地備份資料。")
@@ -337,7 +344,8 @@ def render_user_interface():
         e_model = c10.text_input("設備品牌型號", placeholder="例如：國際 CS-100FL+CU-100FLC", key=f"u_model_{fid}")
         sel_rtype = c11.selectbox("冷媒種類", r_types, index=None, placeholder="請選擇...", key=f"u_rtype_{fid}")
         
-        amount = st.number_input("冷媒填充量 (公斤)", min_value=0.0, step=0.1, format="%.2f", key=f"u_amt_{fid}")
+        # V291: 粗體紅字標籤
+        amount = st.number_input("冷媒填充量 **:red[(公斤)]**", min_value=0.0, step=0.1, format="%.2f", key=f"u_amt_{fid}")
         st.markdown("請上傳冷媒填充單據佐證資料")
         f_file = st.file_uploader("上傳佐證 (必填)", type=['pdf', 'jpg', 'png'], label_visibility="collapsed", key=f"u_file_{fid}")
         
@@ -423,7 +431,9 @@ def render_user_interface():
                     total_emission = df_view['排放量(kgCO2e)'].sum()
 
                     st.markdown("---")
-                    st.markdown(f"""
+                    
+                    # 資訊卡 HTML
+                    card_html = f"""
                     <div class="horizontal-card">
                         <div class="card-left">{left_html}</div>
                         <div class="card-right">
@@ -435,7 +445,34 @@ def render_user_interface():
                             <div class="info-row"><span class="info-icon">🌍</span><span class="info-label">碳排放量</span><span class="info-value" style="color:#C0392B;font-size:1.8rem;font-weight:900;">{total_emission:,.4f} <span style="font-size:1rem;">kgCO2e</span></span></div>
                         </div>
                     </div>
-                    """, unsafe_allow_html=True)
+                    """
+                    st.markdown(card_html, unsafe_allow_html=True)
+                    
+                    # V291: 下載資訊卡功能
+                    full_html = f"""
+                    <html>
+                    <head>
+                    <meta charset="utf-8">
+                    <style>
+                        body {{ font-family: "Microsoft JhengHei", sans-serif; padding: 20px; }}
+                        .horizontal-card {{ display: flex; border: 1px solid #BDC3C7; border-radius: 12px; overflow: hidden; margin-bottom: 25px; box-shadow: 0 4px 8px rgba(0,0,0,0.08); background-color: #FFFFFF; min-height: 280px; max-width: 800px; }}
+                        .card-left {{ flex: 3; background-color: #34495E; color: #FFFFFF; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 20px; text-align: center; border-right: 1px solid #2C3E50; }}
+                        .dept-text {{ font-size: 1.6rem; font-weight: 700; margin-bottom: 8px; line-height: 1.4; }}
+                        .unit-text {{ font-size: 1.3rem; font-weight: 500; opacity: 0.9; }}
+                        .card-right {{ flex: 7; padding: 20px 30px; display: flex; flex-direction: column; justify-content: center; }}
+                        .info-row {{ display: flex; align-items: flex-start; padding: 10px 0; font-size: 1.05rem; color: #566573; border-bottom: 1px dashed #F2F3F4; }}
+                        .info-row:last-child {{ border-bottom: none; }}
+                        .info-icon {{ margin-right: 12px; font-size: 1.2rem; width: 30px; text-align: center; }}
+                        .info-label {{ font-weight: 700; margin-right: 10px; min-width: 160px; color: #2E4053; }}
+                        .info-value {{ font-weight: 500; color: #17202A; flex: 1; line-height: 1.6; }}
+                    </style>
+                    </head>
+                    <body>
+                        {card_html}
+                    </body>
+                    </html>
+                    """
+                    st.download_button(label="📥 下載資訊卡 (HTML)", data=full_html, file_name=f"{sel_q_unit}_冷媒資訊卡.html", mime="text/html")
                     
                     st.markdown("<br>", unsafe_allow_html=True)
                     st.subheader("📋 單位申報明細")
@@ -510,7 +547,6 @@ def render_admin_dashboard():
         else:
             st.info("無資料可編輯")
 
-    # 新版莫蘭迪色票 (移除強烈紫紅 #B565A7，改為協調色)
     MORANDI_PALETTE = ['#88B04B', '#92A8D1', '#F7CAC9', '#5D6D7E', '#7FB3D5', '#E59866', '#F7DC6F', '#CCD1D1', '#76D7C4', '#F1948A', '#BB8FCE']
     
     with admin_tabs[0]:
