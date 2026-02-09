@@ -816,7 +816,7 @@ def render_admin_dashboard():
             if not gas_data.empty:
                 gas_data = gas_data[gas_data['加油量'] > 0]
                 st.markdown('<div class="pie-chart-box">', unsafe_allow_html=True)
-                fig_g = px.pie(gas_data, values='加油量', names='統計類別', title='⛽ 汽油用量佔比', hole=0.4, color='統計類別', color_discrete_map=color_map)
+                fig_g = px.bar(gas_data, x='統計類別', y='加油量', title='⛽ 汽油用量佔比', color='統計類別', color_discrete_map=color_map, text='加油量')
                 fig_g.update_layout(height=650, font=dict(size=18), legend=dict(font=dict(size=16)), margin=dict(l=80, r=80, t=50, b=50))
                 pull_g = [0.1 if v < gas_data['加油量'].sum()*0.05 else 0 for v in gas_data['加油量']]
                 # V164: Rotation 300
@@ -893,7 +893,7 @@ def render_admin_dashboard():
             df_gas = df_year[(df_year['油品大類'] == '汽油') & (df_year['加油量'] > 0)]
             if not df_gas.empty:
                 pull_dg = [0.1 if v < df_gas['加油量'].sum()*0.05 else 0 for v in df_gas['加油量']]
-                fig_dg = px.pie(df_gas, values='加油量', names='填報單位', title='⛽ 汽油用量分佈', hole=0.4, color_discrete_sequence=DASH_PALETTE)
+                fig_dg = px.bar(df_gas, x='加油量', y='填報單位', orientation='h', title='⛽ 汽油用量分佈', text='加油量', color_discrete_sequence=DASH_PALETTE)
                 fig_dg.update_layout(height=650, font=dict(size=18), legend=dict(font=dict(size=16)), margin=dict(t=80, l=100, r=100, b=40))
                 # V164: Rotation 300
                 fig_dg.update_traces(textposition='outside', textinfo='label+percent', hovertemplate='<b>項目: %{label}</b><br>統計加油量: %{value:.2f} L<br>百分比: %{percent:.1%}<extra></extra>', textfont=dict(size=16, color='black'), insidetextorientation='horizontal', pull=pull_dg, rotation=300)
