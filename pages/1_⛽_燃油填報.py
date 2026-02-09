@@ -543,26 +543,36 @@ def render_user_interface():
 
                     fig = go.Figure()
                     device_color_map = {dev: DASH_PALETTE[i % len(DASH_PALETTE)] for i, dev in enumerate(unique_devices)}
-                    
+
                     for dev in unique_devices:
                         dev_data = df_final[df_final['設備名稱備註'] == dev]
                         dev_grouped = dev_data.groupby(['月份', '油品類別'])['加油量'].sum().reset_index()
                         merged_dev = pd.merge(base_x, dev_grouped, on=['月份', '油品類別'], how='left').fillna(0)
-                        
-                        def get_text(row):
-                            val = row['加油量']
-                            m = row['月份']
-                            if val <= 0: return ""
-                            if monthly_counts.get(m, 0) <= 1: return "" 
-                            return f"{val:.1f}"
 
-                        text_vals = merged_dev.apply(get_text, axis=1)
-                        fig.add_trace(go.Bar(x=[merged_dev['月份'], merged_dev['油品類別']], y=merged_dev['加油量'], name=dev, marker_color=device_color_map[dev], text=text_vals, texttemplate='%{text}', textposition='inside', textangle=0))
-                    
+                        # V164.1 Fix: Remove inner text, keep simple hover
+                        fig.add_trace(go.Bar(
+                            x=[merged_dev['月份'], merged_dev['油品類別']], 
+                            y=merged_dev['加油量'], 
+                            name=dev, 
+                            marker_color=device_color_map[dev], 
+                            text=None,  # 移除內部標籤
+                            hovertemplate='%{y:,.0f} L'
+                        ))
+
                     total_grouped = df_final.groupby(['月份', '油品類別'])['加油量'].sum().reset_index()
                     merged_total = pd.merge(base_x, total_grouped, on=['月份', '油品類別'], how='left').fillna(0)
                     label_data = merged_total[merged_total['加油量'] > 0]
-                    fig.add_trace(go.Scatter(x=[label_data['月份'], label_data['油品類別']], y=label_data['加油量'], text=label_data['加油量'].apply(lambda x: f"{x:.1f}"), mode='text', textposition='top center', textfont=dict(size=14, color='black'), showlegend=False))
+                    
+                    # V164.1 Fix: Total label with comma
+                    fig.add_trace(go.Scatter(
+                        x=[label_data['月份'], label_data['油品類別']], 
+                        y=label_data['加油量'], 
+                        text=label_data['加油量'].apply(lambda x: f"{x:,.0f}"), # 千分位
+                        mode='text', 
+                        textposition='top center', 
+                        textfont=dict(size=14, color='black'), 
+                        showlegend=False
+                    ))
 
                     fig.update_layout(barmode='stack', font=dict(size=14), xaxis=dict(title="月份 / 油品"), yaxis=dict(title="加油量 (公升)"), height=550, margin=dict(t=50, b=120))
                     st.plotly_chart(fig, use_container_width=True)
@@ -613,28 +623,24 @@ def render_user_interface():
                                         """, unsafe_allow_html=True)
 
                     st.markdown("---")
-                    # V164.0: 油品設備佔比分析 (Rotation 300)
-                    st.subheader("🍩 油品設備用油量佔比分析", anchor=False)
-                    
-                    gas_df = df_final[(df_final['原燃物料名稱'].str.contains('汽油', na=False)) & (df_final['加油量'] > 0)]
+                    # V164.1: 改為水平長條圖 + 千分位
+                    st.subheader("📊 油品設備用油量佔比分析", anchor=False)
+
+                    gas_df = df_final[(df_final['原燃物料名稱'].str.contains('汽油', na=False)) & (df_final['加油量'] > 0)].sort_values('加油量', ascending=True)
                     if not gas_df.empty:
-                        fig_gas = px.pie(gas_df, values='加油量', names='設備名稱備註', title='⛽ 汽油設備用油量分析', color_discrete_sequence=px.colors.sequential.Teal, hole=0.5)
-                        pull_g = [0.1 if v < gas_df['加油量'].sum()*0.05 else 0 for v in gas_df['加油量']]
-                        # V164: Rotation 300
-                        fig_gas.update_traces(textinfo='percent+label', textfont=dict(color='black', size=16), textposition='outside', insidetextorientation='horizontal', pull=pull_g, hovertemplate='<b>項目: %{label}</b><br>統計加油量: %{value:.1f} L<br>百分比: %{percent:.1%}<extra></extra>', rotation=300)
-                        fig_gas.update_layout(height=600, legend=dict(orientation="h", yanchor="top", y=-0.1, xanchor="center", x=0.5), margin=dict(l=40, r=40, t=40, b=40))
+                        fig_gas = px.bar(gas_df, x='加油量', y='設備名稱備註', orientation='h', title='⛽ 汽油設備用油量分析', text='加油量', color='加油量', color_continuous_scale='Teal')
+                        fig_gas.update_traces(texttemplate='%{x:,.0f}', textposition='outside') # 千分位
+                        fig_gas.update_layout(height=500, xaxis_title="加油量 (L)", yaxis_title=None)
                         st.plotly_chart(fig_gas, use_container_width=True)
                     else: st.info("無汽油使用紀錄")
-                    
-                    st.write("") 
 
-                    diesel_df = df_final[(df_final['原燃物料名稱'].str.contains('柴油', na=False)) & (df_final['加油量'] > 0)]
+                    st.write("")
+
+                    diesel_df = df_final[(df_final['原燃物料名稱'].str.contains('柴油', na=False)) & (df_final['加油量'] > 0)].sort_values('加油量', ascending=True)
                     if not diesel_df.empty:
-                        fig_diesel = px.pie(diesel_df, values='加油量', names='設備名稱備註', title='🚛 柴油設備用油量分析', color_discrete_sequence=px.colors.sequential.Oranges, hole=0.5)
-                        pull_d = [0.1 if v < diesel_df['加油量'].sum()*0.05 else 0 for v in diesel_df['加油量']]
-                        # V164: Rotation 300
-                        fig_diesel.update_traces(textinfo='percent+label', textfont=dict(color='black', size=16), textposition='outside', insidetextorientation='horizontal', pull=pull_d, hovertemplate='<b>項目: %{label}</b><br>統計加油量: %{value:.1f} L<br>百分比: %{percent:.1%}<extra></extra>', rotation=300)
-                        fig_diesel.update_layout(height=600, legend=dict(orientation="h", yanchor="top", y=-0.1, xanchor="center", x=0.5), margin=dict(l=40, r=40, t=40, b=40))
+                        fig_diesel = px.bar(diesel_df, x='加油量', y='設備名稱備註', orientation='h', title='🚛 柴油設備用油量分析', text='加油量', color='加油量', color_continuous_scale='Oranges')
+                        fig_diesel.update_traces(texttemplate='%{x:,.0f}', textposition='outside') # 千分位
+                        fig_diesel.update_layout(height=500, xaxis_title="加油量 (L)", yaxis_title=None)
                         st.plotly_chart(fig_diesel, use_container_width=True)
                     else: st.info("無柴油使用紀錄")
                     
@@ -749,9 +755,9 @@ def render_admin_dashboard():
             gas_eq = int(df_equip[df_equip['原燃物料名稱'].str.contains('汽油', na=False)]['設備數量_num'].sum())
             diesel_eq = int(df_equip[df_equip['原燃物料名稱'].str.contains('柴油', na=False)]['設備數量_num'].sum())
             k1, k2, k3 = st.columns(3)
-            k1.markdown(f"""<div class="top-kpi-card"><div class="top-kpi-title">🚜 全校燃油設備總數</div><div class="top-kpi-value">{total_eq}</div></div>""", unsafe_allow_html=True)
-            k2.markdown(f"""<div class="top-kpi-card"><div class="top-kpi-title">⛽ 全校汽油設備數</div><div class="top-kpi-value">{gas_eq}</div></div>""", unsafe_allow_html=True)
-            k3.markdown(f"""<div class="top-kpi-card"><div class="top-kpi-title">🚛 全校柴油設備數</div><div class="top-kpi-value">{diesel_eq}</div></div>""", unsafe_allow_html=True)
+            k1.markdown(f"""<div class="top-kpi-card"><div class="top-kpi-title">🚜 全校燃油設備總數</div><div class="top-kpi-value">{total_eq:,.0f}</div></div>""", unsafe_allow_html=True)
+            k2.markdown(f"""<div class="top-kpi-card"><div class="top-kpi-title">⛽ 全校汽油設備數</div><div class="top-kpi-value">{gas_eq:,.0f}</div></div>""", unsafe_allow_html=True)
+            k3.markdown(f"""<div class="top-kpi-card"><div class="top-kpi-title">🚛 全校柴油設備數</div><div class="top-kpi-value">{diesel_eq:,.0f}</div></div>""", unsafe_allow_html=True)
             st.markdown("---")
 
             st.subheader("📂 各類設備數量及用油統計")
@@ -808,32 +814,28 @@ def render_admin_dashboard():
                                     st.markdown(f"""<div class="dev-card-v148"><div class="dev-header" style="background-color: {MORANDI_COLORS.get(category, '#34495E')};"><div class="dev-header-left"><div class="dev-id">{item['id']}</div><div class="dev-name-row"><span class="dev-name">{item['name']}</span><span class="qty-badge">數量: {item['qty']}</span></div></div><div class="dev-header-right"><div class="dev-vol">{item['vol']:.1f}<span class="dev-unit">公升</span></div></div></div><div class="dev-body"><div class="dev-item"><span class="dev-label">燃料種類:</span><span class="dev-val">{item['fuel']}</span></div><div class="dev-item"><span class="dev-label">填報單位:</span><span class="dev-val">{item['unit']}</span></div><div class="dev-item"><span class="dev-label">所屬部門:</span><span class="dev-val">{item['sub']}</span></div><div class="dev-item"><span class="dev-label">保管人:</span><span class="dev-val">{item['keeper']}</span></div></div><div class="dev-footer"><div class="dev-count">年度申報次數: {item['count']} 次</div><div>{item['status']}</div></div></div>""", unsafe_allow_html=True)
 
             st.markdown("---")
-            # V164.0: 油品設備佔比分析 (Rotation 300)
-            st.subheader("🍩 油品設備用油量佔比分析")
+            # V164.1: 改為水平長條圖
+            st.subheader("📊 油品設備用油量佔比分析")
             color_map = { "公務車輛(GV-1-)": "#B0C4DE", "乘坐式割草機(GV-2-)": "#F5CBA7", "乘坐式農用機具(GV-3-)": "#D7BDE2", "鍋爐(GS-1-)": "#E6B0AA", "發電機(GS-2-)": "#A9CCE3", "肩背或手持式割草機、吹葉機(GS-3-)": "#A3E4D7", "肩背或手持式農用機具(GS-4-)": "#F9E79F" }
-            
-            gas_data = df_year[(df_year['油品大類'] == '汽油') & (df_year['統計類別'].isin(DEVICE_ORDER))].groupby('統計類別')['加油量'].sum().reset_index()
+
+            gas_data = df_year[(df_year['油品大類'] == '汽油') & (df_year['統計類別'].isin(DEVICE_ORDER))].groupby('統計類別')['加油量'].sum().reset_index().sort_values('加油量', ascending=True)
             if not gas_data.empty:
                 gas_data = gas_data[gas_data['加油量'] > 0]
                 st.markdown('<div class="pie-chart-box">', unsafe_allow_html=True)
-                fig_g = px.pie(gas_data, values='加油量', names='統計類別', title='⛽ 汽油用量佔比', hole=0.4, color='統計類別', color_discrete_map=color_map)
-                fig_g.update_layout(height=650, font=dict(size=18), legend=dict(font=dict(size=16)), margin=dict(l=80, r=80, t=50, b=50))
-                pull_g = [0.1 if v < gas_data['加油量'].sum()*0.05 else 0 for v in gas_data['加油量']]
-                # V164: Rotation 300
-                fig_g.update_traces(textinfo='percent+label', textfont=dict(size=16, color='black'), textposition='auto', insidetextorientation='horizontal', pull=pull_g, hovertemplate='<b>項目: %{label}</b><br>統計加油量: %{value:.1f} L<br>百分比: %{percent:.1%}<extra></extra>', rotation=300)
+                fig_g = px.bar(gas_data, x='加油量', y='統計類別', orientation='h', title='⛽ 汽油用量佔比', text='加油量', color='統計類別', color_discrete_map=color_map)
+                fig_g.update_traces(texttemplate='%{x:,.0f}', textposition='outside')
+                fig_g.update_layout(height=500, xaxis_title="加油量 (L)", yaxis_title=None, showlegend=False)
                 st.plotly_chart(fig_g, use_container_width=True)
                 st.markdown('</div>', unsafe_allow_html=True)
             else: st.info("無汽油數據")
-            
-            dsl_data = df_year[(df_year['油品大類'] == '柴油') & (df_year['統計類別'].isin(DEVICE_ORDER))].groupby('統計類別')['加油量'].sum().reset_index()
+
+            dsl_data = df_year[(df_year['油品大類'] == '柴油') & (df_year['統計類別'].isin(DEVICE_ORDER))].groupby('統計類別')['加油量'].sum().reset_index().sort_values('加油量', ascending=True)
             if not dsl_data.empty:
                 dsl_data = dsl_data[dsl_data['加油量'] > 0]
                 st.markdown('<div class="pie-chart-box">', unsafe_allow_html=True)
-                fig_d = px.pie(dsl_data, values='加油量', names='統計類別', title='🚛 柴油用量佔比', hole=0.4, color='統計類別', color_discrete_map=color_map)
-                fig_d.update_layout(height=650, font=dict(size=18), legend=dict(font=dict(size=16)), margin=dict(l=80, r=80, t=50, b=50))
-                pull_d = [0.1 if v < dsl_data['加油量'].sum()*0.05 else 0 for v in dsl_data['加油量']]
-                # V164: Rotation 300
-                fig_d.update_traces(textinfo='percent+label', textfont=dict(size=16, color='black'), textposition='auto', insidetextorientation='horizontal', pull=pull_d, hovertemplate='<b>項目: %{label}</b><br>統計加油量: %{value:.1f} L<br>百分比: %{percent:.1%}<extra></extra>', rotation=300)
+                fig_d = px.bar(dsl_data, x='加油量', y='統計類別', orientation='h', title='🚛 柴油用量佔比', text='加油量', color='統計類別', color_discrete_map=color_map)
+                fig_d.update_traces(texttemplate='%{x:,.0f}', textposition='outside')
+                fig_d.update_layout(height=500, xaxis_title="加油量 (L)", yaxis_title=None, showlegend=False)
                 st.plotly_chart(fig_d, use_container_width=True)
                 st.markdown('</div>', unsafe_allow_html=True)
             else: st.info("無柴油數據")
@@ -887,26 +889,22 @@ def render_admin_dashboard():
             else: st.info("無此油品數據。")
 
             st.markdown("---")
-            # V164.0: 全校加油量佔比 (Rotation 300)
-            st.subheader("🍩 全校加油量單位佔比")
-            
-            df_gas = df_year[(df_year['油品大類'] == '汽油') & (df_year['加油量'] > 0)]
+            # V164.1: 改為水平長條圖 + 千分位
+            st.subheader("📊 全校加油量單位佔比")
+
+            df_gas = df_year[(df_year['油品大類'] == '汽油') & (df_year['加油量'] > 0)].sort_values('加油量', ascending=True)
             if not df_gas.empty:
-                pull_dg = [0.1 if v < df_gas['加油量'].sum()*0.05 else 0 for v in df_gas['加油量']]
-                fig_dg = px.pie(df_gas, values='加油量', names='填報單位', title='⛽ 汽油用量分佈', hole=0.4, color_discrete_sequence=DASH_PALETTE)
-                fig_dg.update_layout(height=650, font=dict(size=18), legend=dict(font=dict(size=16)), margin=dict(t=80, l=100, r=100, b=40))
-                # V164: Rotation 300
-                fig_dg.update_traces(textposition='outside', textinfo='label+percent', hovertemplate='<b>項目: %{label}</b><br>統計加油量: %{value:.2f} L<br>百分比: %{percent:.1%}<extra></extra>', textfont=dict(size=16, color='black'), insidetextorientation='horizontal', pull=pull_dg, rotation=300)
+                fig_dg = px.bar(df_gas, x='加油量', y='填報單位', orientation='h', title='⛽ 汽油用量分佈', text='加油量', color='填報單位', color_discrete_sequence=DASH_PALETTE)
+                fig_dg.update_traces(texttemplate='%{x:,.0f}', textposition='outside')
+                fig_dg.update_layout(height=600, xaxis_title="加油量 (L)", yaxis_title=None, showlegend=False)
                 st.plotly_chart(fig_dg, use_container_width=True)
             else: st.info("無汽油數據")
-            
-            df_dsl = df_year[(df_year['油品大類'] == '柴油') & (df_year['加油量'] > 0)]
+
+            df_dsl = df_year[(df_year['油品大類'] == '柴油') & (df_year['加油量'] > 0)].sort_values('加油量', ascending=True)
             if not df_dsl.empty:
-                pull_dd = [0.1 if v < df_dsl['加油量'].sum()*0.05 else 0 for v in df_dsl['加油量']]
-                fig_dd = px.pie(df_dsl, values='加油量', names='填報單位', title='🚛 柴油用量分佈', hole=0.4, color_discrete_sequence=DASH_PALETTE)
-                fig_dd.update_layout(height=650, font=dict(size=18), legend=dict(font=dict(size=16)), margin=dict(t=80, l=100, r=100, b=40))
-                # V164: Rotation 300
-                fig_dd.update_traces(textposition='outside', textinfo='label+percent', hovertemplate='<b>項目: %{label}</b><br>統計加油量: %{value:.2f} L<br>百分比: %{percent:.1%}<extra></extra>', textfont=dict(size=16, color='black'), insidetextorientation='horizontal', pull=pull_dd, rotation=300)
+                fig_dd = px.bar(df_dsl, x='加油量', y='填報單位', orientation='h', title='🚛 柴油用量分佈', text='加油量', color='填報單位', color_discrete_sequence=DASH_PALETTE)
+                fig_dd.update_traces(texttemplate='%{x:,.0f}', textposition='outside')
+                fig_dd.update_layout(height=600, xaxis_title="加油量 (L)", yaxis_title=None, showlegend=False)
                 st.plotly_chart(fig_dd, use_container_width=True)
             else: st.info("無柴油數據")
 
@@ -916,7 +914,7 @@ def render_admin_dashboard():
             df_year['CO2e'] = df_year.apply(lambda r: r['加油量']*0.0022 if '汽油' in str(r['原燃物料名稱']) else r['加油量']*0.0027, axis=1)
             if not df_year.empty:
                 fig_tree = px.treemap(df_year, path=['填報單位', '設備名稱備註'], values='CO2e', color='填報單位', color_discrete_sequence=DASH_PALETTE)
-                fig_tree.update_traces(texttemplate='%{label}<br>%{value:.4f}<br>%{percentRoot:.1%}', textfont=dict(size=24))
+                fig_tree.update_traces(texttemplate='%{label}<br>%{value:,.2f}<br>%{percentRoot:.1%}', textfont=dict(size=24))
                 fig_tree.update_layout(height=700)
                 st.plotly_chart(fig_tree, use_container_width=True)
             else: st.info("無數據")
