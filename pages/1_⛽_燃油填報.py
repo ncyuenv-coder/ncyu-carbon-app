@@ -548,22 +548,22 @@ def render_user_interface():
                         dev_data = df_final[df_final['設備名稱備註'] == dev]
                         dev_grouped = dev_data.groupby(['月份', '油品類別'])['加油量'].sum().reset_index()
                         merged_dev = pd.merge(base_x, dev_grouped, on=['月份', '油品類別'], how='left').fillna(0)
-                        
-                        def get_text(row):
-                            val = row['加油量']
-                            m = row['月份']
-                            if val <= 0: return ""
-                            if monthly_counts.get(m, 0) <= 1: return "" 
-                            return f"{val:.1f}"
 
-                        text_vals = merged_dev.apply(get_text, axis=1)
-                        fig.add_trace(go.Bar(x=[merged_dev['月份'], merged_dev['油品類別']], y=merged_dev['加油量'], name=dev, marker_color=device_color_map[dev], text=text_vals, texttemplate='%{text}', textposition='inside', textangle=0))
-                    
+                        # 修改點：移除 text 相關參數，僅保留數據繪製與 hovertemplate
+                        fig.add_trace(go.Bar(
+                            x=[merged_dev['月份'], merged_dev['油品類別']], 
+                            y=merged_dev['加油量'], 
+                            name=dev, 
+                            marker_color=device_color_map[dev], 
+                            hovertemplate='%{y:.1f}' # 僅保留滑鼠懸停顯示數值
+                        ))
+
+                    # 保留總計標籤 (這段維持 V164.0 原貌，確保總數顯示在柱狀圖上方)
                     total_grouped = df_final.groupby(['月份', '油品類別'])['加油量'].sum().reset_index()
                     merged_total = pd.merge(base_x, total_grouped, on=['月份', '油品類別'], how='left').fillna(0)
                     label_data = merged_total[merged_total['加油量'] > 0]
                     fig.add_trace(go.Scatter(x=[label_data['月份'], label_data['油品類別']], y=label_data['加油量'], text=label_data['加油量'].apply(lambda x: f"{x:.1f}"), mode='text', textposition='top center', textfont=dict(size=14, color='black'), showlegend=False))
-
+                   
                     fig.update_layout(barmode='stack', font=dict(size=14), xaxis=dict(title="月份 / 油品"), yaxis=dict(title="加油量 (公升)"), height=550, margin=dict(t=50, b=120))
                     st.plotly_chart(fig, use_container_width=True)
                     
