@@ -15,58 +15,131 @@ import os
 # ==========================================
 # 0. 系統設定
 # ==========================================
-st.set_page_config(page_title="燃油使用填報", page_icon="⛽", layout="wide")
+st.set_page_config(page_title="燃油設備填報", page_icon="⛽", layout="wide")
 
 def get_taiwan_time():
     return datetime.utcnow() + timedelta(hours=8)
 
 # ==========================================
-# 1. CSS 樣式表 (共用樣式)
+# 1. CSS 樣式表 (V164.0 原版)
 # ==========================================
 st.markdown("""
 <style>
     /* --- 全域設定 --- */
-    :root { color-scheme: light; --orange-bg: #E67E22; --orange-dark: #D35400; --text-main: #2C3E50; --text-sub: #566573; --morandi-red: #C0392B; --kpi-gas: #52BE80; --kpi-diesel: #F4D03F; --kpi-total: #5DADE2; --kpi-co2: #AF7AC5; --morandi-blue: #34495E; --deep-gray: #333333; }
+    :root {
+        color-scheme: light;
+        --orange-bg: #E67E22;     
+        --orange-dark: #D35400;
+        --text-main: #2C3E50;
+        --text-sub: #566573;
+        --morandi-red: #C0392B; 
+        --kpi-gas: #52BE80;
+        --kpi-diesel: #F4D03F;
+        --kpi-total: #5DADE2;
+        --kpi-co2: #AF7AC5;
+        --morandi-blue: #34495E;
+        --deep-gray: #333333;
+    }
+
     [data-testid="stAppViewContainer"] { background-color: #EAEDED; color: var(--text-main); }
     [data-testid="stHeader"] { background-color: rgba(0,0,0,0); }
     [data-testid="stSidebar"] { background-color: #FFFFFF; border-right: 1px solid #BDC3C7; }
-    div[data-baseweb="input"] > div, div[data-baseweb="base-input"] > input, textarea, input { background-color: #FFFFFF !important; border-color: #BDC3C7 !important; color: #000000 !important; font-size: 1.15rem !important; }
+
+    /* 輸入元件優化 */
+    div[data-baseweb="input"] > div, div[data-baseweb="base-input"] > input, textarea, input {
+        background-color: #FFFFFF !important; border-color: #BDC3C7 !important; color: #000000 !important; font-size: 1.15rem !important;
+    }
     div[data-baseweb="select"] > div { border-color: #BDC3C7 !important; background-color: #FFFFFF !important; }
     ul[data-baseweb="menu"] { background-color: #FFFFFF !important; }
-    div.stButton > button, button[kind="primary"], [data-testid="stFormSubmitButton"] > button { background-color: var(--orange-bg) !important; color: #FFFFFF !important; border: 2px solid var(--orange-dark) !important; border-radius: 12px !important; font-size: 1.3rem !important; font-weight: 800 !important; padding: 0.7rem 1.5rem !important; box-shadow: 0 4px 6px rgba(230, 126, 34, 0.3) !important; width: 100%; }
+
+    /* 按鈕樣式 */
+    div.stButton > button, button[kind="primary"], [data-testid="stFormSubmitButton"] > button {
+        background-color: var(--orange-bg) !important; 
+        color: #FFFFFF !important; border: 2px solid var(--orange-dark) !important; border-radius: 12px !important;
+        font-size: 1.3rem !important; font-weight: 800 !important; padding: 0.7rem 1.5rem !important;
+        box-shadow: 0 4px 6px rgba(230, 126, 34, 0.3) !important; width: 100%; 
+    }
     div.stButton > button p { color: #FFFFFF !important; } 
-    div.stButton > button:hover, [data-testid="stFormSubmitButton"] > button:hover { background-color: var(--orange-dark) !important; transform: translateY(-2px) !important; color: #FFFFFF !important; }
+    div.stButton > button:hover, [data-testid="stFormSubmitButton"] > button:hover { 
+        background-color: var(--orange-dark) !important; transform: translateY(-2px) !important; color: #FFFFFF !important;
+    }
+
+    /* Tab 分頁字體 */
     button[data-baseweb="tab"] div p { font-size: 1.3rem !important; font-weight: 900 !important; color: var(--text-sub); }
     button[data-baseweb="tab"][aria-selected="true"] div p { color: #E67E22 !important; border-bottom: 3px solid #E67E22; }
+
+    /* Checkbox & Upload */
     div[data-testid="stCheckbox"] label p { font-size: 1.2rem !important; color: #1F618D !important; font-weight: 900 !important; }
     [data-testid="stFileUploaderDropzone"] { background-color: #D6EAF8 !important; border: 2px dashed #2E86C1 !important; padding: 20px; border-radius: 12px; }
     [data-testid="stFileUploaderDropzone"] div, span, small { color: #154360 !important; font-weight: bold !important; }
-    .stRadio div[role="radiogroup"] label { background-color: #D6EAF8 !important; border: 1px solid #AED6F1 !important; border-radius: 8px !important; padding: 8px 15px !important; margin-right: 10px !important; }
-    .stRadio div[role="radiogroup"] label p { font-size: 1.25rem !important; font-weight: 800 !important; color: #000000 !important; }
-    [data-testid="stDataFrame"] { font-size: 1.25rem !important; } [data-testid="stDataFrame"] div { font-size: 1.25rem !important; }
-    .dev-card-v148 { background-color: #FFFFFF; border: 1px solid #BDC3C7; border-radius: 12px; overflow: hidden; box-shadow: 0 3px 6px rgba(0,0,0,0.08); margin-bottom: 20px; display: flex; flex-direction: column; }
-    .dev-header { padding: 12px 15px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(0,0,0,0.1); }
+
+    /* 選項標籤設計 */
+    .stRadio div[role="radiogroup"] label {
+        background-color: #D6EAF8 !important; 
+        border: 1px solid #AED6F1 !important;
+        border-radius: 8px !important; 
+        padding: 8px 15px !important; 
+        margin-right: 10px !important;
+    }
+    .stRadio div[role="radiogroup"] label p { 
+        font-size: 1.25rem !important; 
+        font-weight: 800 !important; 
+        color: #000000 !important; 
+    }
+
+    /* 表格字體放大 */
+    [data-testid="stDataFrame"] { font-size: 1.25rem !important; }
+    [data-testid="stDataFrame"] div { font-size: 1.25rem !important; }
+
+    /* --- 設備詳細卡片樣式 --- */
+    .dev-card-v148 {
+        background-color: #FFFFFF; border: 1px solid #BDC3C7; border-radius: 12px; overflow: hidden;
+        box-shadow: 0 3px 6px rgba(0,0,0,0.08); margin-bottom: 20px; display: flex; flex-direction: column;
+    }
+    .dev-header {
+        padding: 12px 15px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(0,0,0,0.1); 
+    }
     .dev-header-left { display: flex; flex-direction: column; gap: 3px; }
     .dev-id { font-size: 1.15rem; font-weight: 800; color: #000000 !important; opacity: 0.8; } 
     .dev-name-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
     .dev-name { font-size: 1.25rem; font-weight: 900; color: #000000 !important; }
-    .qty-badge { font-size: 0.85rem; background-color: rgba(255,255,255,0.9); padding: 2px 8px; border-radius: 12px; color: #2C3E50; font-weight: bold; border: 1px solid rgba(0,0,0,0.1); }
+    .qty-badge {
+        font-size: 0.85rem; background-color: rgba(255,255,255,0.9); padding: 2px 8px;
+        border-radius: 12px; color: #2C3E50; font-weight: bold; border: 1px solid rgba(0,0,0,0.1);
+    }
+    
     .dev-header-right { text-align: right; display: flex; flex-direction: column; align-items: flex-end; justify-content: center; }
     .dev-vol { font-size: 1.8rem; color: #C0392B !important; font-weight: 900; line-height: 1.1; text-shadow: none !important; }
     .dev-unit { font-size: 0.95rem; color: var(--deep-gray); font-weight: bold; margin-left: 2px; }
-    .dev-body { padding: 15px; font-size: 0.95rem; color: var(--deep-gray); display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+    .dev-body {
+        padding: 15px; font-size: 0.95rem; color: var(--deep-gray);
+        display: grid; grid-template-columns: 1fr 1fr; gap: 8px; 
+    }
     .dev-item { margin-bottom: 2px; display: flex; align-items: baseline; }
     .dev-label { font-weight: 700; color: var(--deep-gray) !important; font-size: 0.95rem; margin-right: 5px; min-width: 80px; }
     .dev-val { color: var(--deep-gray) !important; font-weight: 600; font-size: 1rem; }
-    .dev-footer { padding: 10px 15px; background-color: #F8F9F9; border-top: 1px solid #E5E7E9; display: flex; justify-content: space-between; align-items: center; }
+    
+    .dev-footer {
+        padding: 10px 15px; background-color: #F8F9F9; border-top: 1px solid #E5E7E9;
+        display: flex; justify-content: space-between; align-items: center;
+    }
     .dev-count { font-weight: 700; color: #34495E; font-size: 0.95rem; }
     .alert-status { color: #C0392B; font-weight: 900; display: flex; align-items: center; gap: 5px; background-color: #FADBD8; padding: 4px 12px; border-radius: 12px; font-size: 0.9rem; }
-    .batch-card-final { background-color: #FFFFFF; border: 1px solid #BDC3C7; border-radius: 10px; overflow: hidden; box-shadow: 0 2px 5px rgba(0,0,0,0.1); height: 100%; display: flex; flex-direction: column; border-left: 5px solid #E67E22; margin-bottom: 15px; }
+
+    /* 批次申報卡片 */
+    .batch-card-final {
+        background-color: #FFFFFF; border: 1px solid #BDC3C7; border-radius: 10px; overflow: hidden;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1); height: 100%; display: flex; flex-direction: column;
+        border-left: 5px solid #E67E22; margin-bottom: 15px; 
+    }
     .batch-header-final { padding: 10px 15px; font-weight: 800; color: #2C3E50; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(0,0,0,0.1); font-size: 1.1rem; background-color: #F4F6F6; }
     .batch-qty-badge { font-size: 0.9rem; background-color: rgba(255,255,255,0.7); padding: 2px 8px; border-radius: 12px; border: 1px solid rgba(0,0,0,0.1); color: #2C3E50; font-weight: bold; }
     .batch-body-final { background-color: #FFFFFF; padding: 12px; font-size: 0.95rem; color: #566573; line-height: 1.6; flex-grow: 1; }
     .batch-row { display: flex; justify-content: space-between; margin-bottom: 5px; }
     .batch-item { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-right: 5px; }
+
+    /* 看板 KPI */
     .kpi-card { padding: 20px; border-radius: 15px; text-align: center; background-color: #FFFFFF; box-shadow: 0 4px 10px rgba(0,0,0,0.1); border: 1px solid #BDC3C7; height: 100%; transition: transform 0.2s; }
     .kpi-card:hover { transform: translateY(-5px); }
     .kpi-gas { border-top: 8px solid var(--kpi-gas); } .kpi-diesel { border-top: 8px solid var(--kpi-diesel); }
@@ -75,10 +148,18 @@ st.markdown("""
     .kpi-value { font-size: 2.8rem; font-weight: 800; color: var(--text-main) !important; margin: 0; }
     .kpi-unit { font-size: 1rem; font-weight: normal; color: var(--text-sub) !important; margin-left: 5px; }
     .kpi-sub { font-size: 0.9rem; color: #C0392B !important; font-weight: 700; background-color: rgba(192, 57, 43, 0.1); padding: 2px 10px; border-radius: 20px; display: inline-block; margin-top: 5px;}
+
+    /* 其他 */
+    .unreported-block { padding: 15px 20px; border-radius: 12px; margin-bottom: 20px; color: #2C3E50; box-shadow: 0 2px 6px rgba(0,0,0,0.08); border: 1px solid rgba(0,0,0,0.05); }
+    .unreported-title { font-size: 1.6rem; font-weight: 900; margin-bottom: 12px; border-bottom: 2px solid rgba(0,0,0,0.1); padding-bottom: 8px; }
+    .device-info-box { background-color: #FFFFFF; border: 2px solid #5DADE2; border-radius: 10px; padding: 20px; margin-bottom: 20px; }
     .alert-box { background-color: #FCF3CF; border: 2px solid #F1C40F; padding: 15px; border-radius: 10px; margin-bottom: 20px; color: #9A7D0A !important; font-weight: bold; text-align: center; }
     .privacy-box { background-color: #F8F9F9; border: 1px solid #BDC3C7; padding: 15px; border-radius: 10px; font-size: 0.9rem; color: #566573; margin-bottom: 10px; }
     .privacy-title { font-weight: bold; color: #2C3E50; margin-bottom: 5px; font-size: 1rem; }
     .dashboard-main-title { font-size: 1.8rem; font-weight: 900; text-align: center; color: #2C3E50; margin-bottom: 20px; background-color: #F8F9F9; padding: 10px; border-radius: 10px; border: 1px solid #BDC3C7; }
+    .morandi-header { background-color: #EBF5FB; color: #2E4053; padding: 15px; border-radius: 8px; border-left: 8px solid #5499C7; font-size: 1.35rem; font-weight: 700; margin-top: 25px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+    
+    /* 橫式資訊卡 (Info Card) */
     .horizontal-card { display: flex; border: 1px solid #BDC3C7; border-radius: 12px; overflow: hidden; margin-bottom: 25px; box-shadow: 0 4px 8px rgba(0,0,0,0.08); background-color: #FFFFFF; min-height: 250px; }
     .card-left { flex: 3; background-color: var(--morandi-blue); color: #FFFFFF; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 20px; text-align: center; border-right: 1px solid #2C3E50; }
     .dept-text { font-size: 1.6rem; font-weight: 700; margin-bottom: 8px; line-height: 1.4; }
@@ -132,6 +213,7 @@ DEVICE_ORDER = ["公務車輛(GV-1-)", "乘坐式割草機(GV-2-)", "乘坐式�
 DEVICE_CODE_MAP = {"GV-1": "公務車輛(GV-1-)", "GV-2": "乘坐式割草機(GV-2-)", "GV-3": "乘坐式農用機具(GV-3-)", "GS-1": "鍋爐(GS-1-)", "GS-2": "發電機(GS-2-)", "GS-3": "肩背或手持式割草機、吹葉機(GS-3-)", "GS-4": "肩背或手持式農用機具(GS-4-)"}
 MORANDI_COLORS = { "公務車輛(GV-1-)": "#B0C4DE", "乘坐式割草機(GV-2-)": "#F5CBA7", "乘坐式農用機具(GV-3-)": "#D7BDE2", "鍋爐(GS-1-)": "#E6B0AA", "發電機(GS-2-)": "#A9CCE3", "肩背或手持式割草機、吹葉機(GS-3-)": "#A3E4D7", "肩背或手持式農用機具(GS-4-)": "#F9E79F" }
 DASH_PALETTE = ['#B0C4DE', '#F5CBA7', '#A9CCE3', '#E6B0AA', '#D7BDE2', '#A3E4D7', '#F9E79F', '#95A5A6', '#85C1E9', '#D2B4DE', '#F1948A', '#76D7C4']
+UNREPORTED_COLORS = ["#D5DBDB", "#FAD7A0", "#D2B4DE", "#AED6F1", "#A3E4D7", "#F5B7B1"]
 
 @st.cache_resource
 def init_google_fuel():
@@ -174,17 +256,20 @@ def load_fuel_data():
 
 df_equip, df_records = load_fuel_data()
 
+# 初始化 Session
 if 'multi_row_count' not in st.session_state: st.session_state['multi_row_count'] = 1
 if 'reset_counter' not in st.session_state: st.session_state['reset_counter'] = 0
 
 # ==========================================
-# 4. 外部填報介面
+# 4. 功能函式 (將介面封裝)
 # ==========================================
+
 def render_user_interface():
+    """ 一般使用者 / 管理員的前台填報介面 """
     st.markdown("### ⛽ 燃油設備填報專區")
     tabs = st.tabs(["📝 新增填報", "📊 動態查詢看板"])
     
-    # --- Tab 1: 填報 (V164.0 原汁原味) ---
+    # --- Tab 1: 填報 ---
     with tabs[0]:
         st.markdown('<div class="alert-box">📢 請「誠實申報」，以保障單位及自身權益！</div>', unsafe_allow_html=True)
         if not df_equip.empty:
@@ -198,6 +283,7 @@ def render_user_interface():
             typo_note_simple = '<div class="correction-note">如有資料誤繕情形，請重新登錄1次資訊，並於備註欄填寫：「前筆資料誤繕，請刪除。」，管理單位將協助刪除誤打資訊</div>'
             privacy_html = """<div class="privacy-box"><div class="privacy-title">📜 個人資料蒐集、處理及利用告知聲明</div>1. <strong>蒐集機關</strong>：國立嘉義大學。<br>2. <strong>蒐集目的</strong>：進行本校公務車輛/機具之加油紀錄管理、校園溫室氣體（碳）盤查統計、稽核佐證資料蒐集及後續能源使用分析。<br>3. <strong>個資類別</strong>：填報人姓名。<br>4. <strong>利用期間</strong>：姓名保留至填報年度後第二年1月1日，期滿即進行「去識別化」刪除，其餘數據永久保存。<br>5. <strong>利用對象</strong>：本校教師、行政人員及碳盤查查驗人員。<br>6. <strong>您有權依個資法請求查詢、更正或刪除您的個資。如不提供，將無法完成填報。</strong><br></div>"""
             
+            # 批次申報
             if selected_dept in VIP_UNITS:
                 st.info(f"💡 您選擇了 **{selected_dept}**，系統已自動切換為「油卡批次申報模式」。")
                 sub_categories = []
@@ -251,6 +337,8 @@ def render_user_interface():
                                         
                                         records = []
                                         t_now = get_taiwan_time().strftime("%Y-%m-%d %H:%M:%S")
+                                        
+                                        # 自動匹配油卡
                                         auto_card = "未設定"
                                         fuel_type_check = "汽油" if "汽油" in target_sub_cat else "柴油"
                                         key_check = f"{selected_dept}-{fuel_type_check}"
@@ -264,6 +352,8 @@ def render_user_interface():
                                         if records: ws_record.append_rows(records); st.success(f"🎉 成功批次申報 {len(records)} 筆資料！"); time.sleep(2); st.rerun()
                                         else: st.warning("⚠️ 所有設備加油量均為 0，未新增紀錄。")
                                     except Exception as e: st.error(f"上傳失敗: {e}")
+
+            # 單筆申報
             else:
                 if selected_dept:
                     eq_list = df_equip[df_equip['填報單位'] == selected_dept]['設備名稱備註'].unique()
@@ -272,16 +362,38 @@ def render_user_interface():
                     if target_eq:
                         eq_info = df_equip[(df_equip['填報單位'] == selected_dept) & (df_equip['設備名稱備註'] == target_eq)].iloc[0]
                         st.markdown("#### 步驟 2：確認設備資訊")
+                        
+                        # V148 Horizontal Card
                         icon_map = {"公務車輛": "🚙", "割草機": "🌱", "農用": "🚜", "鍋爐": "🔥", "發電機": "⚡", "其他": "🔧"}
                         cat_icon = next((v for k, v in icon_map.items() if k in eq_info['統計類別']), "🔧")
-                        st.markdown(f"""<div class="horizontal-card"><div class="card-left"><div class="dept-text">{eq_info['設備所屬單位/部門']}</div><div style="font-size:3.5rem;">{cat_icon}</div><div style="font-size:1.2rem; font-weight:bold; margin-top:10px; opacity:0.9;">{eq_info['統計類別'].split('(')[0]}</div></div><div class="card-right"><div style="font-size:1.5rem; font-weight:900; color:#2C3E50; margin-bottom:15px; border-bottom:2px solid #E67E22; padding-bottom:5px;">{eq_info['設備名稱備註']}</div><div class="info-row"><div class="info-icon">🔢</div><span class="info-label">校內財產編號</span><span class="info-value">{eq_info['校內財產編號']}</span></div><div class="info-row"><div class="info-icon">👤</div><span class="info-label">保管人</span><span class="info-value">{eq_info['保管人']}</span></div><div class="info-row"><div class="info-icon">⛽</div><span class="info-label">原燃物料名稱</span><span class="info-value" style="color:#C0392B; font-weight:bold;">{eq_info['原燃物料名稱']}</span></div><div class="info-row"><div class="info-icon">📦</div><span class="info-label">設備數量</span><span class="info-value">{eq_info['設備數量']}</span></div></div></div>""", unsafe_allow_html=True)
+                        
+                        st.markdown(f"""
+                        <div class="horizontal-card">
+                            <div class="card-left">
+                                <div class="dept-text">{eq_info['設備所屬單位/部門']}</div>
+                                <div style="font-size:3.5rem;">{cat_icon}</div>
+                                <div style="font-size:1.2rem; font-weight:bold; margin-top:10px; opacity:0.9;">{eq_info['統計類別'].split('(')[0]}</div>
+                            </div>
+                            <div class="card-right">
+                                <div style="font-size:1.5rem; font-weight:900; color:#2C3E50; margin-bottom:15px; border-bottom:2px solid #E67E22; padding-bottom:5px;">
+                                    {eq_info['設備名稱備註']}
+                                </div>
+                                <div class="info-row"><div class="info-icon">🔢</div><span class="info-label">校內財產編號</span><span class="info-value">{eq_info['校內財產編號']}</span></div>
+                                <div class="info-row"><div class="info-icon">👤</div><span class="info-label">保管人</span><span class="info-value">{eq_info['保管人']}</span></div>
+                                <div class="info-row"><div class="info-icon">⛽</div><span class="info-label">原燃物料名稱</span><span class="info-value" style="color:#C0392B; font-weight:bold;">{eq_info['原燃物料名稱']}</span></div>
+                                <div class="info-row"><div class="info-icon">📦</div><span class="info-label">設備數量</span><span class="info-value">{eq_info['設備數量']}</span></div>
+                            </div>
+                        </div>
+                        """, unsafe_allow_html=True)
 
                         st.markdown("#### 步驟 3：填寫加油紀錄")
                         with st.form("single_form", clear_on_submit=True):
                             c_basic1, c_basic2 = st.columns(2)
                             p_name = c_basic1.text_input("👤 填報人姓名 (必填)")
                             p_ext = c_basic2.text_input("📞 聯絡分機 (必填)")
+                            
                             st.markdown("---")
+                            # 動態增減欄位 (Session State)
                             for i in range(st.session_state['multi_row_count']):
                                 st.markdown(f"**🧾 加油單據 #{i+1}**")
                                 c_r1, c_r2, c_r3, c_r4 = st.columns([2, 2, 2, 3])
@@ -294,10 +406,13 @@ def render_user_interface():
                                 st.markdown("---")
 
                             c_btn1, c_btn2 = st.columns([1, 5])
-                            if c_btn1.form_submit_button("➕ 增加一筆"): st.session_state['multi_row_count'] += 1; st.rerun()
+                            if c_btn1.form_submit_button("➕ 增加一筆"): 
+                                st.session_state['multi_row_count'] += 1; st.rerun()
+                            
                             st.text_area("備註 (若有共用油單，請在此說明細節)", key="s_note")
                             st.markdown(typo_note, unsafe_allow_html=True)
                             st.markdown(privacy_html, unsafe_allow_html=True)
+                            
                             if st.form_submit_button("✅ 確認送出"):
                                 if not p_name or not p_ext: st.error("❌ 請填寫姓名與分機")
                                 else:
@@ -309,6 +424,7 @@ def render_user_interface():
                                             date_val = st.session_state.get(f"d_{i}")
                                             card_val = st.session_state.get(f"c_{i}", "")
                                             is_shared = "是" if st.session_state.get(f"s_{i}") else "否"
+                                            
                                             if vol and vol > 0:
                                                 file_link = ""
                                                 if file_val:
@@ -317,15 +433,17 @@ def render_user_interface():
                                                         u_f = drive_service.files().create(body=f_meta, media_body=media, fields='id, webViewLink').execute()
                                                         file_link = u_f.get('webViewLink')
                                                     except Exception as e: st.error(f"單據 #{i+1} 上傳失敗: {e}"); continue
+                                                
                                                 valid_rows.append([get_taiwan_time().strftime("%Y-%m-%d %H:%M:%S"), selected_dept, p_name, p_ext, target_eq, eq_info['校內財產編號'], eq_info['原燃物料名稱'], card_val, str(date_val), vol, is_shared, st.session_state.get("s_note", ""), file_link])
+                                    
                                     if valid_rows:
                                         ws_record.append_rows(valid_rows)
                                         st.success(f"🎉 成功新增 {len(valid_rows)} 筆紀錄！")
-                                        st.session_state['multi_row_count'] = 1
+                                        st.session_state['multi_row_count'] = 1 # Reset
                                         time.sleep(2); st.rerun()
                                     else: st.error("❌ 無有效資料 (加油量需大於0)")
 
-    # === Tab 2: 看板 (V164.0 + Fixes) ===
+    # === Tab 2: 看板 (V164.0) ===
     with tabs[1]:
         st.markdown("### 📊 動態查詢看板 (年度檢視)")
         st.info("請選擇「單位」與「年份」，檢視該年度的用油統計與碳排放分析。")
@@ -346,6 +464,7 @@ def render_user_interface():
             query_year = c_year.selectbox("📅 選擇統計年度", available_years, index=0)
 
             if query_dept and query_year:
+                # V160.2 Fix: Use .copy() to avoid SettingWithCopyWarning & Ensure availability
                 df_dept = df_records[df_records['填報單位'] == query_dept].copy()
                 df_final = df_dept[df_dept['日期格式'].dt.year == query_year].copy()
 
@@ -361,9 +480,8 @@ def render_user_interface():
 
                     st.markdown(f"<div class='dashboard-main-title'>{query_dept} - {query_year}年度 能源使用與碳排統計</div>", unsafe_allow_html=True)
                     r1c1, r1c2 = st.columns(2)
-                    # Fix 3: KPI Commas
-                    with r1c1: st.markdown(f"""<div class="kpi-card kpi-gas"><div class="kpi-title">⛽ 汽油使用量</div><div class="kpi-value">{gas_sum:,.0f}<span class="kpi-unit"> 公升</span></div><div class="kpi-sub">佔比 {gas_pct:.1f}%</div></div>""", unsafe_allow_html=True)
-                    with r1c2: st.markdown(f"""<div class="kpi-card kpi-diesel"><div class="kpi-title">🚛 柴油使用量</div><div class="kpi-value">{diesel_sum:,.0f}<span class="kpi-unit"> 公升</span></div><div class="kpi-sub">佔比 {diesel_pct:.1f}%</div></div>""", unsafe_allow_html=True)
+                    with r1c1: st.markdown(f"""<div class="kpi-card kpi-gas"><div class="kpi-title">⛽ 汽油使用量</div><div class="kpi-value">{gas_sum:,.0f}<span class="kpi-unit"> 公升</span></div><div class="kpi-sub">佔比 {gas_pct:.2f}%</div></div>""", unsafe_allow_html=True)
+                    with r1c2: st.markdown(f"""<div class="kpi-card kpi-diesel"><div class="kpi-title">🚛 柴油使用量</div><div class="kpi-value">{diesel_sum:,.0f}<span class="kpi-unit"> 公升</span></div><div class="kpi-sub">佔比 {diesel_pct:.2f}%</div></div>""", unsafe_allow_html=True)
                     st.markdown("<div style='margin-bottom: 20px;'></div>", unsafe_allow_html=True)
                     r2c1, r2c2 = st.columns(2)
                     with r2c1: st.markdown(f"""<div class="kpi-card kpi-total"><div class="kpi-title">💧 總用油量</div><div class="kpi-value">{total_sum:,.0f}<span class="kpi-unit"> 公升</span></div><div class="kpi-sub">100%</div></div>""", unsafe_allow_html=True)
@@ -382,6 +500,8 @@ def render_user_interface():
                     base_x = pd.MultiIndex.from_product([months, target_fuels], names=['月份', '油品類別']).to_frame(index=False)
                     unique_devices = df_final['設備名稱備註'].unique()
 
+                    monthly_counts = df_final[df_final['加油量'] > 0].groupby('月份')['油品類別'].nunique()
+
                     fig = go.Figure()
                     device_color_map = {dev: DASH_PALETTE[i % len(DASH_PALETTE)] for i, dev in enumerate(unique_devices)}
 
@@ -389,18 +509,26 @@ def render_user_interface():
                         dev_data = df_final[df_final['設備名稱備註'] == dev]
                         dev_grouped = dev_data.groupby(['月份', '油品類別'])['加油量'].sum().reset_index()
                         merged_dev = pd.merge(base_x, dev_grouped, on=['月份', '油品類別'], how='left').fillna(0)
-                        # Fix 1: No inner text
-                        fig.add_trace(go.Bar(x=[merged_dev['月份'], merged_dev['油品類別']], y=merged_dev['加油量'], name=dev, marker_color=device_color_map[dev], text=None, hovertemplate='%{y:,.0f} L'))
+
+                        def get_text(row):
+                            val = row['加油量']
+                            m = row['月份']
+                            if val <= 0: return ""
+                            if monthly_counts.get(m, 0) <= 1: return ""
+                            return f"{val:.1f}"
+
+                        text_vals = merged_dev.apply(get_text, axis=1)
+                        fig.add_trace(go.Bar(x=[merged_dev['月份'], merged_dev['油品類別']], y=merged_dev['加油量'], name=dev, marker_color=device_color_map[dev], text=text_vals, texttemplate='%{text}', textposition='inside', textangle=0))
 
                     total_grouped = df_final.groupby(['月份', '油品類別'])['加油量'].sum().reset_index()
                     merged_total = pd.merge(base_x, total_grouped, on=['月份', '油品類別'], how='left').fillna(0)
                     label_data = merged_total[merged_total['加油量'] > 0]
-                    # Fix 1: Top text with commas
                     fig.add_trace(go.Scatter(x=[label_data['月份'], label_data['油品類別']], y=label_data['加油量'], text=label_data['加油量'].apply(lambda x: f"{x:,.0f}"), mode='text', textposition='top center', textfont=dict(size=14, color='black'), showlegend=False))
 
                     fig.update_layout(barmode='stack', font=dict(size=14), xaxis=dict(title="月份 / 油品"), yaxis=dict(title="加油量 (公升)"), height=550, margin=dict(t=50, b=120))
                     st.plotly_chart(fig, use_container_width=True)
 
+                    # V163.0: 設備申報資訊統計區
                     st.markdown("---")
                     st.subheader(f"📋 {query_dept} - 設備申報資訊統計區", anchor=False)
                     target_devices = df_equip[df_equip['填報單位'] == query_dept]
@@ -417,6 +545,7 @@ def render_user_interface():
                             d_prop = row.get('校內財產編號', '-')
                             raw_fuel = row.get('原燃物料名稱', '-')
                             d_fuel = '汽油' if '汽油' in raw_fuel else ('柴油' if '柴油' in raw_fuel else raw_fuel)
+                            # V160.1 Fix: Use df_final instead of df_year
                             d_vol = df_final[df_final['設備名稱備註'] == d_name]['加油量'].sum()
                             d_count = len(df_final[df_final['設備名稱備註'] == d_name])
                             status_html = '<span class="alert-status">⚠️ 尚未申報</span>' if d_count == 0 else ""
@@ -428,27 +557,53 @@ def render_user_interface():
                                 if k + m < len(device_list):
                                     item = device_list[k + m]
                                     with d_cols[m]:
-                                        st.markdown(f"""<div class="dev-card-v148"><div class="dev-header"><div class="dev-header-left"><div class="dev-id">{item['id']}</div><div class="dev-name-row"><span class="dev-name">{item['name']}</span><span class="qty-badge">數量: {item['qty']}</span></div></div><div class="dev-header-right"><div class="dev-vol">{item['vol']:,.1f}<span class="dev-unit">公升</span></div></div></div><div class="dev-body"><div class="dev-item"><span class="dev-label">燃料種類:</span><span class="dev-val">{item['fuel']}</span></div><div class="dev-item"><span class="dev-label">所屬部門:</span><span class="dev-val">{item['sub']}</span></div><div class="dev-item"><span class="dev-label">保管人:</span><span class="dev-val">{item['keeper']}</span></div><div class="dev-item"><span class="dev-label">位置:</span><span class="dev-val">{item['loc']}</span></div></div><div class="dev-footer"><div class="dev-count">年度申報次數: {item['count']} 次</div><div>{item['status']}</div></div></div>""", unsafe_allow_html=True)
+                                        st.markdown(f"""
+                                        <div class="dev-card-v148">
+                                            <div class="dev-header">
+                                                <div class="dev-header-left">
+                                                    <div class="dev-id">{item['id']}</div>
+                                                    <div class="dev-name-row"><span class="dev-name">{item['name']}</span><span class="qty-badge">數量: {item['qty']}</span></div>
+                                                </div>
+                                                <div class="dev-header-right">
+                                                    <div class="dev-vol">{item['vol']:,.1f}<span class="dev-unit">公升</span></div>
+                                                </div>
+                                            </div>
+                                            <div class="dev-body">
+                                                <div class="dev-item"><span class="dev-label">燃料種類:</span><span class="dev-val">{item['fuel']}</span></div>
+                                                <div class="dev-item"><span class="dev-label">所屬部門:</span><span class="dev-val">{item['sub']}</span></div>
+                                                <div class="dev-item"><span class="dev-label">保管人:</span><span class="dev-val">{item['keeper']}</span></div>
+                                                <div class="dev-item"><span class="dev-label">位置:</span><span class="dev-val">{item['loc']}</span></div>
+                                            </div>
+                                            <div class="dev-footer">
+                                                <div class="dev-count">年度申報次數: {item['count']} 次</div>
+                                                <div>{item['status']}</div>
+                                            </div>
+                                        </div>
+                                        """, unsafe_allow_html=True)
 
                     st.markdown("---")
-                    # Fix 2: Pie -> Bar
-                    st.subheader("📊 油品設備用油量佔比分析 (水平長條圖)", anchor=False)
+                    # V164.0: 油品設備佔比分析 (Rotation 300)
+                    st.subheader("🍩 油品設備用油量佔比分析", anchor=False)
 
-                    gas_df = df_final[(df_final['原燃物料名稱'].str.contains('汽油', na=False)) & (df_final['加油量'] > 0)].sort_values('加油量', ascending=True)
+                    gas_df = df_final[(df_final['原燃物料名稱'].str.contains('汽油', na=False)) & (df_final['加油量'] > 0)]
                     if not gas_df.empty:
-                        fig_gas = px.bar(gas_df, x='加油量', y='設備名稱備註', orientation='h', title='⛽ 汽油設備用油量分析', text='加油量', color='加油量', color_continuous_scale='Teal')
-                        fig_gas.update_traces(texttemplate='%{x:,.0f}', textposition='outside')
-                        fig_gas.update_layout(height=500, xaxis_title="加油量 (L)", yaxis_title=None)
+                        fig_gas = px.pie(gas_df, values='加油量', names='設備名稱備註', title='⛽ 汽油設備用油量分析', color_discrete_sequence=px.colors.sequential.Teal, hole=0.5)
+                        pull_g = [0.1 if v < gas_df['加油量'].sum()*0.05 else 0 for v in gas_df['加油量']]
+                        # V164: Rotation 300
+                        fig_gas.update_traces(textinfo='percent+label', textfont=dict(color='black', size=16), textposition='outside', insidetextorientation='horizontal', pull=pull_g, hovertemplate='<b>項目: %{label}</b><br>統計加油量: %{value:.1f} L<br>百分比: %{percent:.1%}<extra></extra>', rotation=300)
+                        fig_gas.update_layout(height=600, legend=dict(orientation="h", yanchor="top", y=-0.1, xanchor="center", x=0.5), margin=dict(l=40, r=40, t=40, b=40))
                         st.plotly_chart(fig_gas, use_container_width=True)
                     else: st.info("無汽油使用紀錄")
 
                     st.write("")
 
-                    diesel_df = df_final[(df_final['原燃物料名稱'].str.contains('柴油', na=False)) & (df_final['加油量'] > 0)].sort_values('加油量', ascending=True)
+                    diesel_df = df_final[(df_final['原燃物料名稱'].str.contains('柴油', na=False)) & (df_final['加油量'] > 0)]
                     if not diesel_df.empty:
-                        fig_diesel = px.bar(diesel_df, x='加油量', y='設備名稱備註', orientation='h', title='🚛 柴油設備用油量分析', text='加油量', color='加油量', color_continuous_scale='Oranges')
-                        fig_diesel.update_traces(texttemplate='%{x:,.0f}', textposition='outside')
-                        fig_diesel.update_layout(height=500, xaxis_title="加油量 (L)", yaxis_title=None)
+                        fig_diesel = px.pie(diesel_df, values='加油量', names='設備名稱備註', title='🚛 柴油設備用油量分析', color_discrete_sequence=px.colors.sequential.Oranges, hole=0.5)
+                        pull_d = [0.1 if v < diesel_df['加油量'].sum()*0.05 else 0 for v in diesel_df['加油量']]
+                        # V164: Rotation 300
+                        fig_diesel.update_traces(textinfo='percent+label', textfont=dict(color='black', size=16), textposition='outside', insidetextorientation='horizontal', pull=pull_d, hovertemplate='<b>項目: %{label}</b><br>統計加油量: %{value:.1f} L<br>百分比: %{percent:.1%}<extra></extra>', rotation=300)
+                        fig_diesel.update_layout(height=600, legend=dict(orientation="h", yanchor="top", y=-0.1, xanchor="center", x=0.5), margin=dict(l=40, r=40, t=40, b=40))
                         st.plotly_chart(fig_diesel, use_container_width=True)
                     else: st.info("無柴油使用紀錄")
 
