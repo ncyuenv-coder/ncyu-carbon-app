@@ -13,7 +13,7 @@ import re
 import os
 
 # ==========================================
-# 0. 系統設定 (V165.1)
+# 0. 系統設定 (V165.2)
 # ==========================================
 st.set_page_config(page_title="燃油使用填報", page_icon="⛽", layout="wide")
 
@@ -21,7 +21,7 @@ def get_taiwan_time():
     return datetime.utcnow() + timedelta(hours=8)
 
 # ==========================================
-# 1. CSS 樣式表 (V165.1 優化版)
+# 1. CSS 樣式表 (V165.2 優化版)
 # ==========================================
 st.markdown("""
 <style>
@@ -179,7 +179,6 @@ with st.sidebar:
 # ==========================================
 SHEET_ID = "1gqDU21YJeBoBOd8rMYzwwZ45offXWPGEODKTF6B8k-Y" 
 DRIVE_FOLDER_ID = "1Uryuk3-9FHJ39w5Uo8FYxuh9VOFndeqD"
-# 雖然外部填報移除批次功能，但保留 VIP_UNITS 變數以防萬一
 VIP_UNITS = ["總務處事務組", "民雄總務", "新民聯辦", "產推處產學營運組"]
 DEVICE_CODE_MAP = {"GV-1": "公務車輛(GV-1-)", "GV-2": "乘坐式割草機(GV-2-)", "GV-3": "乘坐式農用機具(GV-3-)", "GS-1": "鍋爐(GS-1-)", "GS-2": "發電機(GS-2-)", "GS-3": "肩背或手持式割草機、吹葉機(GS-3-)", "GS-4": "肩背或手持式農用機具(GS-4-)"}
 MORANDI_COLORS = { "公務車輛(GV-1-)": "#B0C4DE", "乘坐式割草機(GV-2-)": "#F5CBA7", "乘坐式農用機具(GV-3-)": "#D7BDE2", "鍋爐(GS-1-)": "#E6B0AA", "發電機(GS-2-)": "#A9CCE3", "肩背或手持式割草機、吹葉機(GS-3-)": "#A3E4D7", "肩背或手持式農用機具(GS-4-)": "#F9E79F" }
@@ -205,7 +204,6 @@ except Exception as e: st.error(f"連線失敗: {e}"); st.stop()
 
 @st.cache_data(ttl=600)
 def load_fuel_data():
-    # 簡易重試機制
     max_retries = 3; delay = 2; df_e = pd.DataFrame(); df_r = pd.DataFrame()
     for attempt in range(max_retries):
         try: df_e = pd.DataFrame(ws_equip.get_all_records()).astype(str); break
@@ -492,7 +490,8 @@ def render_user_interface():
                         )
                         fig_g.update_layout(xaxis_title="加油量 (L)", yaxis_title=None, height=400)
                         with col_bar1: st.plotly_chart(fig_g, use_container_width=True)
-                    else: with col_bar1: st.info("無汽油使用紀錄")
+                    else: 
+                        with col_bar1: st.info("無汽油使用紀錄")
 
                     # 柴油
                     diesel_df = df_final[(df_final['原燃物料名稱'].str.contains('柴油', na=False)) & (df_final['加油量'] > 0)]
@@ -511,7 +510,8 @@ def render_user_interface():
                         )
                         fig_d.update_layout(xaxis_title="加油量 (L)", yaxis_title=None, height=400)
                         with col_bar2: st.plotly_chart(fig_d, use_container_width=True)
-                    else: with col_bar2: st.info("無柴油使用紀錄")
+                    else: 
+                        with col_bar2: st.info("無柴油使用紀錄")
 
                     # (4) 碳排放結構 (矩形樹狀圖)
                     st.markdown("---")
