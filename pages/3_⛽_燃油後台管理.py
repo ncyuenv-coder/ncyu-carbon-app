@@ -45,7 +45,7 @@ st.markdown("""
         --kpi-co2: #AF7AC5;
         --morandi-blue: #34495E;
         --deep-gray: #333333;
-        --axis-gray: #424949; /* 座標軸深灰 */
+        --axis-gray: #424949; 
     }
     [data-testid="stAppViewContainer"] { background-color: #EAEDED; color: var(--text-main); }
     [data-testid="stHeader"] { background-color: rgba(0,0,0,0); }
@@ -167,17 +167,23 @@ def init_google_fuel():
     gc = gspread.authorize(creds); drive = build('drive', 'v3', credentials=creds)
     return gc, drive
 
+# 安全初始化：將 drive_service 保留至全域供匯出使用
 try:
-    gc, drive_service = init_google_fuel()
-    sh = gc.open_by_key(SHEET_ID)
+    _, drive_service = init_google_fuel()
+except Exception as e: 
+    st.error(f"連線失敗: {e}")
+    st.stop()
+
+@st.cache_data(ttl=600)
+def load_fuel_data():
+    """ 安全隔離資料讀取：確保不會發生變數未定義錯誤 """
+    gc_obj, _ = init_google_fuel()
+    sh = gc_obj.open_by_key(SHEET_ID)
     try: ws_equip = sh.worksheet("設備清單") 
     except: ws_equip = sh.sheet1 
     try: ws_record = sh.worksheet("油料填報紀錄")
     except: ws_record = sh.worksheet("填報紀錄")
-except Exception as e: st.error(f"連線失敗: {e}"); st.stop()
-
-@st.cache_data(ttl=600)
-def load_fuel_data():
+    
     df_e = pd.DataFrame(ws_equip.get_all_records()).astype(str)
     if '設備編號' in df_e.columns: df_e['統計類別'] = df_e['設備編號'].apply(lambda c: next((v for k, v in DEVICE_CODE_MAP.items() if str(c).startswith(k)), "其他/未分類"))
     df_e['設備數量_num'] = pd.to_numeric(df_e['設備數量'], errors='coerce').fillna(1)
@@ -459,7 +465,7 @@ def render_tab1_overview(df_clean, df_equip, all_years):
             if not gas_data.empty:
                 gas_data = gas_data[gas_data['加油量'] > 0].sort_values('加油量', ascending=True)
                 total_g = gas_data['加油量'].sum()
-                # 移除 L，放大字體
+                # 移除 L，放大字體，加千分符號
                 gas_data['Label'] = gas_data['加油量'].apply(lambda x: f"{x:,.1f} ({(x/total_g)*100:.1f}%)")
                 
                 fig_g = px.bar(gas_data, x='加油量', y='統計類別', orientation='h', title='⛽ 汽油設備用油量佔比', color='統計類別', color_discrete_map=color_map, text='Label')
@@ -619,7 +625,7 @@ def render_tab3_missing(df_clean, df_equip, all_years):
         else: st.warning("無資料可供篩選。")
 
 @st.fragment
-def render_tab4_edit(df_clean, df_equip, all_years):
+def render_tab4_edit(df_clean, df_equip, all_years, df_records):
     st.markdown("<br>", unsafe_allow_html=True)
     selected_admin_year = st.selectbox("📅 請選擇檢視年度", all_years, index=0, key="t4_year")
     st.markdown("---")
@@ -655,7 +661,7 @@ def render_tab4_edit(df_clean, df_equip, all_years):
                     if '加油日期' in df_final.columns: df_final['加油日期'] = df_final['加油日期'].astype(str)
                     df_final = df_final[df_records.columns.tolist()].sort_values(by='加油日期', ascending=False)
 
-                    # Update logic
+                    # 安全回寫
                     gc_obj, _ = init_google_fuel()
                     sh_obj = gc_obj.open_by_key(SHEET_ID)
                     ws_r = sh_obj.worksheet("油料填報紀錄") if "油料填報紀錄" in [w.title for w in sh_obj.worksheets()] else sh_obj.worksheet("填報紀錄")
@@ -705,6 +711,13 @@ def render_tab5_export(df_clean, df_equip, all_years):
 def main():
     st.markdown("### ⛽ 燃油設備動態管理專區")
     
+    # 變數安全隔離：在主程式內部載入資料，避免 NameError
+    try:
+        df_equip, df_records = load_fuel_data()
+    except Exception as e:
+        st.error(f"資料庫讀取失敗，請重新整理頁面。錯誤: {e}")
+        return
+
     df_clean = df_records.copy()
     if not df_clean.empty:
         df_clean['加油量'] = pd.to_numeric(df_clean['加油量'], errors='coerce').fillna(0)
@@ -730,10 +743,10 @@ def main():
     with admin_tabs[0]: render_tab1_overview(df_clean, df_equip, all_years)
     with admin_tabs[1]: render_tab2_dashboard(df_clean, all_years)
     with admin_tabs[2]: render_tab3_missing(df_clean, df_equip, all_years)
-    with admin_tabs[3]: render_tab4_edit(df_clean, df_equip, all_years)
+    with admin_tabs[3]: render_tab4_edit(df_clean, df_equip, all_years, df_records) # 傳入 df_records 供寫入使用
     with admin_tabs[4]: render_tab5_export(df_clean, df_equip, all_years)
     
-    st.markdown('<div style="text-align: center; color: #BDC3C7; font-size: 0.9rem; margin-top: 50px;">管理員系統版本 V168.0 (Fragment Modular Design)</div>', unsafe_allow_html=True)
+    st.markdown('<div style="text-align: center; color: #BDC3C7; font-size: 0.9rem; margin-top: 50px;">管理員系統版本 V169.0 (Secure Scope Design)</div>', unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
