@@ -68,7 +68,8 @@ st.markdown("""
     button[data-baseweb="tab"][aria-selected="true"] div p { color: #E67E22 !important; border-bottom: 3px solid #E67E22; }
 
     /* Checkbox & Upload */
-    div[data-testid="stCheckbox"] label p { font-size: 1.2rem !important; color: #1F618D !important; font-weight: 900 !important; }
+    /* 修正：字體稍微縮小至 1.05rem */
+    div[data-testid="stCheckbox"] label p { font-size: 1.05rem !important; color: #1F618D !important; font-weight: 800 !important; }
     [data-testid="stFileUploaderDropzone"] { background-color: #D6EAF8 !important; border: 2px dashed #2E86C1 !important; padding: 20px; border-radius: 12px; }
     [data-testid="stFileUploaderDropzone"] div, span, small { color: #154360 !important; font-weight: bold !important; }
 
@@ -111,9 +112,10 @@ st.markdown("""
     .dev-vol { font-size: 1.8rem; color: #C0392B !important; font-weight: 900; line-height: 1.1; text-shadow: none !important; }
     .dev-unit { font-size: 0.95rem; color: var(--deep-gray); font-weight: bold; margin-left: 2px; }
 
+    /* 修正：將雙欄 grid 改為單欄 flex，解決字數過多跑行問題 */
     .dev-body {
-        padding: 15px; font-size: 0.95rem; color: var(--deep-gray);
-        display: grid; grid-template-columns: 1fr 1fr; gap: 8px; 
+        padding: 12px 15px; font-size: 0.95rem; color: var(--deep-gray);
+        display: flex; flex-direction: column; gap: 6px; 
     }
     .dev-item { margin-bottom: 2px; display: flex; align-items: baseline; }
     .dev-label { font-weight: 700; color: var(--deep-gray) !important; font-size: 0.95rem; margin-right: 5px; min-width: 80px; }
@@ -302,10 +304,13 @@ def render_user_interface():
                                 st.write(""); st.write("") 
                                 vol = st.number_input(f"加油量", min_value=0.0, step=0.1, key=f"b_v_{row['校內財產編號']}_{idx}", label_visibility="collapsed")
                                 batch_inputs[idx] = vol
-                        st.markdown("---"); st.markdown("**📂 上傳中油加油明細 (只需一份)**")
-                        f_file = st.file_uploader("支援 PDF/JPG/PNG", type=['pdf', 'jpg', 'png', 'jpeg'])
                         
-                        st.text_input("備註", key="batch_note", placeholder="備註 (選填)", label_visibility="collapsed")
+                        st.markdown("---")
+                        st.markdown("<div style='color: #1A5276; font-size: 1.15rem; font-weight: bold; margin-bottom: 10px;'>📂 上傳中油加油明細 (只需一份)</div>", unsafe_allow_html=True)
+                        f_file = st.file_uploader("支援 PDF/JPG/PNG", type=['pdf', 'jpg', 'png', 'jpeg'], label_visibility="collapsed")
+                        
+                        st.markdown("<div style='color: #1A5276; font-size: 1.15rem; font-weight: bold; margin-top: 15px; margin-bottom: 5px;'>📝 備註 (選填)</div>", unsafe_allow_html=True)
+                        st.text_input("備註", key="batch_note", placeholder="請輸入備註內容...", label_visibility="collapsed")
                         
                         st.write("") 
                         st.markdown(typo_note_simple, unsafe_allow_html=True)
@@ -377,15 +382,21 @@ def render_user_interface():
                             fuel_card_id = st.text_input("💳 油卡編號 (選填)")
                             for i in range(st.session_state['multi_row_count']):
                                 c_d, c_v = st.columns(2)
-                                _date = c_d.date_input(f"📅 加油日期 填報序號 {i+1}", datetime.today(), key=f"d_{i}")
-                                _vol = c_v.number_input(f"💧 加油量(公升) 填報序號 {i+1}", min_value=0.0, step=0.1, key=f"v_{i}")
+                                _date = c_d.date_input(f"📅 序號 {i+1}-加油日期", datetime.today(), key=f"d_{i}")
+                                _vol = c_v.number_input(f"💧 序號 {i+1}-加油量(公升)", min_value=0.0, step=0.1, key=f"v_{i}")
                                 data_entries.append({"date": _date, "vol": _vol})
-                            st.markdown("---"); is_shared = st.checkbox("與其他設備共用加油單"); 
-                            st.markdown("<h4 style='color: #1A5276;'>📂 上傳佐證資料 (必填)</h4>", unsafe_allow_html=True)
-                            st.markdown("""* **A. 請依填報加油日期之順序上傳檔案。**\n* **B. 一次多筆申報時，可採單張油單逐一按時序上傳，或依時序彙整成一個檔案後統一上傳。**\n* **C. 支援 png, jpg, jpeg, pdf (單檔最多3MB，最多可上傳10個檔案)。**""")
-                            f_files = st.file_uploader("選擇檔案", type=['png', 'jpg', 'jpeg', 'pdf'], accept_multiple_files=True)
+                                
+                            st.markdown("---")
+                            is_shared = st.checkbox("與其他設備共用加油單")
+                            st.markdown("---")
+                            st.write("")
                             
-                            note_input = st.text_input("備註", placeholder="備註 (選填)")
+                            st.markdown("<div style='color: #1A5276; font-size: 1.15rem; font-weight: bold; margin-bottom: 10px;'>📂 上傳佐證資料</div>", unsafe_allow_html=True)
+                            st.markdown("""* **A. 請依填報加油日期之順序上傳檔案。**\n* **B. 一次多筆申報時，可採單張油單逐一按時序上傳，或依時序彙整成一個檔案後統一上傳。**\n* **C. 支援 png, jpg, jpeg, pdf (單檔最多3MB，最多可上傳10個檔案)。**""")
+                            f_files = st.file_uploader("選擇檔案", type=['png', 'jpg', 'jpeg', 'pdf'], accept_multiple_files=True, label_visibility="collapsed")
+                            
+                            st.markdown("<div style='color: #1A5276; font-size: 1.15rem; font-weight: bold; margin-top: 15px; margin-bottom: 5px;'>📝 備註 (選填)</div>", unsafe_allow_html=True)
+                            note_input = st.text_input("備註", placeholder="請輸入備註內容...", label_visibility="collapsed")
                             st.markdown(typo_note, unsafe_allow_html=True)
                             
                         else:
@@ -394,10 +405,12 @@ def render_user_interface():
                             d_start = c_s.date_input("開始日期", datetime(datetime.now().year, 1, 1))
                             d_end = c_e.date_input("結束日期", datetime.now())
                             data_entries.append({"date": d_end, "vol": 0.0})
-                            note_input = f"無使用 (期間: {d_start} ~ {d_end})"
                             
-                            note_ext = st.text_input("備註", placeholder="備註 (選填)")
+                            st.markdown("<div style='color: #1A5276; font-size: 1.15rem; font-weight: bold; margin-top: 15px; margin-bottom: 5px;'>📝 備註 (選填)</div>", unsafe_allow_html=True)
+                            note_ext = st.text_input("備註", key="note_ext_input", placeholder="請輸入備註內容...", label_visibility="collapsed")
+                            note_input = f"無使用 (期間: {d_start} ~ {d_end})"
                             if note_ext: note_input += f" | {note_ext}"
+                            
                             st.markdown(typo_note_simple, unsafe_allow_html=True)
                             is_shared = False
 
