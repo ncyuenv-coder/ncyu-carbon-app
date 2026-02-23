@@ -72,7 +72,7 @@ st.markdown("""
     [data-testid="stFileUploaderDropzone"] { background-color: #D6EAF8 !important; border: 2px dashed #2E86C1 !important; padding: 20px; border-radius: 12px; }
     [data-testid="stFileUploaderDropzone"] div, span, small { color: #154360 !important; font-weight: bold !important; }
 
-    /* 選項標籤設計 */
+    /* 選項標籤設計 (取消粗體、縮小一號) */
     .stRadio div[role="radiogroup"] label {
         background-color: #D6EAF8 !important; 
         border: 1px solid #AED6F1 !important;
@@ -90,7 +90,7 @@ st.markdown("""
     [data-testid="stDataFrame"] { font-size: 1.25rem !important; }
     [data-testid="stDataFrame"] div { font-size: 1.25rem !important; }
 
-    /* --- 設備詳細卡片樣式 --- */
+    /* --- 設備詳細卡片樣式 (改為滿版單列) --- */
     .dev-card-v148 {
         background-color: #FFFFFF; border: 1px solid #BDC3C7; border-radius: 12px; overflow: hidden;
         box-shadow: 0 3px 6px rgba(0,0,0,0.08); margin-bottom: 20px; display: flex; flex-direction: column;
@@ -107,8 +107,8 @@ st.markdown("""
         border-radius: 12px; color: #2C3E50; font-weight: bold; border: 1px solid rgba(0,0,0,0.1);
     }
     
-    .dev-header-right { text-align: right; display: flex; flex-direction: row; align-items: baseline; justify-content: flex-end; gap: 5px; }
-    .dev-fuel-type { font-size: 1.15rem; font-weight: 800; color: #2C3E50; }
+    .dev-header-right { text-align: right; display: flex; flex-direction: row; align-items: baseline; justify-content: flex-end; gap: 3px; }
+    .dev-fuel-type { font-size: 1.0rem; font-weight: 800; color: #2C3E50; margin-right: 4px; } /* 縮小一號 */
     .dev-vol { font-size: 1.8rem; color: #C0392B !important; font-weight: 900; line-height: 1.1; text-shadow: none !important; }
     .dev-unit { font-size: 0.95rem; color: var(--deep-gray); font-weight: bold; margin-left: 2px; }
 
@@ -119,7 +119,7 @@ st.markdown("""
     .dev-section { text-align: center; border-right: 1px solid #F2F3F4; padding: 0 5px; }
     .dev-section:last-child { border-right: none; }
     .dev-label { font-weight: 700; color: var(--text-sub) !important; font-size: 0.9rem; margin-bottom: 3px; }
-    .dev-val { color: #2C3E50 !important; font-weight: 800; font-size: 1.05rem; word-break: break-word; }
+    .dev-val { color: #5D6D7E !important; font-weight: 800; font-size: 1.05rem; word-break: break-word; } /* 字體改為灰藍色 */
     
     .dev-footer {
         padding: 10px 15px; background-color: #F8F9F9; border-top: 1px solid #E5E7E9;
@@ -384,7 +384,6 @@ def render_user_interface():
                                 data_entries.append({"date": _date, "vol": _vol})
                                 
                             is_shared = st.checkbox("與其他設備共用加油單")
-                            st.markdown("---")
                             st.write("")
                             
                             st.markdown("<div style='color: #1A5276; font-size: 1.05rem; font-weight: bold; margin-bottom: 10px;'>📂 上傳佐證資料</div>", unsafe_allow_html=True)
@@ -519,7 +518,7 @@ def render_user_interface():
                             m = row['月份']
                             if val <= 0: return ""
                             if monthly_counts.get(m, 0) <= 1: return "" 
-                            return f"{val:,.1f}" # 加上千分符號
+                            return f"{val:,.1f}"
 
                         text_vals = merged_dev.apply(get_text, axis=1)
                         fig.add_trace(go.Bar(x=[merged_dev['月份'], merged_dev['油品類別']], y=merged_dev['加油量'], name=dev, marker_color=device_color_map[dev]))
@@ -527,7 +526,6 @@ def render_user_interface():
                     total_grouped = df_final.groupby(['月份', '油品類別'])['加油量'].sum().reset_index()
                     merged_total = pd.merge(base_x, total_grouped, on=['月份', '油品類別'], how='left').fillna(0)
                     label_data = merged_total[merged_total['加油量'] > 0]
-                    # 加上千分符號
                     fig.add_trace(go.Scatter(x=[label_data['月份'], label_data['油品類別']], y=label_data['加油量'], text=label_data['加油量'].apply(lambda x: f"{x:,.1f}"), mode='text', textposition='top center', textfont=dict(size=14, color='black'), showlegend=False))
 
                     fig.update_layout(barmode='stack', font=dict(size=14), xaxis=dict(title="月份 / 油品"), yaxis=dict(title="加油量 (公升)"), height=550, margin=dict(t=50, b=120))
@@ -541,6 +539,7 @@ def render_user_interface():
                         for _, row in target_devices.iterrows():
                             d_name = row['設備名稱備註']
                             d_id = row.get('設備編號', '無編號')
+                            d_cat = row.get('統計類別', '其他/未分類')
                             d_unit = row.get('填報單位', '-')
                             d_sub = row.get('設備所屬單位/部門', '-')
                             d_keeper = row.get('保管人', '-')
@@ -552,7 +551,9 @@ def render_user_interface():
                             d_vol = df_final[df_final['設備名稱備註'] == d_name]['加油量'].sum()
                             d_count = len(df_final[df_final['設備名稱備註'] == d_name])
                             status_html = '<span class="alert-status">⚠️ 尚未申報</span>' if d_count == 0 else ""
-                            device_list.append({ "id": d_id, "name": d_name, "vol": d_vol, "fuel": d_fuel, "unit": d_unit, "sub": d_sub, "keeper": d_keeper, "loc": d_loc, "qty": d_qty, "prop": d_prop, "count": d_count, "status": status_html })
+                            bg_col = MORANDI_COLORS.get(d_cat, '#EBF5FB') # 莫蘭迪底色
+                            
+                            device_list.append({ "id": d_id, "name": d_name, "vol": d_vol, "fuel": d_fuel, "unit": d_unit, "sub": d_sub, "keeper": d_keeper, "loc": d_loc, "qty": d_qty, "prop": d_prop, "count": d_count, "status": status_html, "bg_col": bg_col })
                         
                         # 恢復 2 欄橫式排版
                         for k in range(0, len(device_list), 2):
@@ -563,7 +564,7 @@ def render_user_interface():
                                     with d_cols[m]:
                                         st.markdown(f"""
                                         <div class="dev-card-v148">
-                                            <div class="dev-header" style="background-color: #FAD7A0;">
+                                            <div class="dev-header" style="background-color: {item['bg_col']};">
                                                 <div class="dev-header-left">
                                                     <div class="dev-id">{item['id']}</div>
                                                     <div class="dev-name-row"><span class="dev-name">{item['name']}</span><span class="qty-badge">數量:{item['qty']}</span></div>
@@ -609,7 +610,7 @@ def render_user_interface():
                     st.markdown("---")
                     st.subheader(f"📋 {query_year}年度 填報明細")
                     df_display = df_final[["加油日期", "設備名稱備註", "原燃物料名稱", "油卡編號", "加油量", "填報人", "備註"]].sort_values(by='加油日期', ascending=False).rename(columns={'加油量': '加油量(公升)'})
-                    st.dataframe(df_display.style.format({"加油量(公升)": "{:.2f}"}), use_container_width=True)
+                    st.dataframe(df_display.style.format({"加油量(公升)": "{:,.2f}"}), use_container_width=True)
                 else: st.warning(f"⚠️ {query_dept} 在 {query_year} 年度尚無填報紀錄。")
         else: st.info("尚無該年度資料，無法顯示儀表板。")
 
