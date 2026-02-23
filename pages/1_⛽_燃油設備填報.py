@@ -68,12 +68,11 @@ st.markdown("""
     button[data-baseweb="tab"][aria-selected="true"] div p { color: #E67E22 !important; border-bottom: 3px solid #E67E22; }
 
     /* Checkbox & Upload */
-    /* 修正：字體稍微縮小至 1.05rem */
     div[data-testid="stCheckbox"] label p { font-size: 1.05rem !important; color: #1F618D !important; font-weight: 800 !important; }
     [data-testid="stFileUploaderDropzone"] { background-color: #D6EAF8 !important; border: 2px dashed #2E86C1 !important; padding: 20px; border-radius: 12px; }
     [data-testid="stFileUploaderDropzone"] div, span, small { color: #154360 !important; font-weight: bold !important; }
 
-    /* 選項標籤設計 */
+    /* 選項標籤設計 (取消粗體、縮小一號) */
     .stRadio div[role="radiogroup"] label {
         background-color: #D6EAF8 !important; 
         border: 1px solid #AED6F1 !important;
@@ -82,8 +81,8 @@ st.markdown("""
         margin-right: 10px !important;
     }
     .stRadio div[role="radiogroup"] label p { 
-        font-size: 1.25rem !important; 
-        font-weight: 800 !important; 
+        font-size: 1.1rem !important; 
+        font-weight: normal !important; 
         color: #000000 !important; 
     }
 
@@ -91,7 +90,7 @@ st.markdown("""
     [data-testid="stDataFrame"] { font-size: 1.25rem !important; }
     [data-testid="stDataFrame"] div { font-size: 1.25rem !important; }
 
-    /* --- 設備詳細卡片樣式 --- */
+    /* --- 設備詳細卡片樣式 (改為滿版單列) --- */
     .dev-card-v148 {
         background-color: #FFFFFF; border: 1px solid #BDC3C7; border-radius: 12px; overflow: hidden;
         box-shadow: 0 3px 6px rgba(0,0,0,0.08); margin-bottom: 20px; display: flex; flex-direction: column;
@@ -112,13 +111,13 @@ st.markdown("""
     .dev-vol { font-size: 1.8rem; color: #C0392B !important; font-weight: 900; line-height: 1.1; text-shadow: none !important; }
     .dev-unit { font-size: 0.95rem; color: var(--deep-gray); font-weight: bold; margin-left: 2px; }
 
-    /* 修正：將雙欄 grid 改為單欄 flex，解決字數過多跑行問題 */
+    /* 修正：單列排列，去除空白格 */
     .dev-body {
         padding: 12px 15px; font-size: 0.95rem; color: var(--deep-gray);
-        display: flex; flex-direction: column; gap: 6px; 
+        display: flex; flex-direction: row; flex-wrap: wrap; gap: 15px; align-items: center;
     }
-    .dev-item { margin-bottom: 2px; display: flex; align-items: baseline; }
-    .dev-label { font-weight: 700; color: var(--deep-gray) !important; font-size: 0.95rem; margin-right: 5px; min-width: 80px; }
+    .dev-item { margin-bottom: 0px; display: flex; align-items: baseline; gap: 2px; }
+    .dev-label { font-weight: 700; color: var(--deep-gray) !important; font-size: 0.95rem; margin-right: 0px; min-width: auto; }
     .dev-val { color: var(--deep-gray) !important; font-weight: 600; font-size: 1rem; }
     
     .dev-footer {
@@ -187,7 +186,7 @@ with st.sidebar:
     st.caption(f"帳號: {username}")
     st.success("☁️ 雲端連線正常")
     if username == 'admin':
-        st.info("👑 提示：後台功能已移至「燃油後台管理」分頁")
+        pass # 依需求移除提示文字
     st.markdown("---")
     authenticator.logout('登出系統', 'sidebar')
 
@@ -306,10 +305,10 @@ def render_user_interface():
                                 batch_inputs[idx] = vol
                         
                         st.markdown("---")
-                        st.markdown("<div style='color: #1A5276; font-size: 1.15rem; font-weight: bold; margin-bottom: 10px;'>📂 上傳中油加油明細 (只需一份)</div>", unsafe_allow_html=True)
+                        st.markdown("<div style='color: #1A5276; font-size: 1.05rem; font-weight: bold; margin-bottom: 10px;'>📂 上傳中油加油明細 (只需一份)</div>", unsafe_allow_html=True)
                         f_file = st.file_uploader("支援 PDF/JPG/PNG", type=['pdf', 'jpg', 'png', 'jpeg'], label_visibility="collapsed")
                         
-                        st.markdown("<div style='color: #1A5276; font-size: 1.15rem; font-weight: bold; margin-top: 15px; margin-bottom: 5px;'>📝 備註 (選填)</div>", unsafe_allow_html=True)
+                        st.markdown("<div style='color: #1A5276; font-size: 1.05rem; font-weight: bold; margin-top: 15px; margin-bottom: 5px;'>📝 備註</div>", unsafe_allow_html=True)
                         st.text_input("備註", key="batch_note", placeholder="請輸入備註內容...", label_visibility="collapsed")
                         
                         st.write("") 
@@ -360,7 +359,7 @@ def render_user_interface():
                     st.markdown("#### 步驟2：填報設備加油資訊")
                     
                     st.write("") 
-                    st.markdown('<p style="color:#566573; font-size:1rem; font-weight:bold; margin-bottom:-10px;">請選擇申報類型：</p>', unsafe_allow_html=True)
+                    st.markdown('<p style="color:#566573; font-size:1rem; font-weight:bold; margin-bottom:-10px;">請選擇申報類型，並於填報前先設定申報筆數(至多10筆)</p>', unsafe_allow_html=True)
                     st.write("") 
                     report_mode = st.radio("類型選擇", ["用油量申報 (含單筆/多筆/油卡)", "無使用"], horizontal=True, label_visibility="collapsed")
                     
@@ -370,7 +369,6 @@ def render_user_interface():
                             if st.button("➕ 增加一列"): st.session_state['multi_row_count'] += 1
                         with c_btn2: 
                             if st.button("➖ 減少一列") and st.session_state['multi_row_count'] > 1: st.session_state['multi_row_count'] -= 1
-                        st.markdown('<p style="color:#566573; font-size:0.9rem;">填報前請先設定申報筆數，至多10筆</p>', unsafe_allow_html=True)
 
                     with st.form("entry_form", clear_on_submit=True):
                         col_p1, col_p2 = st.columns(2)
@@ -391,11 +389,11 @@ def render_user_interface():
                             st.markdown("---")
                             st.write("")
                             
-                            st.markdown("<div style='color: #1A5276; font-size: 1.15rem; font-weight: bold; margin-bottom: 10px;'>📂 上傳佐證資料</div>", unsafe_allow_html=True)
+                            st.markdown("<div style='color: #1A5276; font-size: 1.05rem; font-weight: bold; margin-bottom: 10px;'>📂 上傳佐證資料</div>", unsafe_allow_html=True)
                             st.markdown("""* **A. 請依填報加油日期之順序上傳檔案。**\n* **B. 一次多筆申報時，可採單張油單逐一按時序上傳，或依時序彙整成一個檔案後統一上傳。**\n* **C. 支援 png, jpg, jpeg, pdf (單檔最多3MB，最多可上傳10個檔案)。**""")
                             f_files = st.file_uploader("選擇檔案", type=['png', 'jpg', 'jpeg', 'pdf'], accept_multiple_files=True, label_visibility="collapsed")
                             
-                            st.markdown("<div style='color: #1A5276; font-size: 1.15rem; font-weight: bold; margin-top: 15px; margin-bottom: 5px;'>📝 備註 (選填)</div>", unsafe_allow_html=True)
+                            st.markdown("<div style='color: #1A5276; font-size: 1.05rem; font-weight: bold; margin-top: 15px; margin-bottom: 5px;'>📝 備註</div>", unsafe_allow_html=True)
                             note_input = st.text_input("備註", placeholder="請輸入備註內容...", label_visibility="collapsed")
                             st.markdown(typo_note, unsafe_allow_html=True)
                             
@@ -406,7 +404,7 @@ def render_user_interface():
                             d_end = c_e.date_input("結束日期", datetime.now())
                             data_entries.append({"date": d_end, "vol": 0.0})
                             
-                            st.markdown("<div style='color: #1A5276; font-size: 1.15rem; font-weight: bold; margin-top: 15px; margin-bottom: 5px;'>📝 備註 (選填)</div>", unsafe_allow_html=True)
+                            st.markdown("<div style='color: #1A5276; font-size: 1.05rem; font-weight: bold; margin-top: 15px; margin-bottom: 5px;'>📝 備註</div>", unsafe_allow_html=True)
                             note_ext = st.text_input("備註", key="note_ext_input", placeholder="請輸入備註內容...", label_visibility="collapsed")
                             note_input = f"無使用 (期間: {d_start} ~ {d_end})"
                             if note_ext: note_input += f" | {note_ext}"
@@ -523,7 +521,7 @@ def render_user_interface():
                             m = row['月份']
                             if val <= 0: return ""
                             if monthly_counts.get(m, 0) <= 1: return "" 
-                            return f"{val:.1f}"
+                            return f"{val:,.1f}"
 
                         text_vals = merged_dev.apply(get_text, axis=1)
                         fig.add_trace(go.Bar(x=[merged_dev['月份'], merged_dev['油品類別']], y=merged_dev['加油量'], name=dev, marker_color=device_color_map[dev]))
@@ -531,7 +529,7 @@ def render_user_interface():
                     total_grouped = df_final.groupby(['月份', '油品類別'])['加油量'].sum().reset_index()
                     merged_total = pd.merge(base_x, total_grouped, on=['月份', '油品類別'], how='left').fillna(0)
                     label_data = merged_total[merged_total['加油量'] > 0]
-                    fig.add_trace(go.Scatter(x=[label_data['月份'], label_data['油品類別']], y=label_data['加油量'], text=label_data['加油量'].apply(lambda x: f"{x:.1f}"), mode='text', textposition='top center', textfont=dict(size=14, color='black'), showlegend=False))
+                    fig.add_trace(go.Scatter(x=[label_data['月份'], label_data['油品類別']], y=label_data['加油量'], text=label_data['加油量'].apply(lambda x: f"{x:,.1f}"), mode='text', textposition='top center', textfont=dict(size=14, color='black'), showlegend=False))
 
                     fig.update_layout(barmode='stack', font=dict(size=14), xaxis=dict(title="月份 / 油品"), yaxis=dict(title="加油量 (公升)"), height=550, margin=dict(t=50, b=120))
                     st.plotly_chart(fig, use_container_width=True)
@@ -557,27 +555,31 @@ def render_user_interface():
                             status_html = '<span class="alert-status">⚠️ 尚未申報</span>' if d_count == 0 else ""
                             device_list.append({ "id": d_id, "name": d_name, "vol": d_vol, "fuel": d_fuel, "unit": d_unit, "sub": d_sub, "keeper": d_keeper, "loc": d_loc, "qty": d_qty, "prop": d_prop, "count": d_count, "status": status_html })
                         
-                        for k in range(0, len(device_list), 2):
-                            d_cols = st.columns(2)
-                            for m in range(2):
-                                if k + m < len(device_list):
-                                    item = device_list[k + m]
-                                    with d_cols[m]:
-                                        st.markdown(f"""
-                                        <div class="dev-card-v148">
-                                            <div class="dev-header" style="background-color: #FAD7A0;">
-                                                <div class="dev-header-left"><div class="dev-id">{item['id']}</div><div class="dev-name-row"><span class="dev-name">{item['name']}</span><span class="qty-badge">數量: {item['qty']}</span></div></div>
-                                                <div class="dev-header-right"><div class="dev-vol">{item['vol']:.1f}<span class="dev-unit" style="color:#333333;">公升</span></div></div>
-                                            </div>
-                                            <div class="dev-body">
-                                                <div class="dev-item"><span class="dev-label">燃料種類:</span><span class="dev-val">{item['fuel']}</span></div>
-                                                <div class="dev-item"><span class="dev-label">設備所屬單位/部門:</span><span class="dev-val">{item['sub']}</span></div>
-                                                <div class="dev-item"><span class="dev-label">保管人:</span><span class="dev-val">{item['keeper']}</span></div>
-                                                <div class="dev-item"><span class="dev-label">設備詳細位置/樓層:</span><span class="dev-val">{item['loc']}</span></div>
-                                            </div>
-                                            <div class="dev-footer"><div class="dev-count">年度申報次數: {item['count']} 次</div><div>{item['status']}</div></div>
-                                        </div>
-                                        """, unsafe_allow_html=True)
+                        # 滿版單列卡片，內容水平排列
+                        for item in device_list:
+                            st.markdown(f"""
+                            <div class="dev-card-v148">
+                                <div class="dev-header" style="background-color: #FAD7A0;">
+                                    <div class="dev-header-left">
+                                        <div class="dev-id">{item['id']}</div>
+                                        <div class="dev-name-row"><span class="dev-name">{item['name']}</span><span class="qty-badge">數量:{item['qty']}</span></div>
+                                    </div>
+                                    <div class="dev-header-right">
+                                        <div class="dev-vol">{item['vol']:,.1f}<span class="dev-unit" style="color:#333333;">公升</span></div>
+                                    </div>
+                                </div>
+                                <div class="dev-body">
+                                    <div class="dev-item"><span class="dev-label">燃料種類:</span><span class="dev-val">{item['fuel']}</span></div>
+                                    <div class="dev-item"><span class="dev-label">所屬部門:</span><span class="dev-val">{item['sub']}</span></div>
+                                    <div class="dev-item"><span class="dev-label">保管人:</span><span class="dev-val">{item['keeper']}</span></div>
+                                    <div class="dev-item"><span class="dev-label">位置:</span><span class="dev-val">{item['loc']}</span></div>
+                                </div>
+                                <div class="dev-footer">
+                                    <div class="dev-count">年度申報次數:{item['count']}次</div>
+                                    <div>{item['status']}</div>
+                                </div>
+                            </div>
+                            """, unsafe_allow_html=True)
 
                     st.markdown("---")
                     
