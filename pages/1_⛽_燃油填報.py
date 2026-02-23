@@ -194,6 +194,9 @@ st.markdown("""
     .privacy-box { background-color: #F8F9F9; border: 1px solid #BDC3C7; padding: 15px; border-radius: 10px; font-size: 0.9rem; color: #566573; margin-bottom: 10px; }
     .privacy-title { font-weight: bold; color: #2C3E50; margin-bottom: 5px; font-size: 1rem; }
     .dashboard-main-title { font-size: 1.8rem; font-weight: 900; text-align: center; color: #2C3E50; margin-bottom: 20px; background-color: #F8F9F9; padding: 10px; border-radius: 10px; border: 1px solid #BDC3C7; }
+    .morandi-header { background-color: #EBF5FB; color: #2E4053; padding: 15px; border-radius: 8px; border-left: 8px solid #5499C7; font-size: 1.35rem; font-weight: 700; margin-top: 25px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+    
+    /* 水平圖表框線 */
     .bar-chart-box { border: 1px solid #BDC3C7; border-radius: 12px; padding: 15px; background-color: #FFFFFF; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
 </style>
 """, unsafe_allow_html=True)
@@ -295,8 +298,8 @@ def get_drive_id(url):
     if match: return match.group(1)
     return None
 
-def download_and_convert_drive_file(drive_service_obj, file_id):
-    """下載 Google Drive 檔案，若為 PDF 則轉換為 PNG 圖片"""
+def download_and_convert_drive_files(drive_service_obj, file_id):
+    """下載 Google Drive 檔案，若為 PDF 則將『所有頁面』轉換為 PNG 圖片列表，回傳 list of BytesIO"""
     try:
         request = drive_service_obj.files().get_media(fileId=file_id)
         fh = io.BytesIO()
@@ -310,18 +313,23 @@ def download_and_convert_drive_file(drive_service_obj, file_id):
         header = fh.read(4)
         fh.seek(0)
         if header == b'%PDF':
+            images = []
             try:
                 doc = fitz.open(stream=fh.read(), filetype="pdf")
-                page = doc.load_page(0) # 取第一頁
-                pix = page.get_pixmap(dpi=150)
-                img_bytes = pix.tobytes("png")
-                return io.BytesIO(img_bytes)
+                # 迴圈讀取 PDF 的每一頁
+                for page_num in range(len(doc)):
+                    page = doc.load_page(page_num)
+                    pix = page.get_pixmap(dpi=150)
+                    img_bytes = pix.tobytes("png")
+                    images.append(io.BytesIO(img_bytes))
+                return images
             except Exception as e:
-                # 若轉換失敗或未安裝套件，回傳 None
-                return None
-        return fh
+                # 若轉換失敗或未安裝套件，回傳空陣列
+                return []
+        # 若為一般圖片，直接回傳包在 List 中的 BytesIO
+        return [fh]
     except Exception as e:
-        return None
+        return []
 
 def export_general_docx(df_year, df_eq, drive_srv):
     """匯出一般申報 (直式 A4，依上傳連結分組，自動排序並顯示共用狀態)"""
@@ -374,8 +382,8 @@ def export_general_docx(df_year, df_eq, drive_srv):
         for link in links:
             fid = get_drive_id(link)
             if fid:
-                img_data = download_and_convert_drive_file(drive_srv, fid)
-                if img_data: images.append(img_data)
+                imgs_data = download_and_convert_drive_files(drive_srv, fid)
+                images.extend(imgs_data)
                 
         # 排版：單張置中放大，多張 2xN 排列
         if len(images) == 1:
@@ -403,7 +411,7 @@ def export_general_docx(df_year, df_eq, drive_srv):
     return output
 
 def export_batch_docx(df_year, drive_srv):
-    """匯出油卡批次申報 (橫式 A4，依月份與檔案合併)"""
+    """匯出油卡批次申報 (橫式 A4，以年度為單位，依批次群組合併輸出)"""
     doc = Document()
     for section in doc.sections:
         section.orientation = WD_ORIENT.LANDSCAPE
@@ -414,52 +422,66 @@ def export_batch_docx(df_year, drive_srv):
         section.top_margin = Cm(1.5)
         section.bottom_margin = Cm(1.5)
 
-    df_batch = df_year[df_year['備註'].astype(str).str.contains('批次申報', na=False)]
-    months = sorted(df_batch['月份'].unique())
+    df_batch = df_year[df_year['備註'].astype(str).str.contains('批次申報', na=False)].copy()
+    if df_batch.empty:
+        return None
 
-    for m in months:
-        df_m = df_batch[df_batch['月份'] == m]
-        unique_links = df_m['佐證資料'].dropna().unique()
+    # 擷取批次類別 (例如從 "批次申報-具車牌的汽油公務車 | 備註" 中切出 "批次申報-具車牌的汽油公務車")
+    df_batch['批次類別'] = df_batch['備註'].apply(lambda x: str(x).split(' | ')[0] if ' | ' in str(x) else str(x))
+    
+    # 改以年度為單位：依照 填報單位、燃料、批次類別 來分組
+    groups = df_batch.groupby(['填報單位', '原燃物料名稱', '批次類別'])
+
+    for name, group in groups:
+        dept, fuel, cat = name
         
+        # 取得該批次群組涵蓋的所有設備名稱
+        eq_names = group['設備名稱備註'].unique()
+        eq_str = "、".join(eq_names)
+        
+        # 計算此群組(該年度)的總加油量
+        yearly_vol = group['加油量'].sum()
+        
+        # 列印標題資訊
+        p = doc.add_paragraph()
+        p.add_run(f"填報單位：{dept}\n").bold = True
+        p.add_run(f"設備名稱：{eq_str}\n").bold = True
+        p.add_run(f"燃料：{fuel} | 年度總加油量：{yearly_vol:,.1f} 公升\n").bold = True
+        
+        # 收集該群組整年度所有不重複的佐證資料連結
+        unique_links = group['佐證資料'].dropna().unique()
+        images = []
         for link in unique_links:
             if str(link).strip() in ["無", ""]: continue
-            
-            doc.add_heading(f"{m}月 批次申報佐證資料", level=1)
-            group = df_m[df_m['佐證資料'] == link]
-            eqs = group[['填報單位', '設備名稱備註', '原燃物料名稱']].drop_duplicates()
-            
-            p = doc.add_paragraph()
-            for _, eq in eqs.iterrows():
-                yearly_vol = df_year[df_year['設備名稱備註'] == eq['設備名稱備註']]['加油量'].sum()
-                p.add_run(f"填報單位：{eq['填報單位']} | 設備名稱：{eq['設備名稱備註']} | 燃料：{eq['原燃物料名稱']} | 年度總加油量：{yearly_vol:,.1f} 公升\n").bold = True
-            
             links_split = str(link).split('\n')
-            images = []
             for l in links_split:
                 fid = get_drive_id(l)
                 if fid:
-                    img_data = download_and_convert_drive_file(drive_srv, fid)
-                    if img_data: images.append(img_data)
-            
-            if len(images) == 1:
-                p_img = doc.add_paragraph()
-                p_img.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                    # 如果是 PDF 會自動轉成多張圖，extend 加入列表
+                    imgs_data = download_and_convert_drive_files(drive_srv, fid)
+                    images.extend(imgs_data)
+        
+        # 依序排版圖片
+        if len(images) == 1:
+            p_img = doc.add_paragraph()
+            p_img.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            try:
+                p_img.add_run().add_picture(images[0], width=Cm(22.0))
+            except: pass
+        elif len(images) > 1:
+            # 使用 2 欄的表格依序往下貼，不管有幾張(甚至數十張)都會自動跨頁
+            table = doc.add_table(rows=0, cols=2)
+            table.autofit = False
+            row_cells = None
+            for i, img in enumerate(images):
+                if i % 2 == 0: row_cells = table.add_row().cells
                 try:
-                    p_img.add_run().add_picture(images[0], width=Cm(22.0))
+                    p_img = row_cells[i % 2].paragraphs[0]
+                    p_img.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                    p_img.add_run().add_picture(img, width=Cm(12.0))
                 except: pass
-            elif len(images) > 1:
-                table = doc.add_table(rows=0, cols=2)
-                table.autofit = False
-                row_cells = None
-                for i, img in enumerate(images):
-                    if i % 2 == 0: row_cells = table.add_row().cells
-                    try:
-                        p_img = row_cells[i % 2].paragraphs[0]
-                        p_img.alignment = WD_ALIGN_PARAGRAPH.CENTER
-                        p_img.add_run().add_picture(img, width=Cm(12.0))
-                    except: pass
-            
-            doc.add_page_break()
+        
+        doc.add_page_break()
 
     output = io.BytesIO()
     doc.save(output)
@@ -813,7 +835,7 @@ def render_user_interface():
                 else: st.warning(f"⚠️ {query_dept} 在 {query_year} 年度尚無填報紀錄。")
         else: st.info("尚無該年度資料，無法顯示儀表板。")
 
-    st.markdown('<div class="contact-footer">管理員系統版本 V166.0 (Word PDF Support & Auto Layout)</div>', unsafe_allow_html=True)
+    st.markdown('<div class="contact-footer">管理員系統版本 V167.0 (Word PDF Multi-page Support)</div>', unsafe_allow_html=True)
 
 def render_admin_dashboard():
     """ 顯示管理員後台 """
@@ -881,7 +903,7 @@ def render_admin_dashboard():
             st.markdown("---")
             st.markdown("##### 📁 佐證資料匯出")
             if not DOCX_READY:
-                st.error("⚠️ 系統尚未安裝 `python-docx` 套件。請確認已將其加入 `requirements.txt` 並重新部署。")
+                st.error("⚠️ 系統尚未安裝 `python-docx` 或 `pymupdf` 套件。請確認已將其加入 `requirements.txt` 並重新部署。")
             else:
                 c_w1, c_w2 = st.columns(2)
                 
@@ -993,7 +1015,6 @@ def render_admin_dashboard():
                                     st.markdown(f"""<div class="dev-card-v148"><div class="dev-header" style="background-color: {MORANDI_COLORS.get(category, '#34495E')};"><div class="dev-header-left"><div class="dev-id">{item['id']}</div><div class="dev-name-row"><span class="dev-name">{item['name']}</span><span class="qty-badge">數量: {item['qty']}</span></div></div><div class="dev-header-right"><div class="dev-vol">{item['vol']:.1f}<span class="dev-unit">公升</span></div></div></div><div class="dev-body"><div class="dev-item"><span class="dev-label">燃料種類:</span><span class="dev-val">{item['fuel']}</span></div><div class="dev-item"><span class="dev-label">填報單位:</span><span class="dev-val">{item['unit']}</span></div><div class="dev-item"><span class="dev-label">所屬部門:</span><span class="dev-val">{item['sub']}</span></div><div class="dev-item"><span class="dev-label">保管人:</span><span class="dev-val">{item['keeper']}</span></div></div><div class="dev-footer"><div class="dev-count">年度申報次數: {item['count']} 次</div><div>{item['status']}</div></div></div>""", unsafe_allow_html=True)
 
             st.markdown("---")
-            # 新需求：水平長條圖優化
             st.subheader("📊 油品設備用油量佔比分析 (水平長條圖)")
             color_map = { "公務車輛(GV-1-)": "#B0C4DE", "乘坐式割草機(GV-2-)": "#F5CBA7", "乘坐式農用機具(GV-3-)": "#D7BDE2", "鍋爐(GS-1-)": "#E6B0AA", "發電機(GS-2-)": "#A9CCE3", "肩背或手持式割草機、吹葉機(GS-3-)": "#A3E4D7", "肩背或手持式農用機具(GS-4-)": "#F9E79F" }
             
@@ -1077,7 +1098,6 @@ def render_admin_dashboard():
             else: st.info("無此油品數據。")
 
             st.markdown("---")
-            # 新需求：水平長條圖優化
             st.subheader("📊 全校加油量單位佔比 (水平長條圖)")
             
             c_bu1, c_bu2 = st.columns(2)
@@ -1125,7 +1145,7 @@ def render_admin_dashboard():
             else: st.info("無數據")
         else: st.info("尚無該年度資料，無法顯示儀表板。")
 
-    st.markdown('<div class="contact-footer">管理員系統版本 V166.0 (Word PDF Support & Auto Layout)</div>', unsafe_allow_html=True)
+    st.markdown('<div class="contact-footer">管理員系統版本 V167.0 (Word PDF Multi-page Support)</div>', unsafe_allow_html=True)
 
 # ==========================================
 # 5. 主程式入口
