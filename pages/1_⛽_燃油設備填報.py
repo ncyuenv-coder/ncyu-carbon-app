@@ -119,7 +119,7 @@ st.markdown("""
     .dev-section { text-align: center; border-right: 1px solid #F2F3F4; padding: 0 5px; }
     .dev-section:last-child { border-right: none; }
     .dev-label { font-weight: 700; color: var(--text-sub) !important; font-size: 0.9rem; margin-bottom: 3px; }
-    .dev-val { color: #5D6D7E !important; font-weight: 800; font-size: 1.05rem; word-break: break-word; } /* 字體改為灰藍色 */
+    .dev-val { color: #333333 !important; font-weight: 800; font-size: 1.05rem; word-break: break-word; } /* 字體改為灰黑色 */
     
     .dev-footer {
         padding: 10px 15px; background-color: #F8F9F9; border-top: 1px solid #E5E7E9;
