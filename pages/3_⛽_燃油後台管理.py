@@ -60,9 +60,9 @@ st.markdown("""
     button[kind="primary"] p { color: #FFFFFF !important; } 
     button[kind="primary"]:hover { background-color: var(--orange-dark) !important; transform: translateY(-2px) !important; color: #FFFFFF !important; }
     
-    /* 次按鈕 (Secondary) - 下載按鈕、產生Word等 (莫蘭迪藍) */
-    button[kind="secondary"] { background-color: #85C1E9 !important; color: #2C3E50 !important; border: 2px solid #5DADE2 !important; border-radius: 12px !important; font-size: 1.15rem !important; font-weight: 800 !important; padding: 0.7rem 1.5rem !important; box-shadow: 0 4px 6px rgba(133, 193, 233, 0.3) !important; width: 100%; }
-    button[kind="secondary"] p { color: #2C3E50 !important; } 
+    /* 次按鈕 (Secondary) - 下載按鈕、產生Word等 (莫蘭迪藍底、白字) */
+    button[kind="secondary"] { background-color: #85C1E9 !important; color: #FFFFFF !important; border: 2px solid #5DADE2 !important; border-radius: 12px !important; font-size: 1.15rem !important; font-weight: 800 !important; padding: 0.7rem 1.5rem !important; box-shadow: 0 4px 6px rgba(133, 193, 233, 0.3) !important; width: 100%; }
+    button[kind="secondary"] p { color: #FFFFFF !important; } 
     button[kind="secondary"]:hover { background-color: #5DADE2 !important; transform: translateY(-2px) !important; color: #FFFFFF !important; }
     button[kind="secondary"]:hover p { color: #FFFFFF !important; }
 
@@ -88,7 +88,7 @@ st.markdown("""
     .dev-section { text-align: center; border-right: 1px solid #F2F3F4; padding: 0 5px; }
     .dev-section:last-child { border-right: none; }
     .dev-label { font-weight: 700; color: var(--text-sub) !important; font-size: 0.9rem; margin-bottom: 3px; }
-    .dev-val { color: #333333 !important; font-weight: 800; font-size: 1.05rem; word-break: break-word; } /* 灰黑字體 */
+    .dev-val { color: #333333 !important; font-weight: 800; font-size: 1.05rem; word-break: break-word; }
     .dev-footer { padding: 10px 15px; background-color: #F8F9F9; border-top: 1px solid #E5E7E9; display: flex; justify-content: space-between; align-items: center; }
     .dev-count { font-weight: 700; color: #34495E; font-size: 0.95rem; }
     .alert-status { color: #C0392B; font-weight: 900; display: flex; align-items: center; gap: 5px; background-color: #FADBD8; padding: 4px 12px; border-radius: 12px; font-size: 0.9rem; }
@@ -115,13 +115,20 @@ st.markdown("""
     .admin-kpi-header { padding: 10px; font-size: 1.2rem; font-weight: bold; color: #2C3E50; border-bottom: 1px solid rgba(0,0,0,0.1); }
     .admin-kpi-body { padding: 20px; }
     .admin-kpi-value { font-size: 2.8rem; font-weight: 900; color: #2C3E50; margin-bottom: 5px; }
-    .admin-kpi-unit { font-size: 1.05rem; color: #333333 !important; font-weight: 700; margin-left: 5px; } /* 深灰色字體 */
+    .admin-kpi-unit { font-size: 1.05rem; color: #333333 !important; font-weight: 700; margin-left: 5px; }
     .admin-kpi-sub { font-size: 0.9rem; display: inline-block; padding: 2px 10px; border-radius: 15px; background-color: #F9E79F; color: #7D6608; margin-top: 5px; font-weight: bold; }
 
     /* 其他 */
     .unreported-block { padding: 15px 20px; border-radius: 12px; margin-bottom: 20px; color: #2C3E50; box-shadow: 0 2px 6px rgba(0,0,0,0.08); border: 1px solid rgba(0,0,0,0.05); }
     .unreported-title { font-size: 1.6rem; font-weight: 900; margin-bottom: 12px; border-bottom: 2px solid rgba(0,0,0,0.1); padding-bottom: 8px; }
     .bar-chart-box { border: 1px solid #BDC3C7; border-radius: 12px; padding: 15px; background-color: #FFFFFF; box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-bottom: 15px;}
+    
+    /* 單選按鈕 (Radio) - 淺藍底 + 深藍字 */
+    .stRadio div[role="radiogroup"] label { background-color: #D6EAF8 !important; border: 1px solid #AED6F1 !important; border-radius: 8px !important; padding: 8px 15px !important; margin-right: 10px !important; }
+    .stRadio div[role="radiogroup"] label p { font-size: 1.25rem !important; font-weight: 800 !important; color: #1A5276 !important; }
+    /* 加入選中狀態 (深藍底白字)，讓目前選中的選項更明確 */
+    .stRadio div[role="radiogroup"] label[data-checked="true"] { background-color: #1A5276 !important; border-color: #1A5276 !important; }
+    .stRadio div[role="radiogroup"] label[data-checked="true"] p { color: #FFFFFF !important; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -366,7 +373,6 @@ def render_tab1_overview(df_clean, df_equip, all_years):
         diesel_eq = int(df_equip[df_equip['原燃物料名稱'].str.contains('柴油', na=False)]['設備數量_num'].sum())
         
         k1, k2, k3 = st.columns(3)
-        # 加深一階莫蘭迪底色
         k1.markdown(f"""<div class="top-kpi-card" style="background-color: #D6EAF8; border-color: #85C1E9;"><div class="top-kpi-title">🚜 全校燃油設備總數</div><div class="top-kpi-value">{total_eq}</div></div>""", unsafe_allow_html=True)
         k2.markdown(f"""<div class="top-kpi-card" style="background-color: #D1F2EB; border-color: #76D7C4;"><div class="top-kpi-title">⛽ 全校汽油設備數</div><div class="top-kpi-value">{gas_eq}</div></div>""", unsafe_allow_html=True)
         k3.markdown(f"""<div class="top-kpi-card" style="background-color: #FCF3CF; border-color: #F1C40F;"><div class="top-kpi-title">🚛 全校柴油設備數</div><div class="top-kpi-value">{diesel_eq}</div></div>""", unsafe_allow_html=True)
@@ -394,12 +400,11 @@ def render_tab1_overview(df_clean, df_equip, all_years):
                         st.markdown(f"""<div class="stat-card-v119"><div class="stat-header" style="background-color: {header_color};"><span class="stat-title">{category}</span><span class="stat-count">{count_tot}</span></div><div class="stat-body-split"><div class="stat-col-left"><div class="stat-item"><span class="stat-item-label">⛽ 汽油設備數</span><span class="stat-item-val">{count_gas}</span></div><div class="stat-item"><span class="stat-item-label">🚛 柴油設備數</span><span class="stat-item-val">{count_dsl}</span></div><div class="stat-item"><span class="stat-item-label">🔥 燃油設備數</span><span class="stat-item-val">{count_tot}</span></div></div><div class="stat-col-right"><div class="stat-item"><span class="stat-item-label">汽油加油量(公升)</span><span class="stat-item-val">{gas_vol:,.1f}</span></div><div class="stat-item"><span class="stat-item-label">柴油加油量(公升)</span><span class="stat-item-val">{diesel_vol:,.1f}</span></div><div class="stat-item"><span class="stat-item-label">總計加油量(公升)</span><span class="stat-item-val">{total_vol:,.1f}</span></div></div></div></div>""", unsafe_allow_html=True)
         
         st.markdown("---")
-        # 將「油品設備用油量佔比分析」移至此處
         st.subheader("📊 油品設備用油量佔比分析")
         color_map = { "公務車輛(GV-1-)": "#B0C4DE", "乘坐式割草機(GV-2-)": "#F5CBA7", "乘坐式農用機具(GV-3-)": "#D7BDE2", "鍋爐(GS-1-)": "#E6B0AA", "發電機(GS-2-)": "#A9CCE3", "肩背或手持式割草機、吹葉機(GS-3-)": "#A3E4D7", "肩背或手持式農用機具(GS-4-)": "#F9E79F" }
         
         c_bar1, c_bar2 = st.columns(2)
-        axis_font = dict(size=18, color='#424949') # 放大1號, 深灰
+        axis_font = dict(size=18, color='#424949')
         
         with c_bar1:
             st.markdown('<div class="bar-chart-box">', unsafe_allow_html=True)
@@ -407,14 +412,13 @@ def render_tab1_overview(df_clean, df_equip, all_years):
             if not gas_data.empty:
                 gas_data = gas_data[gas_data['加油量'] > 0].sort_values('加油量', ascending=True)
                 total_g = gas_data['加油量'].sum()
-                # 移除 L，放大字體，加千分號
                 gas_data['Label'] = gas_data['加油量'].apply(lambda x: f"{x:,.1f} ({(x/total_g)*100:.1f}%)")
                 
                 fig_g = px.bar(gas_data, x='加油量', y='統計類別', orientation='h', title='⛽ 汽油設備用油量佔比', color='統計類別', color_discrete_map=color_map, text='Label')
                 fig_g.update_layout(height=450, showlegend=False, plot_bgcolor='rgba(0,0,0,0)', font=dict(size=14))
                 fig_g.update_xaxes(title="加油量 (公升)", showgrid=True, gridcolor='#EAEDED', tickfont=axis_font, title_font=axis_font, range=[0, gas_data['加油量'].max() * 1.35])
                 fig_g.update_yaxes(title="", tickfont=axis_font, title_font=axis_font)
-                fig_g.update_traces(textposition='outside', textfont=dict(size=18, color='black')) # 放大資料標籤
+                fig_g.update_traces(textposition='outside', textfont=dict(size=18, color='black'))
                 st.plotly_chart(fig_g, use_container_width=True)
             else: st.info("無汽油數據")
             st.markdown('</div>', unsafe_allow_html=True)
@@ -425,13 +429,13 @@ def render_tab1_overview(df_clean, df_equip, all_years):
             if not dsl_data.empty:
                 dsl_data = dsl_data[dsl_data['加油量'] > 0].sort_values('加油量', ascending=True)
                 total_d = dsl_data['加油量'].sum()
-                dsl_data['Label'] = dsl_data['加油量'].apply(lambda x: f"{x:,.1f} ({(x/total_d)*100:.1f}%)") # 去除L, 加上千分號
+                dsl_data['Label'] = dsl_data['加油量'].apply(lambda x: f"{x:,.1f} ({(x/total_d)*100:.1f}%)")
                 
                 fig_d = px.bar(dsl_data, x='加油量', y='統計類別', orientation='h', title='🚛 柴油設備用油量佔比', color='統計類別', color_discrete_map=color_map, text='Label')
                 fig_d.update_layout(height=450, showlegend=False, plot_bgcolor='rgba(0,0,0,0)', font=dict(size=14))
                 fig_d.update_xaxes(title="加油量 (公升)", showgrid=True, gridcolor='#EAEDED', tickfont=axis_font, title_font=axis_font, range=[0, dsl_data['加油量'].max() * 1.35])
                 fig_d.update_yaxes(title="", tickfont=axis_font, title_font=axis_font)
-                fig_d.update_traces(textposition='outside', textfont=dict(size=18, color='black')) # 放大資料標籤
+                fig_d.update_traces(textposition='outside', textfont=dict(size=18, color='black'))
                 st.plotly_chart(fig_d, use_container_width=True)
             else: st.info("無柴油數據")
             st.markdown('</div>', unsafe_allow_html=True)
@@ -462,7 +466,6 @@ def render_tab1_overview(df_clean, df_equip, all_years):
 
                     device_list.append({ "id": d_id, "name": d_name, "vol": d_vol, "fuel": d_fuel, "unit": d_unit, "sub": d_sub, "keeper": d_keeper, "loc": d_loc, "qty": d_qty, "count": d_count, "status": status_html, "bg_col": bg_col })
                 
-                # 同步前台的 2欄橫幅、3:3:4比例
                 for k in range(0, len(device_list), 2):
                     d_cols = st.columns(2)
                     for m in range(2):
@@ -538,7 +541,7 @@ def render_tab2_dashboard(df_clean, all_years):
         
         fig_month = px.bar(monthly, x='月份', y='加油量', color='油品大類', barmode='group', color_discrete_sequence=DASH_PALETTE)
         fig_month.update_layout(xaxis=dict(tickmode='linear', tick0=1, dtick=1, title_font=dict(size=20), tickfont=dict(size=18, color='#566573')), yaxis=dict(title="加油量(公升)", title_font=dict(size=20), tickfont=dict(size=18, color='#566573')), font=dict(size=18), showlegend=True, height=500, margin=dict(t=50))
-        fig_month.update_traces(texttemplate='%{y:,.2f}', textfont=dict(color='black', size=18), textangle=0, textposition='outside') # 放大字體加千分號
+        fig_month.update_traces(texttemplate='%{y:,.2f}', textfont=dict(color='black', size=18), textangle=0, textposition='outside')
         st.plotly_chart(fig_month, use_container_width=True)
 
         st.markdown("---")
@@ -549,8 +552,7 @@ def render_tab2_dashboard(df_clean, all_years):
             top10_data = df_top.groupby('填報單位')['加油量'].sum().nlargest(10).reset_index()
             fig_top = px.bar(top10_data, x='填報單位', y='加油量', title=f"{top_fuel}用量前十大單位", color_discrete_sequence=DASH_PALETTE)
             fig_top.update_layout(xaxis=dict(categoryorder='total descending', title_font=dict(size=20), tickfont=dict(size=18, color='#566573')), yaxis=dict(title="加油量(公升)", title_font=dict(size=20), tickfont=dict(size=18, color='#566573')), font=dict(size=18), height=600, margin=dict(t=50))
-            # 千分符號、放大
-            fig_top.update_traces(texttemplate='%{y:,.2f}', selector=dict(type='bar'), width=0.5, textposition='outside', textangle=0, textfont=dict(color='black', size=18)) # 加千分號
+            fig_top.update_traces(texttemplate='%{y:,.2f}', selector=dict(type='bar'), width=0.5, textposition='outside', textangle=0, textfont=dict(color='black', size=18))
             st.plotly_chart(fig_top, use_container_width=True)
         else: st.info("無此油品數據。")
 
@@ -558,7 +560,7 @@ def render_tab2_dashboard(df_clean, all_years):
         st.subheader("📊 全校加油量單位佔比")
         
         c_bu1, c_bu2 = st.columns(2)
-        axis_font = dict(size=18, color='#424949') # 深灰、放大1號
+        axis_font = dict(size=18, color='#424949')
         
         with c_bu1:
             st.markdown('<div class="bar-chart-box">', unsafe_allow_html=True)
@@ -566,13 +568,13 @@ def render_tab2_dashboard(df_clean, all_years):
             if not df_gas.empty:
                 gas_u_data = df_gas.groupby('填報單位')['加油量'].sum().reset_index().sort_values('加油量', ascending=True)
                 total_gu = gas_u_data['加油量'].sum()
-                gas_u_data['Label'] = gas_u_data['加油量'].apply(lambda x: f"{x:,.1f} ({(x/total_gu)*100:.1f}%)") # 刪除 L
+                gas_u_data['Label'] = gas_u_data['加油量'].apply(lambda x: f"{x:,.1f} ({(x/total_gu)*100:.1f}%)")
                 
                 fig_dg = px.bar(gas_u_data, x='加油量', y='填報單位', orientation='h', title='⛽ 汽油用量分佈', color='填報單位', color_discrete_sequence=DASH_PALETTE, text='Label')
                 fig_dg.update_layout(height=550, showlegend=False, plot_bgcolor='rgba(0,0,0,0)', font=dict(size=14))
                 fig_dg.update_xaxes(title="加油量 (公升)", showgrid=True, gridcolor='#EAEDED', tickfont=axis_font, title_font=axis_font, range=[0, gas_u_data['加油量'].max() * 1.35])
                 fig_dg.update_yaxes(title="", tickfont=axis_font, title_font=axis_font)
-                fig_dg.update_traces(textposition='outside', textfont=dict(size=18, color='black')) # 放大資料標籤
+                fig_dg.update_traces(textposition='outside', textfont=dict(size=18, color='black'))
                 st.plotly_chart(fig_dg, use_container_width=True)
             else: st.info("無汽油數據")
             st.markdown('</div>', unsafe_allow_html=True)
@@ -583,13 +585,13 @@ def render_tab2_dashboard(df_clean, all_years):
             if not df_dsl.empty:
                 dsl_u_data = df_dsl.groupby('填報單位')['加油量'].sum().reset_index().sort_values('加油量', ascending=True)
                 total_du = dsl_u_data['加油量'].sum()
-                dsl_u_data['Label'] = dsl_u_data['加油量'].apply(lambda x: f"{x:,.1f} ({(x/total_du)*100:.1f}%)") # 刪除 L
+                dsl_u_data['Label'] = dsl_u_data['加油量'].apply(lambda x: f"{x:,.1f} ({(x/total_du)*100:.1f}%)")
                 
                 fig_dd = px.bar(dsl_u_data, x='加油量', y='填報單位', orientation='h', title='🚛 柴油用量分佈', color='填報單位', color_discrete_sequence=DASH_PALETTE, text='Label')
                 fig_dd.update_layout(height=550, showlegend=False, plot_bgcolor='rgba(0,0,0,0)', font=dict(size=14))
                 fig_dd.update_xaxes(title="加油量 (公升)", showgrid=True, gridcolor='#EAEDED', tickfont=axis_font, title_font=axis_font, range=[0, dsl_u_data['加油量'].max() * 1.35])
                 fig_dd.update_yaxes(title="", tickfont=axis_font, title_font=axis_font)
-                fig_dd.update_traces(textposition='outside', textfont=dict(size=18, color='black')) # 放大資料標籤
+                fig_dd.update_traces(textposition='outside', textfont=dict(size=18, color='black'))
                 st.plotly_chart(fig_dd, use_container_width=True)
             else: st.info("無柴油數據")
             st.markdown('</div>', unsafe_allow_html=True)
@@ -658,7 +660,6 @@ def render_tab4_edit(df_clean, df_records, all_years):
                 if '加油日期' in df_final.columns: df_final['加油日期'] = df_final['加油日期'].astype(str)
                 df_final = df_final[df_records.columns.tolist()].sort_values(by='加油日期', ascending=False)
 
-                # 安全回寫
                 gc_obj, _ = init_google_fuel()
                 sh_obj = gc_obj.open_by_key(SHEET_ID)
                 ws_r = sh_obj.worksheet("油料填報紀錄") if "油料填報紀錄" in [w.title for w in sh_obj.worksheets()] else sh_obj.worksheet("填報紀錄")
@@ -680,7 +681,6 @@ def render_tab5_export(df_clean, df_equip, all_years):
     df_year = df_clean[df_clean['年份'] == selected_admin_year]
     
     if not df_year.empty:
-        # 下載區塊整合於同一列
         st.markdown("##### 📊 選擇您要下載的資料類型")
         if not DOCX_READY:
             st.error("⚠️ 系統尚未安裝 `python-docx` 或 `pymupdf` 套件。請確認已將其加入 `requirements.txt` 並重新部署。")
@@ -719,7 +719,6 @@ def render_tab5_export(df_clean, df_equip, all_years):
 def main():
     st.markdown("### ⛽ 燃油設備動態管理專區")
     
-    # 變數安全隔離：在主程式內部載入資料，避免 NameError
     try:
         df_equip, df_records = load_fuel_data()
     except Exception as e:
@@ -739,7 +738,6 @@ def main():
 
     all_years = sorted(df_clean['年份'][df_clean['年份']>0].unique(), reverse=True) if not df_clean.empty else [datetime.now().year]
 
-    # Tabs (調整順序與名稱)
     admin_tabs = st.tabs([
         "📝 全校燃油設備總覽", 
         "📊 全校油料使用儀表板", 
@@ -754,7 +752,7 @@ def main():
     with admin_tabs[3]: render_tab4_edit(df_clean, df_records, all_years) 
     with admin_tabs[4]: render_tab5_export(df_clean, df_equip, all_years)
     
-    st.markdown('<div style="text-align: center; color: #BDC3C7; font-size: 0.9rem; margin-top: 50px;">管理員系統版本 V170.0 (Admin Dashboard Refine)</div>', unsafe_allow_html=True)
+    st.markdown('<div style="text-align: center; color: #BDC3C7; font-size: 0.9rem; margin-top: 50px;">管理員系統版本 V171.0 (UX Refine & Fixes)</div>', unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
