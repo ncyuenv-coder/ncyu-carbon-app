@@ -8,3 +8,4 @@ google-auth-httplib2
 streamlit-authenticator
 plotly
 openpyxl
+python-docx
