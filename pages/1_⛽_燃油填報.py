@@ -13,12 +13,13 @@ import re
 import os
 import io
 
-# 嘗試載入 python-docx (用於匯出 Word)
+# 嘗試載入 Word 與 PDF 處理套件
 try:
     from docx import Document
-    from docx.shared import Cm, Pt
+    from docx.shared import Cm
     from docx.enum.text import WD_ALIGN_PARAGRAPH
     from docx.enum.section import WD_ORIENT
+    import fitz  # PyMuPDF
     DOCX_READY = True
 except ImportError:
     DOCX_READY = False
@@ -32,7 +33,7 @@ def get_taiwan_time():
     return datetime.utcnow() + timedelta(hours=8)
 
 # ==========================================
-# 1. CSS 樣式表 (V164.0 定案)
+# 1. CSS 樣式表
 # ==========================================
 st.markdown("""
 <style>
@@ -193,9 +194,6 @@ st.markdown("""
     .privacy-box { background-color: #F8F9F9; border: 1px solid #BDC3C7; padding: 15px; border-radius: 10px; font-size: 0.9rem; color: #566573; margin-bottom: 10px; }
     .privacy-title { font-weight: bold; color: #2C3E50; margin-bottom: 5px; font-size: 1rem; }
     .dashboard-main-title { font-size: 1.8rem; font-weight: 900; text-align: center; color: #2C3E50; margin-bottom: 20px; background-color: #F8F9F9; padding: 10px; border-radius: 10px; border: 1px solid #BDC3C7; }
-    .morandi-header { background-color: #EBF5FB; color: #2E4053; padding: 15px; border-radius: 8px; border-left: 8px solid #5499C7; font-size: 1.35rem; font-weight: 700; margin-top: 25px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-    
-    /* 水平圖表框線 */
     .bar-chart-box { border: 1px solid #BDC3C7; border-radius: 12px; padding: 15px; background-color: #FFFFFF; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
 </style>
 """, unsafe_allow_html=True)
@@ -297,8 +295,8 @@ def get_drive_id(url):
     if match: return match.group(1)
     return None
 
-def download_drive_file(drive_service_obj, file_id):
-    """下載 Google Drive 檔案回傳 BytesIO"""
+def download_and_convert_drive_file(drive_service_obj, file_id):
+    """下載 Google Drive 檔案，若為 PDF 則轉換為 PNG 圖片"""
     try:
         request = drive_service_obj.files().get_media(fileId=file_id)
         fh = io.BytesIO()
@@ -306,15 +304,28 @@ def download_drive_file(drive_service_obj, file_id):
         done = False
         while done is False:
             status, done = downloader.next_chunk()
+        
         fh.seek(0)
+        # 檢查是否為 PDF 標頭
+        header = fh.read(4)
+        fh.seek(0)
+        if header == b'%PDF':
+            try:
+                doc = fitz.open(stream=fh.read(), filetype="pdf")
+                page = doc.load_page(0) # 取第一頁
+                pix = page.get_pixmap(dpi=150)
+                img_bytes = pix.tobytes("png")
+                return io.BytesIO(img_bytes)
+            except Exception as e:
+                # 若轉換失敗或未安裝套件，回傳 None
+                return None
         return fh
     except Exception as e:
         return None
 
 def export_general_docx(df_year, df_eq, drive_srv):
-    """匯出一般申報 (直式 A4，依設備分頁，2欄3列排版)"""
+    """匯出一般申報 (直式 A4，依上傳連結分組，自動排序並顯示共用狀態)"""
     doc = Document()
-    # 設定直式 A4 邊界
     for section in doc.sections:
         section.page_width = Cm(21.0)
         section.page_height = Cm(29.7)
@@ -323,61 +334,76 @@ def export_general_docx(df_year, df_eq, drive_srv):
         section.top_margin = Cm(1.5)
         section.bottom_margin = Cm(1.5)
 
-    # 篩選一般申報 (不含批次)
-    df_gen = df_year[~df_year['備註'].astype(str).str.contains('批次申報', na=False)]
+    df_gen = df_year[~df_year['備註'].astype(str).str.contains('批次申報', na=False)].copy()
     df_merged = pd.merge(df_gen, df_eq[['設備名稱備註', '設備編號']], on='設備名稱備註', how='left')
     df_merged['設備編號'] = df_merged['設備編號'].fillna('無編號')
+    df_merged['佐證資料_clean'] = df_merged['佐證資料'].fillna('無').astype(str).str.strip()
 
-    # 依照設備編號排序
-    grouped = df_merged.sort_values('設備編號').groupby(['設備編號', '設備名稱備註', '填報單位', '原燃物料名稱'], sort=False)
-
-    for name, group in grouped:
-        eq_id, eq_name, dept, fuel = name
-        yearly_vol = df_year[df_year['設備名稱備註'] == eq_name]['加油量'].sum()
-
+    valid_df = df_merged[(df_merged['佐證資料_clean'] != '') & (df_merged['佐證資料_clean'] != '無')]
+    
+    # 依照上傳的檔案連結進行分組 (能自動抓出共用的紀錄)
+    groups = valid_df.groupby('佐證資料_clean')
+    group_list = []
+    
+    for link_str, group in groups:
+        eqs = group[['設備編號', '設備名稱備註', '填報單位', '原燃物料名稱', '與其他設備共用加油單', '備註']].drop_duplicates().sort_values('設備編號')
+        min_eq_id = eqs['設備編號'].min()
+        group_list.append({
+            'min_eq_id': min_eq_id,
+            'link_str': link_str,
+            'equipments': eqs
+        })
+        
+    # 按照設備編號排序
+    group_list.sort(key=lambda x: str(x['min_eq_id']))
+    
+    for g in group_list:
         p = doc.add_paragraph()
-        p.add_run(f"填報單位：{dept}\n").bold = True
-        p.add_run(f"設備名稱：{eq_name} ({eq_id})\n").bold = True
-        p.add_run(f"燃料：{fuel} | 年度總加油量：{yearly_vol:,.1f} 公升").bold = True
-
-        # 解析該設備所有的佐證資料連結
-        links = []
-        for l_str in group['佐證資料'].dropna():
-            if str(l_str).strip() not in ["無", ""]:
-                links.extend(str(l_str).split('\n'))
-
-        # 下載圖片
+        for _, eq in g['equipments'].iterrows():
+            yearly_vol = df_year[df_year['設備名稱備註'] == eq['設備名稱備註']]['加油量'].sum()
+            run = p.add_run(f"填報單位：{eq['填報單位']} | 設備名稱：{eq['設備名稱備註']} ({eq['設備編號']})\n")
+            run.bold = True
+            p.add_run(f"燃料：{eq['原燃物料名稱']} | 年度總加油量：{yearly_vol:,.1f} 公升\n").bold = True
+            
+            # 若為共用，標示出來
+            if str(eq['與其他設備共用加油單']) == "是":
+                p.add_run(f"⚠️ 此為共用加油單 (備註：{eq['備註']})\n").bold = True
+            
+        links = g['link_str'].split('\n')
         images = []
         for link in links:
             fid = get_drive_id(link)
             if fid:
-                img_data = download_drive_file(drive_srv, fid)
+                img_data = download_and_convert_drive_file(drive_srv, fid)
                 if img_data: images.append(img_data)
-
-        # 排版：2張一列，共3列 (使用 Table)
-        if images:
+                
+        # 排版：單張置中放大，多張 2xN 排列
+        if len(images) == 1:
+            p_img = doc.add_paragraph()
+            p_img.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            try:
+                p_img.add_run().add_picture(images[0], height=Cm(11.0))
+            except: pass
+        elif len(images) > 1:
             table = doc.add_table(rows=0, cols=2)
             table.autofit = False
             row_cells = None
             for i, img in enumerate(images):
-                if i % 2 == 0:
-                    row_cells = table.add_row().cells
+                if i % 2 == 0: row_cells = table.add_row().cells
                 try:
                     p_img = row_cells[i % 2].paragraphs[0]
                     p_img.alignment = WD_ALIGN_PARAGRAPH.CENTER
-                    run = p_img.add_run()
-                    run.add_picture(img, height=Cm(7.5)) # 約 7.5cm 以符合 A4 3列
-                except:
-                    pass
+                    p_img.add_run().add_picture(img, height=Cm(7.5))
+                except: pass
         doc.add_page_break()
-    
+        
     output = io.BytesIO()
     doc.save(output)
     output.seek(0)
     return output
 
 def export_batch_docx(df_year, drive_srv):
-    """匯出油卡批次申報 (橫式 A4，依月份合併)"""
+    """匯出油卡批次申報 (橫式 A4，依月份與檔案合併)"""
     doc = Document()
     for section in doc.sections:
         section.orientation = WD_ORIENT.LANDSCAPE
@@ -393,45 +419,52 @@ def export_batch_docx(df_year, drive_srv):
 
     for m in months:
         df_m = df_batch[df_batch['月份'] == m]
-        doc.add_heading(f"{m}月 批次申報佐證資料", level=1)
-
-        # 在同一個月內，依上傳的檔案連結分組
         unique_links = df_m['佐證資料'].dropna().unique()
+        
         for link in unique_links:
             if str(link).strip() in ["無", ""]: continue
             
+            doc.add_heading(f"{m}月 批次申報佐證資料", level=1)
             group = df_m[df_m['佐證資料'] == link]
-            dept = group['填報單位'].iloc[0]
-            fuel = group['原燃物料名稱'].iloc[0]
-            eq_names = group['設備名稱備註'].unique()
-            eq_str = "、".join(eq_names)
-            yearly_vol = df_year[df_year['設備名稱備註'].isin(eq_names)]['加油量'].sum()
-
+            eqs = group[['填報單位', '設備名稱備註', '原燃物料名稱']].drop_duplicates()
+            
             p = doc.add_paragraph()
-            p.add_run(f"填報單位：{dept}\n").bold = True
-            p.add_run(f"設備名稱：{eq_str}\n").bold = True
-            p.add_run(f"燃料：{fuel} | 年度總加油量(包含設備)：{yearly_vol:,.1f} 公升").bold = True
-
-            # 批次檔案可能有多個連結(雖然通常只有一個PDF/JPG)
-            links = str(link).split('\n')
-            for l in links:
+            for _, eq in eqs.iterrows():
+                yearly_vol = df_year[df_year['設備名稱備註'] == eq['設備名稱備註']]['加油量'].sum()
+                p.add_run(f"填報單位：{eq['填報單位']} | 設備名稱：{eq['設備名稱備註']} | 燃料：{eq['原燃物料名稱']} | 年度總加油量：{yearly_vol:,.1f} 公升\n").bold = True
+            
+            links_split = str(link).split('\n')
+            images = []
+            for l in links_split:
                 fid = get_drive_id(l)
                 if fid:
-                    img_data = download_drive_file(drive_srv, fid)
-                    if img_data:
-                        try:
-                            p_img = doc.add_paragraph()
-                            p_img.alignment = WD_ALIGN_PARAGRAPH.CENTER
-                            p_img.add_run().add_picture(img_data, width=Cm(24.0)) # 橫式大圖
-                        except:
-                            pass
+                    img_data = download_and_convert_drive_file(drive_srv, fid)
+                    if img_data: images.append(img_data)
+            
+            if len(images) == 1:
+                p_img = doc.add_paragraph()
+                p_img.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                try:
+                    p_img.add_run().add_picture(images[0], width=Cm(22.0))
+                except: pass
+            elif len(images) > 1:
+                table = doc.add_table(rows=0, cols=2)
+                table.autofit = False
+                row_cells = None
+                for i, img in enumerate(images):
+                    if i % 2 == 0: row_cells = table.add_row().cells
+                    try:
+                        p_img = row_cells[i % 2].paragraphs[0]
+                        p_img.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                        p_img.add_run().add_picture(img, width=Cm(12.0))
+                    except: pass
+            
             doc.add_page_break()
 
     output = io.BytesIO()
     doc.save(output)
     output.seek(0)
     return output
-
 
 # 初始化 Session
 if 'multi_row_count' not in st.session_state: st.session_state['multi_row_count'] = 1
@@ -503,7 +536,7 @@ def render_user_interface():
                         # 新需求：個資聲明上方空一行區隔
                         st.write("") 
                         st.markdown(typo_note_simple, unsafe_allow_html=True)
-                        st.markdown("<br>", unsafe_allow_html=True) # 空一行
+                        st.markdown("<br>", unsafe_allow_html=True) 
                         st.markdown(privacy_html, unsafe_allow_html=True)
                         
                         agree_privacy = st.checkbox("我已閱讀並同意個資聲明，且確認所填資料無誤。", value=False)
@@ -516,6 +549,7 @@ def render_user_interface():
                             elif not f_file: st.error("⚠️ 請上傳加油明細佐證")
                             else:
                                 try:
+                                    # 批次申報只會在此執行一次 API 建立單一檔案，並取得唯一 file_link
                                     f_file.seek(0); file_ext = f_file.name.split('.')[-1]
                                     fuel_rep = filtered_equip.iloc[0]['原燃物料名稱'] if not filtered_equip.empty else "混合油品"
                                     clean_name = f"{selected_dept}_{target_sub_cat}_{fuel_rep}_{total_vol}.{file_ext}"
@@ -523,6 +557,7 @@ def render_user_interface():
                                     media = MediaIoBaseUpload(f_file, mimetype=f_file.type, resumable=True)
                                     file = drive_service.files().create(body=file_meta, media_body=media, fields='webViewLink').execute()
                                     file_link = file.get('webViewLink')
+                                    
                                     fleet_id = "-"; 
                                     if selected_dept == "總務處事務組": fleet_id = FLEET_CARDS.get(f"總務處事務組-{'汽油' if '汽油' in target_sub_cat else '柴油'}", "-")
                                     else: fleet_id = FLEET_CARDS.get(selected_dept, "-")
@@ -531,6 +566,7 @@ def render_user_interface():
                                     note_val = st.session_state.get("batch_note", "")
                                     for idx, vol in batch_inputs.items():
                                         row = filtered_equip.loc[idx]
+                                        # 將相同的 file_link 寫入所有該批次的設備紀錄中
                                         rows_to_append.append([current_time, selected_dept, p_name, p_ext, row['設備名稱備註'], str(row.get('校內財產編號','-')), row['原燃物料名稱'], fleet_id, str(batch_date), vol, "是", f"批次申報-{target_sub_cat} | {note_val}", file_link])
                                     if rows_to_append: ws_record.append_rows(rows_to_append); st.success(f"✅ 批次申報成功！已寫入 {len(rows_to_append)} 筆紀錄。"); st.balloons(); st.session_state['reset_counter'] += 1
                                     else: st.warning("系統錯誤：無法產生寫入資料。")
@@ -777,7 +813,7 @@ def render_user_interface():
                 else: st.warning(f"⚠️ {query_dept} 在 {query_year} 年度尚無填報紀錄。")
         else: st.info("尚無該年度資料，無法顯示儀表板。")
 
-    st.markdown('<div class="contact-footer">管理員系統版本 V165.0 (Word Export & Horizon Bar)</div>', unsafe_allow_html=True)
+    st.markdown('<div class="contact-footer">管理員系統版本 V166.0 (Word PDF Support & Auto Layout)</div>', unsafe_allow_html=True)
 
 def render_admin_dashboard():
     """ 顯示管理員後台 """
@@ -843,7 +879,7 @@ def render_admin_dashboard():
             
             # --- 新增：佐證資料匯出區塊 ---
             st.markdown("---")
-            st.markdown("##### 📁 佐證資料 Word 檔匯出 (自動抓圖)")
+            st.markdown("##### 📁 佐證資料匯出")
             if not DOCX_READY:
                 st.error("⚠️ 系統尚未安裝 `python-docx` 套件。請確認已將其加入 `requirements.txt` 並重新部署。")
             else:
@@ -1089,7 +1125,7 @@ def render_admin_dashboard():
             else: st.info("無數據")
         else: st.info("尚無該年度資料，無法顯示儀表板。")
 
-    st.markdown('<div class="contact-footer">管理員系統版本 V165.0 (Word Export & Horizon Bar)</div>', unsafe_allow_html=True)
+    st.markdown('<div class="contact-footer">管理員系統版本 V166.0 (Word PDF Support & Auto Layout)</div>', unsafe_allow_html=True)
 
 # ==========================================
 # 5. 主程式入口
