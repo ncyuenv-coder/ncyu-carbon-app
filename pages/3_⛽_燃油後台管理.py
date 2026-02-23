@@ -55,10 +55,17 @@ st.markdown("""
     div[data-baseweb="select"] > div { border-color: #BDC3C7 !important; background-color: #FFFFFF !important; }
     ul[data-baseweb="menu"] { background-color: #FFFFFF !important; }
     
-    div.stButton > button, button[kind="primary"] { background-color: var(--orange-bg) !important; color: #FFFFFF !important; border: 2px solid var(--orange-dark) !important; border-radius: 12px !important; font-size: 1.3rem !important; font-weight: 800 !important; padding: 0.7rem 1.5rem !important; box-shadow: 0 4px 6px rgba(230, 126, 34, 0.3) !important; width: 100%; }
-    div.stButton > button p { color: #FFFFFF !important; } 
-    div.stButton > button:hover { background-color: var(--orange-dark) !important; transform: translateY(-2px) !important; color: #FFFFFF !important; }
+    /* 主按鈕 (Primary) - 儲存變更等 */
+    button[kind="primary"] { background-color: var(--orange-bg) !important; color: #FFFFFF !important; border: 2px solid var(--orange-dark) !important; border-radius: 12px !important; font-size: 1.3rem !important; font-weight: 800 !important; padding: 0.7rem 1.5rem !important; box-shadow: 0 4px 6px rgba(230, 126, 34, 0.3) !important; width: 100%; }
+    button[kind="primary"] p { color: #FFFFFF !important; } 
+    button[kind="primary"]:hover { background-color: var(--orange-dark) !important; transform: translateY(-2px) !important; color: #FFFFFF !important; }
     
+    /* 次按鈕 (Secondary) - 下載按鈕、產生Word等 (莫蘭迪藍) */
+    button[kind="secondary"] { background-color: #85C1E9 !important; color: #2C3E50 !important; border: 2px solid #5DADE2 !important; border-radius: 12px !important; font-size: 1.15rem !important; font-weight: 800 !important; padding: 0.7rem 1.5rem !important; box-shadow: 0 4px 6px rgba(133, 193, 233, 0.3) !important; width: 100%; }
+    button[kind="secondary"] p { color: #2C3E50 !important; } 
+    button[kind="secondary"]:hover { background-color: #5DADE2 !important; transform: translateY(-2px) !important; color: #FFFFFF !important; }
+    button[kind="secondary"]:hover p { color: #FFFFFF !important; }
+
     button[data-baseweb="tab"] div p { font-size: 1.3rem !important; font-weight: 900 !important; color: var(--text-sub); }
     button[data-baseweb="tab"][aria-selected="true"] div p { color: #E67E22 !important; border-bottom: 3px solid #E67E22; }
     
@@ -297,41 +304,44 @@ def export_batch_docx(df_year, drive_srv):
     df_batch = df_year[df_year['備註'].astype(str).str.contains('批次申報', na=False)].copy()
     if df_batch.empty: return None
 
-    doc.add_heading(f"年度油卡批次申報佐證資料總表", level=1)
-    
-    # 彙整所有設備的資訊並條列
-    summary_df = df_batch.groupby(['填報單位', '設備名稱備註', '原燃物料名稱'])['加油量'].sum().reset_index()
-    
-    for _, row in summary_df.iterrows():
-        p = doc.add_paragraph()
-        p.add_run(f"填報單位：{row['填報單位']} | 設備名稱：{row['設備名稱備註']} | 燃料：{row['原燃物料名稱']} | 年度總加油量：{row['加油量']:,.1f} 公升").bold = True
-    
-    doc.add_page_break()
+    df_batch['批次類別'] = df_batch['備註'].apply(lambda x: str(x).split(' | ')[0] if ' | ' in str(x) else str(x))
+    groups = df_batch.groupby(['填報單位', '原燃物料名稱', '批次類別'])
 
-    # 抓取「唯一」的佐證檔案連結並依序貼上圖片
-    unique_links = df_batch['佐證資料'].dropna().unique()
-    images = []
-    for link in unique_links:
-        if str(link).strip() in ["無", ""]: continue
-        for l in str(link).split('\n'):
-            fid = get_drive_id(l)
-            if fid: images.extend(download_and_convert_drive_files(drive_srv, fid))
-    
-    if len(images) == 1:
-        p_img = doc.add_paragraph()
-        p_img.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        try: p_img.add_run().add_picture(images[0], width=Cm(22.0))
-        except: pass
-    elif len(images) > 1:
-        table = doc.add_table(rows=0, cols=2)
-        table.autofit = False
-        for i, img in enumerate(images):
-            if i % 2 == 0: row_cells = table.add_row().cells
-            try:
-                p_img = row_cells[i % 2].paragraphs[0]
-                p_img.alignment = WD_ALIGN_PARAGRAPH.CENTER
-                p_img.add_run().add_picture(img, width=Cm(12.0))
+    for name, group in groups:
+        dept, fuel, cat = name
+        eq_names = group['設備名稱備註'].unique()
+        eq_str = "、".join(eq_names)
+        yearly_vol = group['加油量'].sum()
+        
+        p = doc.add_paragraph()
+        p.add_run(f"填報單位：{dept}\n").bold = True
+        p.add_run(f"設備名稱：{eq_str}\n").bold = True
+        p.add_run(f"燃料：{fuel} | 年度總加油量：{yearly_vol:,.1f} 公升\n").bold = True
+        
+        unique_links = group['佐證資料'].dropna().unique()
+        images = []
+        for link in unique_links:
+            if str(link).strip() in ["無", ""]: continue
+            for l in str(link).split('\n'):
+                fid = get_drive_id(l)
+                if fid: images.extend(download_and_convert_drive_files(drive_srv, fid))
+        
+        if len(images) == 1:
+            p_img = doc.add_paragraph()
+            p_img.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            try: p_img.add_run().add_picture(images[0], width=Cm(22.0))
             except: pass
+        elif len(images) > 1:
+            table = doc.add_table(rows=0, cols=2)
+            table.autofit = False
+            for i, img in enumerate(images):
+                if i % 2 == 0: row_cells = table.add_row().cells
+                try:
+                    p_img = row_cells[i % 2].paragraphs[0]
+                    p_img.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                    p_img.add_run().add_picture(img, width=Cm(12.0))
+                except: pass
+        doc.add_page_break()
 
     output = io.BytesIO()
     doc.save(output)
@@ -397,7 +407,8 @@ def render_tab1_overview(df_clean, df_equip, all_years):
             if not gas_data.empty:
                 gas_data = gas_data[gas_data['加油量'] > 0].sort_values('加油量', ascending=True)
                 total_g = gas_data['加油量'].sum()
-                gas_data['Label'] = gas_data['加油量'].apply(lambda x: f"{x:,.1f} ({(x/total_g)*100:.1f}%)") # 去除L, 加上千分號
+                # 移除 L，放大字體，加千分號
+                gas_data['Label'] = gas_data['加油量'].apply(lambda x: f"{x:,.1f} ({(x/total_g)*100:.1f}%)")
                 
                 fig_g = px.bar(gas_data, x='加油量', y='統計類別', orientation='h', title='⛽ 汽油設備用油量佔比', color='統計類別', color_discrete_map=color_map, text='Label')
                 fig_g.update_layout(height=450, showlegend=False, plot_bgcolor='rgba(0,0,0,0)', font=dict(size=14))
@@ -538,6 +549,7 @@ def render_tab2_dashboard(df_clean, all_years):
             top10_data = df_top.groupby('填報單位')['加油量'].sum().nlargest(10).reset_index()
             fig_top = px.bar(top10_data, x='填報單位', y='加油量', title=f"{top_fuel}用量前十大單位", color_discrete_sequence=DASH_PALETTE)
             fig_top.update_layout(xaxis=dict(categoryorder='total descending', title_font=dict(size=20), tickfont=dict(size=18, color='#566573')), yaxis=dict(title="加油量(公升)", title_font=dict(size=20), tickfont=dict(size=18, color='#566573')), font=dict(size=18), height=600, margin=dict(t=50))
+            # 千分符號、放大
             fig_top.update_traces(texttemplate='%{y:,.2f}', selector=dict(type='bar'), width=0.5, textposition='outside', textangle=0, textfont=dict(color='black', size=18)) # 加千分號
             st.plotly_chart(fig_top, use_container_width=True)
         else: st.info("無此油品數據。")
@@ -655,8 +667,6 @@ def render_tab4_edit(df_clean, df_records, all_years):
                 
                 st.success("✅ 更新成功！資料已安全合併存檔。")
                 st.cache_data.clear()
-                time.sleep(1)
-                st.rerun()
             except Exception as e: st.error(f"更新失敗: {e}")
     else: st.info(f"{selected_admin_year} 年度尚無資料。")
 
@@ -670,36 +680,36 @@ def render_tab5_export(df_clean, df_equip, all_years):
     df_year = df_clean[df_clean['年份'] == selected_admin_year]
     
     if not df_year.empty:
-        # 下載 CSV 功能 (移至此處)
-        st.markdown("##### 📊 設備年度加油統計表下載")
-        df_stats = df_year.groupby(['設備名稱備註'])['加油量'].sum().reset_index()
-        df_export = pd.merge(df_equip, df_stats, on='設備名稱備註', how='left')
-        df_export['加油量'] = df_export['加油量'].fillna(0)
-        df_export.rename(columns={'加油量': f'{selected_admin_year}年度總加油量'}, inplace=True)
-        target_cols = ['填報單位', '設備名稱備註', '校內財產編號', '原燃物料名稱', '保管人', '設備所屬單位/部門', '設備詳細位置/樓層', '設備數量', '設備編號', f'{selected_admin_year}年度總加油量']
-        df_final_export = df_export[[c for c in target_cols if c in df_export.columns]]
-        csv_data = df_final_export.to_csv(index=False).encode('utf-8-sig')
-        st.download_button(label=f"📥 下載 {selected_admin_year} 年度設備加油統計表 (CSV)", data=csv_data, file_name=f"{selected_admin_year}_設備年度加油統計.csv", mime="text/csv")
-        
-        st.markdown("---")
-        st.markdown("##### 📁 佐證資料 Word 檔匯出")
+        # 下載區塊整合於同一列
+        st.markdown("##### 📊 選擇您要下載的資料類型")
         if not DOCX_READY:
             st.error("⚠️ 系統尚未安裝 `python-docx` 或 `pymupdf` 套件。請確認已將其加入 `requirements.txt` 並重新部署。")
         else:
-            c_w1, c_w2 = st.columns(2)
-            with c_w1:
-                if st.button("⚡ 產生【一般申報】佐證資料", use_container_width=True):
+            c1, c2, c3 = st.columns(3)
+            
+            with c1:
+                df_stats = df_year.groupby(['設備名稱備註'])['加油量'].sum().reset_index()
+                df_export = pd.merge(df_equip, df_stats, on='設備名稱備註', how='left')
+                df_export['加油量'] = df_export['加油量'].fillna(0)
+                df_export.rename(columns={'加油量': f'{selected_admin_year}年度總加油量'}, inplace=True)
+                target_cols = ['填報單位', '設備名稱備註', '校內財產編號', '原燃物料名稱', '保管人', '設備所屬單位/部門', '設備詳細位置/樓層', '設備數量', '設備編號', f'{selected_admin_year}年度總加油量']
+                df_final_export = df_export[[c for c in target_cols if c in df_export.columns]]
+                csv_data = df_final_export.to_csv(index=False).encode('utf-8-sig')
+                st.download_button(label=f"📥 下載 {selected_admin_year} 統計表(CSV)", data=csv_data, file_name=f"{selected_admin_year}_設備年度加油統計.csv", mime="text/csv", use_container_width=True)
+
+            with c2:
+                if st.button("⚡ 產生【一般申報】佐證", use_container_width=True):
                     with st.spinner("正在下載圖片並合併 (包含自動轉檔 PDF)，可能需要幾分鐘..."):
                         st.session_state['doc_general'] = export_general_docx(df_year, df_equip, drive_service)
                 if 'doc_general' in st.session_state:
-                    st.download_button("⬇️ 點擊下載【一般申報】Word", data=st.session_state['doc_general'], file_name=f"{selected_admin_year}_一般申報佐證資料.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document", use_container_width=True)
+                    st.download_button("⬇️ 下載【一般申報】Word", data=st.session_state['doc_general'], file_name=f"{selected_admin_year}_一般申報佐證資料.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document", use_container_width=True)
 
-            with c_w2:
-                if st.button("⚡ 產生【油卡批次申報】佐證資料", use_container_width=True):
+            with c3:
+                if st.button("⚡ 產生【油卡批次】佐證", use_container_width=True):
                     with st.spinner("正在下載圖片並合併 (包含自動轉檔 PDF)，可能需要幾分鐘..."):
                         st.session_state['doc_batch'] = export_batch_docx(df_year, drive_service)
                 if 'doc_batch' in st.session_state:
-                    st.download_button("⬇️ 點擊下載【油卡批次申報】Word", data=st.session_state['doc_batch'], file_name=f"{selected_admin_year}_油卡批次申報佐證資料.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document", use_container_width=True)
+                    st.download_button("⬇️ 下載【油卡批次】Word", data=st.session_state['doc_batch'], file_name=f"{selected_admin_year}_油卡批次申報佐證資料.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document", use_container_width=True)
     else: st.info(f"{selected_admin_year} 年度尚無資料。")
 
 
