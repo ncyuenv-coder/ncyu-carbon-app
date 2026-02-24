@@ -717,12 +717,11 @@ def render_tab2_dashboard(df_clean, all_years):
 @st.fragment
 def render_tab3_missing(df_clean, df_equip, all_years):
     st.markdown("<br>", unsafe_allow_html=True)
-    selected_year = st.selectbox("📅 請選擇檢視年度", all_years, index=0, key="t3_year")
-    st.markdown("---")
     
     st.subheader("⚠️ 篩選未申報名單")
     c_f1, c_f2 = st.columns(2)
-    d_start = c_f1.date_input("查詢起始日", date(selected_year, 1, 1), key="t3_d1")
+    default_year = all_years[0] if all_years else datetime.now().year
+    d_start = c_f1.date_input("查詢起始日", date(default_year, 1, 1), key="t3_d1")
     d_end = c_f2.date_input("查詢結束日", date.today(), key="t3_d2")
     
     if st.button("開始篩選"):
@@ -859,7 +858,7 @@ def main():
     with admin_tabs[3]: render_tab4_edit(df_clean, df_records, all_years) 
     with admin_tabs[4]: render_tab5_export(df_clean, df_equip, all_years)
     
-    st.markdown('<div style="text-align: center; color: #BDC3C7; font-size: 0.9rem; margin-top: 50px;">管理員系統版本 V176.0 (Advanced Deduplication Engine)</div>', unsafe_allow_html=True)
+    st.markdown('<div style="text-align: center; color: #BDC3C7; font-size: 0.9rem; margin-top: 50px;">管理員系統版本 V176.1 (Advanced Deduplication Engine)</div>', unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
