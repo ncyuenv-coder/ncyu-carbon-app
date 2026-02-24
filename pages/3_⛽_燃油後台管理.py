@@ -72,7 +72,7 @@ st.markdown("""
     [data-testid="stDataFrame"] { font-size: 1.25rem !important; }
     [data-testid="stDataFrame"] div { font-size: 1.25rem !important; }
     
-    /* --- 設備詳細卡片樣式 (完美同步前台 3:3:4 比例) --- */
+    /* --- 設備詳細卡片樣式 --- */
     .dev-card-v148 { background-color: #FFFFFF; border: 1px solid #BDC3C7; border-radius: 12px; overflow: hidden; box-shadow: 0 3px 6px rgba(0,0,0,0.08); margin-bottom: 20px; display: flex; flex-direction: column; }
     .dev-header { padding: 12px 15px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(0,0,0,0.1); }
     .dev-header-left { display: flex; flex-direction: column; gap: 3px; }
@@ -88,7 +88,7 @@ st.markdown("""
     .dev-section { text-align: center; border-right: 1px solid #F2F3F4; padding: 0 5px; }
     .dev-section:last-child { border-right: none; }
     .dev-label { font-weight: 700; color: var(--text-sub) !important; font-size: 0.9rem; margin-bottom: 3px; }
-    .dev-val { color: #333333 !important; font-weight: 800; font-size: 1.05rem; word-break: break-word; } /* 灰黑字體 */
+    .dev-val { color: #333333 !important; font-weight: 800; font-size: 1.05rem; word-break: break-word; }
     .dev-footer { padding: 10px 15px; background-color: #F8F9F9; border-top: 1px solid #E5E7E9; display: flex; justify-content: space-between; align-items: center; }
     .dev-count { font-weight: 700; color: #34495E; font-size: 0.95rem; }
     .alert-status { color: #C0392B; font-weight: 900; display: flex; align-items: center; gap: 5px; background-color: #FADBD8; padding: 4px 12px; border-radius: 12px; font-size: 0.9rem; }
@@ -115,7 +115,7 @@ st.markdown("""
     .admin-kpi-header { padding: 10px; font-size: 1.2rem; font-weight: bold; color: #2C3E50; border-bottom: 1px solid rgba(0,0,0,0.1); }
     .admin-kpi-body { padding: 20px; }
     .admin-kpi-value { font-size: 2.8rem; font-weight: 900; color: #2C3E50; margin-bottom: 5px; }
-    .admin-kpi-unit { font-size: 1.05rem; color: #333333 !important; font-weight: 700; margin-left: 5px; }
+    .admin-kpi-unit { font-size: 1.05rem; color: #333333 !important; font-weight: 700; margin-left: 5px; } 
     .admin-kpi-sub { font-size: 0.9rem; display: inline-block; padding: 2px 10px; border-radius: 15px; background-color: #F9E79F; color: #7D6608; margin-top: 5px; font-weight: bold; }
 
     /* 其他 */
@@ -126,10 +126,9 @@ st.markdown("""
     /* 儀表板大標題恢復明顯置中大字 */
     .dashboard-main-title { font-size: 2.4rem; font-weight: 900; text-align: center; color: #1A5276; margin-bottom: 25px; margin-top: 10px; letter-spacing: 2px; }
 
-    /* 單選按鈕 (Radio) - 淺藍底 + 深藍字 */
+    /* 單選按鈕 (Radio) */
     .stRadio div[role="radiogroup"] label { background-color: #D6EAF8 !important; border: 1px solid #AED6F1 !important; border-radius: 8px !important; padding: 8px 15px !important; margin-right: 10px !important; }
     .stRadio div[role="radiogroup"] label p { font-size: 1.25rem !important; font-weight: 800 !important; color: #1A5276 !important; }
-    /* 加入選中狀態 (深藍底白字)，讓目前選中的選項更明確 */
     .stRadio div[role="radiogroup"] label[data-checked="true"] { background-color: #1A5276 !important; border-color: #1A5276 !important; }
     .stRadio div[role="radiogroup"] label[data-checked="true"] p { color: #FFFFFF !important; }
 </style>
@@ -150,7 +149,6 @@ if st.session_state.get("authentication_status") is not True:
 username = st.session_state.get("username")
 name = st.session_state.get("name")
 
-# 安全管控：限制只有 admin 能夠進入
 if username != 'admin':
     st.error("🚫 權限不足：此頁面僅供系統管理員使用。")
     st.stop()
@@ -184,7 +182,6 @@ def init_google_fuel():
     gc = gspread.authorize(creds); drive = build('drive', 'v3', credentials=creds)
     return gc, drive
 
-# 安全初始化：將 drive_service 保留至全域供匯出使用
 try:
     _, drive_service = init_google_fuel()
 except Exception as e: 
@@ -193,7 +190,6 @@ except Exception as e:
 
 @st.cache_data(ttl=600)
 def load_fuel_data():
-    """ 安全隔離資料讀取 """
     gc_obj, _ = init_google_fuel()
     sh = gc_obj.open_by_key(SHEET_ID)
     try: ws_equip = sh.worksheet("設備清單") 
@@ -245,6 +241,7 @@ def download_and_convert_drive_files(drive_service_obj, file_id):
     except: return []
 
 def export_general_docx(df_year, df_eq, drive_srv):
+    """ 一般申報：加入雙軌制去重邏輯，完美解決同設備跨多筆重複圖片問題 """
     doc = Document()
     for section in doc.sections:
         section.page_width = Cm(21.0); section.page_height = Cm(29.7)
@@ -256,64 +253,103 @@ def export_general_docx(df_year, df_eq, drive_srv):
     df_merged['佐證資料_clean'] = df_merged['佐證資料'].fillna('無').astype(str).str.strip()
 
     valid_df = df_merged[(df_merged['佐證資料_clean'] != '') & (df_merged['佐證資料_clean'] != '無')]
-    groups = valid_df.groupby('佐證資料_clean')
-    group_list = []
     
-    for link_str, group in groups:
-        eqs = group[['設備編號', '設備名稱備註', '填報單位', '原燃物料名稱', '與其他設備共用加油單', '備註']].drop_duplicates().sort_values('設備編號')
-        group_list.append({'min_eq_id': eqs['設備編號'].min(), 'link_str': link_str, 'equipments': eqs})
+    # 雙軌制：區分共用與獨立申報
+    shared_mask = valid_df['與其他設備共用加油單'].astype(str).str.strip() == '是'
+    df_shared = valid_df[shared_mask]
+    df_indiv = valid_df[~shared_mask]
+
+    # Part 1: 獨立設備申報 (依設備群組，設備標題只印一次，下方收錄該設備一整年所有去重圖片)
+    if not df_indiv.empty:
+        doc.add_heading("【獨立設備申報明細】", level=1)
+        # 以設備與單位為群組
+        groups = df_indiv.groupby(['設備編號', '設備名稱備註', '填報單位', '原燃物料名稱'], dropna=False)
+        sorted_groups = sorted(groups, key=lambda x: str(x[0][0]))
         
-    group_list.sort(key=lambda x: str(x['min_eq_id']))
-    
-    seen_fids = set() # 加入去重複下載防呆機制
-    
-    for g in group_list:
-        p = doc.add_paragraph()
-        for _, eq in g['equipments'].iterrows():
-            yearly_vol = df_year[df_year['設備名稱備註'] == eq['設備名稱備註']]['加油量'].sum()
-            run = p.add_run(f"填報單位：{eq['填報單位']} | 設備名稱：{eq['設備名稱備註']} ({eq['設備編號']})\n")
-            run.bold = True
-            p.add_run(f"燃料：{eq['原燃物料名稱']} | 年度總加油量：{yearly_vol:,.1f} 公升\n").bold = True
-            if str(eq['與其他設備共用加油單']) == "是":
-                p.add_run(f"⚠️ 此為共用加油單 (備註：{eq['備註']})\n").bold = True
+        for name, group in sorted_groups:
+            eq_id, eq_name, dept, fuel = name
+            yearly_vol = df_year[df_year['設備名稱備註'] == eq_name]['加油量'].sum()
             
-        links = str(g['link_str']).split('\n')
-        images = []
-        for link in links:
-            link = link.strip()
-            # 自動忽略無效連結與替代文字
-            if not link or link in ["無", ""] or "佐證如" in link:
-                continue
-            fid = get_drive_id(link)
-            # 防呆機制：檢查是否已下載過
-            if fid and fid not in seen_fids:
-                seen_fids.add(fid)
-                images.extend(download_and_convert_drive_files(drive_srv, fid))
-                
-        if len(images) == 1:
-            p_img = doc.add_paragraph()
-            p_img.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            try: p_img.add_run().add_picture(images[0], height=Cm(11.0))
-            except: pass
-        elif len(images) > 1:
-            table = doc.add_table(rows=0, cols=2)
-            table.autofit = False
-            for i, img in enumerate(images):
-                if i % 2 == 0: row_cells = table.add_row().cells
-                try:
-                    p_img = row_cells[i % 2].paragraphs[0]
-                    p_img.alignment = WD_ALIGN_PARAGRAPH.CENTER
-                    p_img.add_run().add_picture(img, height=Cm(7.5))
+            p = doc.add_paragraph()
+            p.add_run(f"填報單位：{dept} | 設備名稱：{eq_name} ({eq_id})\n").bold = True
+            p.add_run(f"燃料：{fuel} | 年度總加油量：{yearly_vol:,.1f} 公升\n").bold = True
+            
+            # 裝載這個設備全年度所有的檔案連結 (去重複機制)
+            group_seen_fids = set()
+            images = []
+            
+            for link_str in group['佐證資料_clean']:
+                for link in str(link_str).split('\n'):
+                    link = link.strip()
+                    if not link or link in ["無", ""] or "佐證如" in link: continue
+                    fid = get_drive_id(link)
+                    if fid and fid not in group_seen_fids:
+                        group_seen_fids.add(fid)
+                        images.extend(download_and_convert_drive_files(drive_srv, fid))
+            
+            if len(images) == 1:
+                p_img = doc.add_paragraph()
+                p_img.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                try: p_img.add_run().add_picture(images[0], height=Cm(11.0))
                 except: pass
-        doc.add_page_break()
-        
+            elif len(images) > 1:
+                table = doc.add_table(rows=0, cols=2)
+                table.autofit = False
+                for i, img in enumerate(images):
+                    if i % 2 == 0: row_cells = table.add_row().cells
+                    try:
+                        p_img = row_cells[i % 2].paragraphs[0]
+                        p_img.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                        p_img.add_run().add_picture(img, height=Cm(7.5))
+                    except: pass
+            doc.add_page_break()
+
+    # Part 2: 共用加油單申報 (依連結群組，列出所有共享此單的設備，下方印出圖片)
+    if not df_shared.empty:
+        doc.add_heading("【共用加油單申報明細】", level=1)
+        groups = df_shared.groupby('佐證資料_clean', dropna=False)
+        for link_str, group in groups:
+            eqs = group[['設備編號', '設備名稱備註', '填報單位']].drop_duplicates().sort_values('設備編號')
+            
+            p = doc.add_paragraph()
+            p.add_run("⚠️ 此為共用加油單，包含以下設備：\n").bold = True
+            for _, eq in eqs.iterrows():
+                yearly_vol = df_year[df_year['設備名稱備註'] == eq['設備名稱備註']]['加油量'].sum()
+                p.add_run(f"填報單位：{eq['填報單位']} | 設備名稱：{eq['設備名稱備註']} ({eq['設備編號']}) | 年度總加油量：{yearly_vol:,.1f} 公升\n")
+            
+            group_seen_fids = set()
+            images = []
+            for link in str(link_str).split('\n'):
+                link = link.strip()
+                if not link or link in ["無", ""] or "佐證如" in link: continue
+                fid = get_drive_id(link)
+                if fid and fid not in group_seen_fids:
+                    group_seen_fids.add(fid)
+                    images.extend(download_and_convert_drive_files(drive_srv, fid))
+            
+            if len(images) == 1:
+                p_img = doc.add_paragraph()
+                p_img.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                try: p_img.add_run().add_picture(images[0], height=Cm(11.0))
+                except: pass
+            elif len(images) > 1:
+                table = doc.add_table(rows=0, cols=2)
+                table.autofit = False
+                for i, img in enumerate(images):
+                    if i % 2 == 0: row_cells = table.add_row().cells
+                    try:
+                        p_img = row_cells[i % 2].paragraphs[0]
+                        p_img.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                        p_img.add_run().add_picture(img, height=Cm(7.5))
+                    except: pass
+            doc.add_page_break()
+            
     output = io.BytesIO()
     doc.save(output)
     output.seek(0)
     return output
 
 def export_batch_docx(df_year, drive_srv):
-    """ 油卡批次：上方列出各單位彙整，最下方統一貼上明細圖檔一次，自動忽略無效連結 """
     doc = Document()
     for section in doc.sections:
         section.orientation = WD_ORIENT.LANDSCAPE
@@ -325,7 +361,6 @@ def export_batch_docx(df_year, drive_srv):
 
     doc.add_heading(f"年度油卡批次申報佐證資料總表", level=1)
     
-    # Step 1: 先全部顯示年度資料摘要
     df_batch['批次類別'] = df_batch['備註'].apply(lambda x: str(x).split(' | ')[0] if ' | ' in str(x) else str(x))
     groups = df_batch.groupby(['填報單位', '原燃物料名稱', '批次類別'])
 
@@ -340,7 +375,6 @@ def export_batch_docx(df_year, drive_srv):
         p.add_run(f"設備名稱：{eq_str}\n").bold = True
         p.add_run(f"燃料：{fuel} | 年度總加油量：{yearly_vol:,.1f} 公升\n").bold = True
     
-    # Step 2: 收集唯一且有效的佐證資料，放在最後統一顯示
     unique_links = df_batch['佐證資料'].dropna().unique()
     images = []
     seen_fids = set()
@@ -348,12 +382,9 @@ def export_batch_docx(df_year, drive_srv):
     for link_str in unique_links:
         for l in str(link_str).split('\n'):
             l = l.strip()
-            # 忽略無效字眼
             if not l or l in ["無", ""] or "佐證如" in l:
                 continue
-            
             fid = get_drive_id(l)
-            # 防止重複下載同一個檔案
             if fid and fid not in seen_fids:
                 seen_fids.add(fid)
                 images.extend(download_and_convert_drive_files(drive_srv, fid))
@@ -383,7 +414,7 @@ def export_batch_docx(df_year, drive_srv):
     return output
 
 # ==========================================
-# 5. 後台分頁 Fragment 模組 (解決跳轉)
+# 5. 後台分頁 Fragment 模組 
 # ==========================================
 
 @st.fragment
@@ -400,7 +431,6 @@ def render_tab1_overview(df_clean, df_equip, all_years):
         diesel_eq = int(df_equip[df_equip['原燃物料名稱'].str.contains('柴油', na=False)]['設備數量_num'].sum())
         
         k1, k2, k3 = st.columns(3)
-        # 加深一階莫蘭迪底色
         k1.markdown(f"""<div class="top-kpi-card" style="background-color: #D6EAF8; border-color: #85C1E9;"><div class="top-kpi-title">🚜 全校燃油設備總數</div><div class="top-kpi-value">{total_eq}</div></div>""", unsafe_allow_html=True)
         k2.markdown(f"""<div class="top-kpi-card" style="background-color: #D1F2EB; border-color: #76D7C4;"><div class="top-kpi-title">⛽ 全校汽油設備數</div><div class="top-kpi-value">{gas_eq}</div></div>""", unsafe_allow_html=True)
         k3.markdown(f"""<div class="top-kpi-card" style="background-color: #FCF3CF; border-color: #F1C40F;"><div class="top-kpi-title">🚛 全校柴油設備數</div><div class="top-kpi-value">{diesel_eq}</div></div>""", unsafe_allow_html=True)
@@ -428,12 +458,11 @@ def render_tab1_overview(df_clean, df_equip, all_years):
                         st.markdown(f"""<div class="stat-card-v119"><div class="stat-header" style="background-color: {header_color};"><span class="stat-title">{category}</span><span class="stat-count">{count_tot}</span></div><div class="stat-body-split"><div class="stat-col-left"><div class="stat-item"><span class="stat-item-label">⛽ 汽油設備數</span><span class="stat-item-val">{count_gas}</span></div><div class="stat-item"><span class="stat-item-label">🚛 柴油設備數</span><span class="stat-item-val">{count_dsl}</span></div><div class="stat-item"><span class="stat-item-label">🔥 燃油設備數</span><span class="stat-item-val">{count_tot}</span></div></div><div class="stat-col-right"><div class="stat-item"><span class="stat-item-label">汽油加油量(公升)</span><span class="stat-item-val">{gas_vol:,.1f}</span></div><div class="stat-item"><span class="stat-item-label">柴油加油量(公升)</span><span class="stat-item-val">{diesel_vol:,.1f}</span></div><div class="stat-item"><span class="stat-item-label">總計加油量(公升)</span><span class="stat-item-val">{total_vol:,.1f}</span></div></div></div></div>""", unsafe_allow_html=True)
         
         st.markdown("---")
-        # 將「油品設備用油量佔比分析」移至此處
         st.subheader("📊 油品設備用油量佔比分析")
         color_map = { "公務車輛(GV-1-)": "#B0C4DE", "乘坐式割草機(GV-2-)": "#F5CBA7", "乘坐式農用機具(GV-3-)": "#D7BDE2", "鍋爐(GS-1-)": "#E6B0AA", "發電機(GS-2-)": "#A9CCE3", "肩背或手持式割草機、吹葉機(GS-3-)": "#A3E4D7", "肩背或手持式農用機具(GS-4-)": "#F9E79F" }
         
         c_bar1, c_bar2 = st.columns(2)
-        axis_font = dict(size=18, color='#424949') # 放大1號, 深灰
+        axis_font = dict(size=18, color='#424949') 
         
         with c_bar1:
             st.markdown('<div class="bar-chart-box">', unsafe_allow_html=True)
@@ -441,14 +470,13 @@ def render_tab1_overview(df_clean, df_equip, all_years):
             if not gas_data.empty:
                 gas_data = gas_data[gas_data['加油量'] > 0].sort_values('加油量', ascending=True)
                 total_g = gas_data['加油量'].sum()
-                # 移除 L，放大字體，加千分號
                 gas_data['Label'] = gas_data['加油量'].apply(lambda x: f"{x:,.1f} ({(x/total_g)*100:.1f}%)")
                 
                 fig_g = px.bar(gas_data, x='加油量', y='統計類別', orientation='h', title='⛽ 汽油設備用油量佔比', color='統計類別', color_discrete_map=color_map, text='Label')
                 fig_g.update_layout(height=450, showlegend=False, plot_bgcolor='rgba(0,0,0,0)', font=dict(size=14))
                 fig_g.update_xaxes(title="加油量 (公升)", showgrid=True, gridcolor='#EAEDED', tickfont=axis_font, title_font=axis_font, range=[0, gas_data['加油量'].max() * 1.35])
                 fig_g.update_yaxes(title="", tickfont=axis_font, title_font=axis_font)
-                fig_g.update_traces(textposition='outside', textfont=dict(size=18, color='black')) # 放大資料標籤
+                fig_g.update_traces(textposition='outside', textfont=dict(size=18, color='black'))
                 st.plotly_chart(fig_g, use_container_width=True)
             else: st.info("無汽油數據")
             st.markdown('</div>', unsafe_allow_html=True)
@@ -459,13 +487,13 @@ def render_tab1_overview(df_clean, df_equip, all_years):
             if not dsl_data.empty:
                 dsl_data = dsl_data[dsl_data['加油量'] > 0].sort_values('加油量', ascending=True)
                 total_d = dsl_data['加油量'].sum()
-                dsl_data['Label'] = dsl_data['加油量'].apply(lambda x: f"{x:,.1f} ({(x/total_d)*100:.1f}%)") # 去除L, 加上千分號
+                dsl_data['Label'] = dsl_data['加油量'].apply(lambda x: f"{x:,.1f} ({(x/total_d)*100:.1f}%)")
                 
                 fig_d = px.bar(dsl_data, x='加油量', y='統計類別', orientation='h', title='🚛 柴油設備用油量佔比', color='統計類別', color_discrete_map=color_map, text='Label')
                 fig_d.update_layout(height=450, showlegend=False, plot_bgcolor='rgba(0,0,0,0)', font=dict(size=14))
                 fig_d.update_xaxes(title="加油量 (公升)", showgrid=True, gridcolor='#EAEDED', tickfont=axis_font, title_font=axis_font, range=[0, dsl_data['加油量'].max() * 1.35])
                 fig_d.update_yaxes(title="", tickfont=axis_font, title_font=axis_font)
-                fig_d.update_traces(textposition='outside', textfont=dict(size=18, color='black')) # 放大資料標籤
+                fig_d.update_traces(textposition='outside', textfont=dict(size=18, color='black'))
                 st.plotly_chart(fig_d, use_container_width=True)
             else: st.info("無柴油數據")
             st.markdown('</div>', unsafe_allow_html=True)
@@ -496,7 +524,6 @@ def render_tab1_overview(df_clean, df_equip, all_years):
 
                     device_list.append({ "id": d_id, "name": d_name, "vol": d_vol, "fuel": d_fuel, "unit": d_unit, "sub": d_sub, "keeper": d_keeper, "loc": d_loc, "qty": d_qty, "count": d_count, "status": status_html, "bg_col": bg_col })
                 
-                # 同步前台的 2欄橫幅、3:3:4比例
                 for k in range(0, len(device_list), 2):
                     d_cols = st.columns(2)
                     for m in range(2):
@@ -784,7 +811,7 @@ def main():
     with admin_tabs[3]: render_tab4_edit(df_clean, df_records, all_years) 
     with admin_tabs[4]: render_tab5_export(df_clean, df_equip, all_years)
     
-    st.markdown('<div style="text-align: center; color: #BDC3C7; font-size: 0.9rem; margin-top: 50px;">管理員系統版本 V175.0 (Charts & Colors Finalized)</div>', unsafe_allow_html=True)
+    st.markdown('<div style="text-align: center; color: #BDC3C7; font-size: 0.9rem; margin-top: 50px;">管理員系統版本 V175.0 (Dual-Track Deduplication Engine)</div>', unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
