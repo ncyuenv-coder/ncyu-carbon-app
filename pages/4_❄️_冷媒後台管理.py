@@ -225,9 +225,7 @@ def export_ref_docx(df_year, drive_srv):
         section.left_margin = Cm(1.5); section.right_margin = Cm(1.5); section.top_margin = Cm(1.5); section.bottom_margin = Cm(1.5)
 
     df_export = df_year.copy()
-    # 確保日期格式供排序
     df_export['維修日期'] = pd.to_datetime(df_export['維修日期']).dt.date
-    # 依冷媒種類、發票日期排序
     df_export = df_export.sort_values(by=['冷媒種類', '維修日期'])
 
     global_seen_fids = set()
@@ -399,16 +397,17 @@ def render_tab1_dashboard(df_clean_dash, all_years):
         
         if not df_c3.empty:
             st.markdown("##### 1. 冷媒種類填充量佔比")
-            # 依需求改為水平長條圖，顯示 項目、填充量、百分比
+            # 改為水平長條圖，顯示: 百分比 (填充量 公斤)
             type_kg = df_c3.groupby('冷媒顯示名稱')['冷媒填充量'].sum().reset_index()
             type_kg = type_kg[type_kg['冷媒填充量'] > 0].sort_values('冷媒填充量', ascending=True)
             if not type_kg.empty:
                 tot_kg = type_kg['冷媒填充量'].sum()
-                type_kg['Label'] = type_kg.apply(lambda x: f"{x['冷媒顯示名稱']}: {x['冷媒填充量']:.2f} ({x['冷媒填充量']/tot_kg*100:.1f}%)", axis=1)
+                type_kg['Label'] = type_kg.apply(lambda x: f"{x['冷媒填充量']/tot_kg*100:.1f}% ({x['冷媒填充量']:.2f} 公斤)", axis=1)
                 
                 fig3a = px.bar(type_kg, x='冷媒填充量', y='冷媒顯示名稱', orientation='h', text='Label', color='冷媒顯示名稱', color_discrete_sequence=MORANDI_PALETTE)
                 fig3a.update_layout(height=500, showlegend=False, xaxis_title="填充量 (公斤)", yaxis_title="", font=dict(size=16), plot_bgcolor='rgba(0,0,0,0)')
-                fig3a.update_xaxes(showgrid=True, gridcolor='#EAEDED', tickfont=dict(size=16, color='#333333'), title_font=dict(size=18, color='#333333'))
+                # X軸自動延展 35%，確保文字不會被切掉
+                fig3a.update_xaxes(showgrid=True, gridcolor='#EAEDED', tickfont=dict(size=16, color='#333333'), title_font=dict(size=18, color='#333333'), range=[0, type_kg['冷媒填充量'].max() * 1.35])
                 fig3a.update_yaxes(tickfont=dict(size=16, color='#333333'))
                 fig3a.update_traces(textposition='outside', textfont=dict(size=18, color='black'))
                 st.plotly_chart(fig3a, use_container_width=True)
@@ -512,9 +511,12 @@ def render_tab3_export(df_clean_dash, all_years):
         else:
             c1, c2 = st.columns(2)
             with c1:
-                # 下載 CSV
-                cols_to_keep = [c for c in df_year.columns if c not in ['年份', '月份', '冷媒顯示名稱']]
-                df_csv = df_year[cols_to_keep]
+                # 嚴格精簡 CSV 匯出欄位
+                target_cols = ['校區', '所屬單位', '填報單位名稱', '建築物名稱', '辦公室編號', '設備類型', '設備品牌型號', '維修日期', '冷媒種類', '冷媒填充量', '排放量(公噸)']
+                df_csv = df_year[[c for c in target_cols if c in df_year.columns]].copy()
+                if '維修日期' in df_csv.columns:
+                    df_csv['維修日期'] = pd.to_datetime(df_csv['維修日期']).dt.date
+                    
                 csv_data = df_csv.to_csv(index=False).encode('utf-8-sig')
                 st.download_button(
                     label=f"📥 年度冷媒填充統計表 (CSV)", 
