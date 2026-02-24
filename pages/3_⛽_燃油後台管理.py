@@ -11,6 +11,7 @@ import plotly.graph_objects as go
 import time
 import re
 import io
+import hashlib  # 引入指紋辨識防呆機制
 
 try:
     from docx import Document
@@ -88,7 +89,7 @@ st.markdown("""
     .dev-section { text-align: center; border-right: 1px solid #F2F3F4; padding: 0 5px; }
     .dev-section:last-child { border-right: none; }
     .dev-label { font-weight: 700; color: var(--text-sub) !important; font-size: 0.9rem; margin-bottom: 3px; }
-    .dev-val { color: #333333 !important; font-weight: 800; font-size: 1.05rem; word-break: break-word; }
+    .dev-val { color: #333333 !important; font-weight: 800; font-size: 1.05rem; word-break: break-word; } /* 灰黑字體 */
     .dev-footer { padding: 10px 15px; background-color: #F8F9F9; border-top: 1px solid #E5E7E9; display: flex; justify-content: space-between; align-items: center; }
     .dev-count { font-weight: 700; color: #34495E; font-size: 0.95rem; }
     .alert-status { color: #C0392B; font-weight: 900; display: flex; align-items: center; gap: 5px; background-color: #FADBD8; padding: 4px 12px; border-radius: 12px; font-size: 0.9rem; }
@@ -149,6 +150,7 @@ if st.session_state.get("authentication_status") is not True:
 username = st.session_state.get("username")
 name = st.session_state.get("name")
 
+# 安全管控：限制只有 admin 能夠進入
 if username != 'admin':
     st.error("🚫 權限不足：此頁面僅供系統管理員使用。")
     st.stop()
@@ -182,6 +184,7 @@ def init_google_fuel():
     gc = gspread.authorize(creds); drive = build('drive', 'v3', credentials=creds)
     return gc, drive
 
+# 安全初始化：將 drive_service 保留至全域供匯出使用
 try:
     _, drive_service = init_google_fuel()
 except Exception as e: 
@@ -241,7 +244,7 @@ def download_and_convert_drive_files(drive_service_obj, file_id):
     except: return []
 
 def export_general_docx(df_year, df_eq, drive_srv):
-    """ 一般申報：加入雙軌制去重邏輯，完美解決同設備跨多筆重複圖片問題 """
+    """ 一般申報：加入雙軌制與 MD5 圖像內容去重邏輯 """
     doc = Document()
     for section in doc.sections:
         section.page_width = Cm(21.0); section.page_height = Cm(29.7)
@@ -254,15 +257,18 @@ def export_general_docx(df_year, df_eq, drive_srv):
 
     valid_df = df_merged[(df_merged['佐證資料_clean'] != '') & (df_merged['佐證資料_clean'] != '無')]
     
-    # 雙軌制：區分共用與獨立申報
+    # 區分共用與獨立
     shared_mask = valid_df['與其他設備共用加油單'].astype(str).str.strip() == '是'
     df_shared = valid_df[shared_mask]
     df_indiv = valid_df[~shared_mask]
 
-    # Part 1: 獨立設備申報 (依設備群組，設備標題只印一次，下方收錄該設備一整年所有去重圖片)
+    # 全域防呆紀錄器 (擋網址 & 擋重複圖片)
+    global_seen_fids = set()
+    global_image_hashes = set()
+
+    # Part 1: 獨立設備申報
     if not df_indiv.empty:
         doc.add_heading("【獨立設備申報明細】", level=1)
-        # 以設備與單位為群組
         groups = df_indiv.groupby(['設備編號', '設備名稱備註', '填報單位', '原燃物料名稱'], dropna=False)
         sorted_groups = sorted(groups, key=lambda x: str(x[0][0]))
         
@@ -274,37 +280,54 @@ def export_general_docx(df_year, df_eq, drive_srv):
             p.add_run(f"填報單位：{dept} | 設備名稱：{eq_name} ({eq_id})\n").bold = True
             p.add_run(f"燃料：{fuel} | 年度總加油量：{yearly_vol:,.1f} 公升\n").bold = True
             
-            # 裝載這個設備全年度所有的檔案連結 (去重複機制)
-            group_seen_fids = set()
-            images = []
+            images_to_print = []
+            skipped_dup = False
             
             for link_str in group['佐證資料_clean']:
                 for link in str(link_str).split('\n'):
                     link = link.strip()
                     if not link or link in ["無", ""] or "佐證如" in link: continue
                     fid = get_drive_id(link)
-                    if fid and fid not in group_seen_fids:
-                        group_seen_fids.add(fid)
-                        images.extend(download_and_convert_drive_files(drive_srv, fid))
+                    if fid:
+                        if fid not in global_seen_fids:
+                            global_seen_fids.add(fid)
+                            downloaded_imgs = download_and_convert_drive_files(drive_srv, fid)
+                            for img_io in downloaded_imgs:
+                                img_io.seek(0)
+                                # 採用 MD5 驗證圖片內容是否已出現過
+                                img_hash = hashlib.md5(img_io.read()).hexdigest()
+                                img_io.seek(0)
+                                if img_hash not in global_image_hashes:
+                                    global_image_hashes.add(img_hash)
+                                    images_to_print.append(img_io)
+                                else:
+                                    skipped_dup = True
+                        else:
+                            skipped_dup = True
             
-            if len(images) == 1:
+            if len(images_to_print) == 1:
                 p_img = doc.add_paragraph()
                 p_img.alignment = WD_ALIGN_PARAGRAPH.CENTER
-                try: p_img.add_run().add_picture(images[0], height=Cm(11.0))
+                try: p_img.add_run().add_picture(images_to_print[0], height=Cm(11.0))
                 except: pass
-            elif len(images) > 1:
+            elif len(images_to_print) > 1:
                 table = doc.add_table(rows=0, cols=2)
                 table.autofit = False
-                for i, img in enumerate(images):
+                for i, img in enumerate(images_to_print):
                     if i % 2 == 0: row_cells = table.add_row().cells
                     try:
                         p_img = row_cells[i % 2].paragraphs[0]
                         p_img.alignment = WD_ALIGN_PARAGRAPH.CENTER
                         p_img.add_run().add_picture(img, height=Cm(7.5))
                     except: pass
+            
+            if skipped_dup and not images_to_print:
+                p_dup = doc.add_paragraph()
+                p_dup.add_run("*(此設備之佐證資料與前方共用或已顯示過，為節省篇幅自動省略)*").italic = True
+                
             doc.add_page_break()
 
-    # Part 2: 共用加油單申報 (依連結群組，列出所有共享此單的設備，下方印出圖片)
+    # Part 2: 共用加油單申報
     if not df_shared.empty:
         doc.add_heading("【共用加油單申報明細】", level=1)
         groups = df_shared.groupby('佐證資料_clean', dropna=False)
@@ -317,31 +340,48 @@ def export_general_docx(df_year, df_eq, drive_srv):
                 yearly_vol = df_year[df_year['設備名稱備註'] == eq['設備名稱備註']]['加油量'].sum()
                 p.add_run(f"填報單位：{eq['填報單位']} | 設備名稱：{eq['設備名稱備註']} ({eq['設備編號']}) | 年度總加油量：{yearly_vol:,.1f} 公升\n")
             
-            group_seen_fids = set()
-            images = []
+            images_to_print = []
+            skipped_dup = False
             for link in str(link_str).split('\n'):
                 link = link.strip()
                 if not link or link in ["無", ""] or "佐證如" in link: continue
                 fid = get_drive_id(link)
-                if fid and fid not in group_seen_fids:
-                    group_seen_fids.add(fid)
-                    images.extend(download_and_convert_drive_files(drive_srv, fid))
+                if fid:
+                    if fid not in global_seen_fids:
+                        global_seen_fids.add(fid)
+                        downloaded_imgs = download_and_convert_drive_files(drive_srv, fid)
+                        for img_io in downloaded_imgs:
+                            img_io.seek(0)
+                            img_hash = hashlib.md5(img_io.read()).hexdigest()
+                            img_io.seek(0)
+                            if img_hash not in global_image_hashes:
+                                global_image_hashes.add(img_hash)
+                                images_to_print.append(img_io)
+                            else:
+                                skipped_dup = True
+                    else:
+                        skipped_dup = True
             
-            if len(images) == 1:
+            if len(images_to_print) == 1:
                 p_img = doc.add_paragraph()
                 p_img.alignment = WD_ALIGN_PARAGRAPH.CENTER
-                try: p_img.add_run().add_picture(images[0], height=Cm(11.0))
+                try: p_img.add_run().add_picture(images_to_print[0], height=Cm(11.0))
                 except: pass
-            elif len(images) > 1:
+            elif len(images_to_print) > 1:
                 table = doc.add_table(rows=0, cols=2)
                 table.autofit = False
-                for i, img in enumerate(images):
+                for i, img in enumerate(images_to_print):
                     if i % 2 == 0: row_cells = table.add_row().cells
                     try:
                         p_img = row_cells[i % 2].paragraphs[0]
                         p_img.alignment = WD_ALIGN_PARAGRAPH.CENTER
                         p_img.add_run().add_picture(img, height=Cm(7.5))
                     except: pass
+                    
+            if skipped_dup and not images_to_print:
+                p_dup = doc.add_paragraph()
+                p_dup.add_run("*(此佐證資料與前方共用或已顯示過，為節省篇幅自動省略)*").italic = True
+
             doc.add_page_break()
             
     output = io.BytesIO()
@@ -350,6 +390,7 @@ def export_general_docx(df_year, df_eq, drive_srv):
     return output
 
 def export_batch_docx(df_year, drive_srv):
+    """ 油卡批次：同樣套用 MD5 內容防呆機制 """
     doc = Document()
     for section in doc.sections:
         section.orientation = WD_ORIENT.LANDSCAPE
@@ -376,31 +417,38 @@ def export_batch_docx(df_year, drive_srv):
         p.add_run(f"燃料：{fuel} | 年度總加油量：{yearly_vol:,.1f} 公升\n").bold = True
     
     unique_links = df_batch['佐證資料'].dropna().unique()
-    images = []
-    seen_fids = set()
+    images_to_print = []
+    global_seen_fids = set()
+    global_image_hashes = set()
     
     for link_str in unique_links:
         for l in str(link_str).split('\n'):
             l = l.strip()
-            if not l or l in ["無", ""] or "佐證如" in l:
-                continue
+            if not l or l in ["無", ""] or "佐證如" in l: continue
             fid = get_drive_id(l)
-            if fid and fid not in seen_fids:
-                seen_fids.add(fid)
-                images.extend(download_and_convert_drive_files(drive_srv, fid))
+            if fid and fid not in global_seen_fids:
+                global_seen_fids.add(fid)
+                downloaded_imgs = download_and_convert_drive_files(drive_srv, fid)
+                for img_io in downloaded_imgs:
+                    img_io.seek(0)
+                    img_hash = hashlib.md5(img_io.read()).hexdigest()
+                    img_io.seek(0)
+                    if img_hash not in global_image_hashes:
+                        global_image_hashes.add(img_hash)
+                        images_to_print.append(img_io)
     
-    if images:
+    if images_to_print:
         doc.add_page_break()
         doc.add_heading("佐證資料明細", level=2)
-        if len(images) == 1:
+        if len(images_to_print) == 1:
             p_img = doc.add_paragraph()
             p_img.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            try: p_img.add_run().add_picture(images[0], width=Cm(22.0))
+            try: p_img.add_run().add_picture(images_to_print[0], width=Cm(22.0))
             except: pass
-        elif len(images) > 1:
+        elif len(images_to_print) > 1:
             table = doc.add_table(rows=0, cols=2)
             table.autofit = False
-            for i, img in enumerate(images):
+            for i, img in enumerate(images_to_print):
                 if i % 2 == 0: row_cells = table.add_row().cells
                 try:
                     p_img = row_cells[i % 2].paragraphs[0]
@@ -758,14 +806,14 @@ def render_tab5_export(df_clean, df_equip, all_years):
 
             with c2:
                 if st.button("⚡ 產生【一般申報】佐證", use_container_width=True):
-                    with st.spinner("正在下載圖片並合併 (包含自動轉檔 PDF)，可能需要幾分鐘..."):
+                    with st.spinner("正在下載圖片並合併 (自動進行 MD5 圖像去重)，可能需要幾分鐘..."):
                         st.session_state['doc_general'] = export_general_docx(df_year, df_equip, drive_service)
                 if 'doc_general' in st.session_state:
                     st.download_button("⬇️ 下載【一般申報】Word", data=st.session_state['doc_general'], file_name=f"{selected_admin_year}_一般申報佐證資料.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document", use_container_width=True)
 
             with c3:
                 if st.button("⚡ 產生【油卡批次】佐證", use_container_width=True):
-                    with st.spinner("正在下載圖片並合併 (包含自動轉檔 PDF)，可能需要幾分鐘..."):
+                    with st.spinner("正在下載圖片並合併 (自動進行 MD5 圖像去重)，可能需要幾分鐘..."):
                         st.session_state['doc_batch'] = export_batch_docx(df_year, drive_service)
                 if 'doc_batch' in st.session_state:
                     st.download_button("⬇️ 下載【油卡批次】Word", data=st.session_state['doc_batch'], file_name=f"{selected_admin_year}_油卡批次申報佐證資料.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document", use_container_width=True)
@@ -811,7 +859,7 @@ def main():
     with admin_tabs[3]: render_tab4_edit(df_clean, df_records, all_years) 
     with admin_tabs[4]: render_tab5_export(df_clean, df_equip, all_years)
     
-    st.markdown('<div style="text-align: center; color: #BDC3C7; font-size: 0.9rem; margin-top: 50px;">管理員系統版本 V175.0 (Dual-Track Deduplication Engine)</div>', unsafe_allow_html=True)
+    st.markdown('<div style="text-align: center; color: #BDC3C7; font-size: 0.9rem; margin-top: 50px;">管理員系統版本 V176.0 (Advanced Deduplication Engine)</div>', unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
