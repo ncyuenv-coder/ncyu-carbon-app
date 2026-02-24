@@ -67,11 +67,12 @@ st.markdown("""
     div[data-baseweb="select"] > div { border-color: #BDC3C7 !important; background-color: #FFFFFF !important; }
     ul[data-baseweb="menu"] { background-color: #FFFFFF !important; }
     
-    /* 針對所有預設輸入欄位標題，放大字體並加粗 */
+    /* 針對所有預設輸入欄位標題，放大字體並加粗增加份量感 */
     div[data-testid="stWidgetLabel"] p {
-        font-size: 1.15rem !important;
-        font-weight: 800 !important;
+        font-size: 1.2rem !important;
+        font-weight: 900 !important;
         color: #2C3E50 !important;
+        letter-spacing: 0.5px !important;
     }
 
     div.stButton > button, button[kind="primary"], [data-testid="stFormSubmitButton"] > button {
@@ -366,16 +367,16 @@ def render_user_interface():
         sel_rtype = c11.selectbox("冷媒種類", r_types, index=None, placeholder="請選擇...", key=f"u_rtype_{fid}")
         
         # 標題精細客製：粗體與莫蘭迪紅色 (公斤)
-        st.markdown("<div style='font-size: 1.15rem; font-weight: 800; color: #2C3E50; margin-bottom: 5px;'>冷媒填充量 <span style='color: #C0392B; font-weight: 900;'>(公斤)</span></div>", unsafe_allow_html=True)
+        st.markdown("<div style='font-size: 1.2rem; font-weight: 900; color: #2C3E50; margin-bottom: 5px; letter-spacing: 0.5px;'>冷媒填充量 <span style='color: #C0392B; font-weight: 900;'>(公斤)</span></div>", unsafe_allow_html=True)
         amount = st.number_input("冷媒填充量", min_value=0.0, step=0.1, format="%.2f", key=f"u_amt_{fid}", label_visibility="collapsed")
         
         # 標題精細客製：粗體上傳提示
-        st.markdown("<div style='font-size: 1.15rem; font-weight: 800; color: #2C3E50; margin-bottom: 5px; margin-top: 15px;'>請上傳冷媒填充單據佐證資料</div>", unsafe_allow_html=True)
+        st.markdown("<div style='font-size: 1.2rem; font-weight: 900; color: #2C3E50; margin-bottom: 5px; margin-top: 15px; letter-spacing: 0.5px;'>請上傳冷媒填充單據佐證資料</div>", unsafe_allow_html=True)
         f_file = st.file_uploader("上傳佐證 (必填)", type=['pdf', 'jpg', 'png'], label_visibility="collapsed", key=f"u_file_{fid}")
         
         st.markdown("---")
         # 標題精細客製：放大粗體的備註
-        st.markdown("<div style='font-size: 1.15rem; font-weight: 800; color: #2C3E50; margin-bottom: 5px;'>備註</div>", unsafe_allow_html=True)
+        st.markdown("<div style='font-size: 1.2rem; font-weight: 900; color: #2C3E50; margin-bottom: 5px; letter-spacing: 0.5px;'>備註</div>", unsafe_allow_html=True)
         note = st.text_input("備註", placeholder="備註 (選填)", key=f"u_note_{fid}", label_visibility="collapsed")
         
         st.markdown('<div class="correction-note">如有資料誤繕情形，請重新登錄1次資訊，並於備註欄填寫：「前筆資料誤繕，請刪除。」，管理單位將協助刪除誤打資訊</div>', unsafe_allow_html=True)
@@ -455,9 +456,10 @@ def render_user_interface():
                     for _, row in type_sums.iterrows():
                         weight_str += f"<div>• {row['冷媒種類']}：{row['冷媒填充量']:.2f} kg</div>"
 
+                    # 碳排放量計算轉換為「公噸」
                     total_emission = df_view['排放量(kgCO2e)'].sum()
+                    total_emission_ton = total_emission / 1000.0
                     
-                    # 生成供截圖使用的 HTML 結構，碳排字體為莫蘭迪橘色 #D35400
                     card_html_content = f"""
                     <div class="horizontal-card" id="capture-card">
                         <div class="card-left">{left_html}</div>
@@ -467,13 +469,13 @@ def render_user_interface():
                             <div class="info-row"><span class="info-icon">🏢</span><span class="info-label">建築物</span><span class="info-value">{build_str}</span></div>
                             <div class="info-row"><span class="info-icon">❄️</span><span class="info-label">冷媒填充資訊</span><span class="info-value">{fill_info_str}</span></div>
                             <div class="info-row"><span class="info-icon">⚖️</span><span class="info-label">重量統計</span><span class="info-value">{weight_str}</span></div>
-                            <div class="info-row"><span class="info-icon">🌍</span><span class="info-label">碳排放量</span><span class="info-value" style="color:#D35400;font-size:1.8rem;font-weight:900;">{total_emission:,.4f} <span style="font-size:1rem;">kgCO2e</span></span></div>
+                            <div class="info-row"><span class="info-icon">🌍</span><span class="info-label">碳排放量</span><span class="info-value" style="color:#D35400;font-size:1.8rem;font-weight:900;">{total_emission_ton:,.4f} <span style="font-size:1.1rem;">公噸CO<sub>2</sub>e</span></span></div>
                         </div>
                     </div>
                     """
                     st.markdown("---")
                     
-                    # 導入前端截圖模組，並於內部強制套用圓體設定，確保截圖與顯示風格一致
+                    # 取消滾動條，並將區塊高度大幅拉長至 650，確保完整呈現
                     html_snippet = f"""
                     <!DOCTYPE html>
                     <html>
@@ -521,8 +523,8 @@ def render_user_interface():
                     </body>
                     </html>
                     """
-                    # 使用 components 渲染出資訊卡與下載按鈕
-                    components.html(html_snippet, height=450, scrolling=True)
+                    # 關閉 scrolling 並設定足夠高度
+                    components.html(html_snippet, height=650, scrolling=False)
                     
                     st.markdown("<br>", unsafe_allow_html=True)
                     st.subheader("📋 單位申報明細")
