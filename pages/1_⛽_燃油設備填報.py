@@ -305,7 +305,15 @@ def render_user_interface():
                         
                         st.markdown("---")
                         st.markdown("<div style='color: #1A5276; font-size: 1.05rem; font-weight: bold; margin-bottom: 10px;'>📂 上傳中油加油明細 (只需一份)</div>", unsafe_allow_html=True)
-                        f_file = st.file_uploader("支援 PDF/JPG/PNG", type=['pdf', 'jpg', 'png', 'jpeg'], label_visibility="collapsed")
+                        
+                        is_proof_shared = False
+                        if selected_dept != "總務處事務組":
+                            is_proof_shared = st.checkbox("☑️ 佐證如總務處事務組中油明細 (勾選此項免上傳檔案)")
+                            
+                        if not is_proof_shared:
+                            f_file = st.file_uploader("支援 PDF/JPG/PNG", type=['pdf', 'jpg', 'png', 'jpeg'], label_visibility="collapsed")
+                        else:
+                            f_file = None
                         
                         st.markdown("<div style='color: #1A5276; font-size: 1.05rem; font-weight: bold; margin-top: 15px; margin-bottom: 5px;'>📝 備註</div>", unsafe_allow_html=True)
                         st.text_input("備註", key="batch_note", placeholder="請輸入備註內容...", label_visibility="collapsed")
@@ -322,16 +330,19 @@ def render_user_interface():
                             total_vol = sum(batch_inputs.values())
                             if not agree_privacy: st.error("❌ 請勾選同意聲明")
                             elif not p_name or not p_ext: st.warning("⚠️ 姓名與分機為必填")
-                            elif not f_file: st.error("⚠️ 請上傳加油明細佐證")
+                            elif not is_proof_shared and not f_file: st.error("⚠️ 請上傳加油明細佐證")
                             else:
                                 try:
-                                    f_file.seek(0); file_ext = f_file.name.split('.')[-1]
-                                    fuel_rep = filtered_equip.iloc[0]['原燃物料名稱'] if not filtered_equip.empty else "混合油品"
-                                    clean_name = f"{selected_dept}_{target_sub_cat}_{fuel_rep}_{total_vol}.{file_ext}"
-                                    file_meta = {'name': clean_name, 'parents': [DRIVE_FOLDER_ID]}
-                                    media = MediaIoBaseUpload(f_file, mimetype=f_file.type, resumable=True)
-                                    file = drive_service.files().create(body=file_meta, media_body=media, fields='webViewLink').execute()
-                                    file_link = file.get('webViewLink')
+                                    if is_proof_shared:
+                                        file_link = "佐證如總務處事務組中油明細"
+                                    else:
+                                        f_file.seek(0); file_ext = f_file.name.split('.')[-1]
+                                        fuel_rep = filtered_equip.iloc[0]['原燃物料名稱'] if not filtered_equip.empty else "混合油品"
+                                        clean_name = f"{selected_dept}_{target_sub_cat}_{fuel_rep}_{total_vol}.{file_ext}"
+                                        file_meta = {'name': clean_name, 'parents': [DRIVE_FOLDER_ID]}
+                                        media = MediaIoBaseUpload(f_file, mimetype=f_file.type, resumable=True)
+                                        file = drive_service.files().create(body=file_meta, media_body=media, fields='webViewLink').execute()
+                                        file_link = file.get('webViewLink')
                                     
                                     fleet_id = "-"; 
                                     if selected_dept == "總務處事務組": fleet_id = FLEET_CARDS.get(f"總務處事務組-{'汽油' if '汽油' in target_sub_cat else '柴油'}", "-")
