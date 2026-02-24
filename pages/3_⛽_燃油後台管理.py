@@ -115,7 +115,7 @@ st.markdown("""
     .admin-kpi-header { padding: 10px; font-size: 1.2rem; font-weight: bold; color: #2C3E50; border-bottom: 1px solid rgba(0,0,0,0.1); }
     .admin-kpi-body { padding: 20px; }
     .admin-kpi-value { font-size: 2.8rem; font-weight: 900; color: #2C3E50; margin-bottom: 5px; }
-    .admin-kpi-unit { font-size: 1.05rem; color: #333333 !important; font-weight: 700; margin-left: 5px; } /* 深灰色字體 */
+    .admin-kpi-unit { font-size: 1.05rem; color: #333333 !important; font-weight: 700; margin-left: 5px; }
     .admin-kpi-sub { font-size: 0.9rem; display: inline-block; padding: 2px 10px; border-radius: 15px; background-color: #F9E79F; color: #7D6608; margin-top: 5px; font-weight: bold; }
 
     /* 其他 */
@@ -265,6 +265,8 @@ def export_general_docx(df_year, df_eq, drive_srv):
         
     group_list.sort(key=lambda x: str(x['min_eq_id']))
     
+    seen_fids = set() # 加入去重複下載防呆機制
+    
     for g in group_list:
         p = doc.add_paragraph()
         for _, eq in g['equipments'].iterrows():
@@ -275,11 +277,18 @@ def export_general_docx(df_year, df_eq, drive_srv):
             if str(eq['與其他設備共用加油單']) == "是":
                 p.add_run(f"⚠️ 此為共用加油單 (備註：{eq['備註']})\n").bold = True
             
-        links = g['link_str'].split('\n')
+        links = str(g['link_str']).split('\n')
         images = []
         for link in links:
+            link = link.strip()
+            # 自動忽略無效連結與替代文字
+            if not link or link in ["無", ""] or "佐證如" in link:
+                continue
             fid = get_drive_id(link)
-            if fid: images.extend(download_and_convert_drive_files(drive_srv, fid))
+            # 防呆機制：檢查是否已下載過
+            if fid and fid not in seen_fids:
+                seen_fids.add(fid)
+                images.extend(download_and_convert_drive_files(drive_srv, fid))
                 
         if len(images) == 1:
             p_img = doc.add_paragraph()
@@ -419,11 +428,12 @@ def render_tab1_overview(df_clean, df_equip, all_years):
                         st.markdown(f"""<div class="stat-card-v119"><div class="stat-header" style="background-color: {header_color};"><span class="stat-title">{category}</span><span class="stat-count">{count_tot}</span></div><div class="stat-body-split"><div class="stat-col-left"><div class="stat-item"><span class="stat-item-label">⛽ 汽油設備數</span><span class="stat-item-val">{count_gas}</span></div><div class="stat-item"><span class="stat-item-label">🚛 柴油設備數</span><span class="stat-item-val">{count_dsl}</span></div><div class="stat-item"><span class="stat-item-label">🔥 燃油設備數</span><span class="stat-item-val">{count_tot}</span></div></div><div class="stat-col-right"><div class="stat-item"><span class="stat-item-label">汽油加油量(公升)</span><span class="stat-item-val">{gas_vol:,.1f}</span></div><div class="stat-item"><span class="stat-item-label">柴油加油量(公升)</span><span class="stat-item-val">{diesel_vol:,.1f}</span></div><div class="stat-item"><span class="stat-item-label">總計加油量(公升)</span><span class="stat-item-val">{total_vol:,.1f}</span></div></div></div></div>""", unsafe_allow_html=True)
         
         st.markdown("---")
+        # 將「油品設備用油量佔比分析」移至此處
         st.subheader("📊 油品設備用油量佔比分析")
         color_map = { "公務車輛(GV-1-)": "#B0C4DE", "乘坐式割草機(GV-2-)": "#F5CBA7", "乘坐式農用機具(GV-3-)": "#D7BDE2", "鍋爐(GS-1-)": "#E6B0AA", "發電機(GS-2-)": "#A9CCE3", "肩背或手持式割草機、吹葉機(GS-3-)": "#A3E4D7", "肩背或手持式農用機具(GS-4-)": "#F9E79F" }
         
         c_bar1, c_bar2 = st.columns(2)
-        axis_font = dict(size=18, color='#424949')
+        axis_font = dict(size=18, color='#424949') # 放大1號, 深灰
         
         with c_bar1:
             st.markdown('<div class="bar-chart-box">', unsafe_allow_html=True)
@@ -431,13 +441,14 @@ def render_tab1_overview(df_clean, df_equip, all_years):
             if not gas_data.empty:
                 gas_data = gas_data[gas_data['加油量'] > 0].sort_values('加油量', ascending=True)
                 total_g = gas_data['加油量'].sum()
+                # 移除 L，放大字體，加千分號
                 gas_data['Label'] = gas_data['加油量'].apply(lambda x: f"{x:,.1f} ({(x/total_g)*100:.1f}%)")
                 
                 fig_g = px.bar(gas_data, x='加油量', y='統計類別', orientation='h', title='⛽ 汽油設備用油量佔比', color='統計類別', color_discrete_map=color_map, text='Label')
                 fig_g.update_layout(height=450, showlegend=False, plot_bgcolor='rgba(0,0,0,0)', font=dict(size=14))
                 fig_g.update_xaxes(title="加油量 (公升)", showgrid=True, gridcolor='#EAEDED', tickfont=axis_font, title_font=axis_font, range=[0, gas_data['加油量'].max() * 1.35])
                 fig_g.update_yaxes(title="", tickfont=axis_font, title_font=axis_font)
-                fig_g.update_traces(textposition='outside', textfont=dict(size=18, color='black'))
+                fig_g.update_traces(textposition='outside', textfont=dict(size=18, color='black')) # 放大資料標籤
                 st.plotly_chart(fig_g, use_container_width=True)
             else: st.info("無汽油數據")
             st.markdown('</div>', unsafe_allow_html=True)
@@ -448,13 +459,13 @@ def render_tab1_overview(df_clean, df_equip, all_years):
             if not dsl_data.empty:
                 dsl_data = dsl_data[dsl_data['加油量'] > 0].sort_values('加油量', ascending=True)
                 total_d = dsl_data['加油量'].sum()
-                dsl_data['Label'] = dsl_data['加油量'].apply(lambda x: f"{x:,.1f} ({(x/total_d)*100:.1f}%)")
+                dsl_data['Label'] = dsl_data['加油量'].apply(lambda x: f"{x:,.1f} ({(x/total_d)*100:.1f}%)") # 去除L, 加上千分號
                 
                 fig_d = px.bar(dsl_data, x='加油量', y='統計類別', orientation='h', title='🚛 柴油設備用油量佔比', color='統計類別', color_discrete_map=color_map, text='Label')
                 fig_d.update_layout(height=450, showlegend=False, plot_bgcolor='rgba(0,0,0,0)', font=dict(size=14))
                 fig_d.update_xaxes(title="加油量 (公升)", showgrid=True, gridcolor='#EAEDED', tickfont=axis_font, title_font=axis_font, range=[0, dsl_data['加油量'].max() * 1.35])
                 fig_d.update_yaxes(title="", tickfont=axis_font, title_font=axis_font)
-                fig_d.update_traces(textposition='outside', textfont=dict(size=18, color='black'))
+                fig_d.update_traces(textposition='outside', textfont=dict(size=18, color='black')) # 放大資料標籤
                 st.plotly_chart(fig_d, use_container_width=True)
             else: st.info("無柴油數據")
             st.markdown('</div>', unsafe_allow_html=True)
@@ -485,6 +496,7 @@ def render_tab1_overview(df_clean, df_equip, all_years):
 
                     device_list.append({ "id": d_id, "name": d_name, "vol": d_vol, "fuel": d_fuel, "unit": d_unit, "sub": d_sub, "keeper": d_keeper, "loc": d_loc, "qty": d_qty, "count": d_count, "status": status_html, "bg_col": bg_col })
                 
+                # 同步前台的 2欄橫幅、3:3:4比例
                 for k in range(0, len(device_list), 2):
                     d_cols = st.columns(2)
                     for m in range(2):
@@ -772,7 +784,7 @@ def main():
     with admin_tabs[3]: render_tab4_edit(df_clean, df_records, all_years) 
     with admin_tabs[4]: render_tab5_export(df_clean, df_equip, all_years)
     
-    st.markdown('<div style="text-align: center; color: #BDC3C7; font-size: 0.9rem; margin-top: 50px;">管理員系統版本 V173.0 (Color Refine & Single Image Print)</div>', unsafe_allow_html=True)
+    st.markdown('<div style="text-align: center; color: #BDC3C7; font-size: 0.9rem; margin-top: 50px;">管理員系統版本 V175.0 (Charts & Colors Finalized)</div>', unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
