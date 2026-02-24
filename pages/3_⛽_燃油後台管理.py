@@ -304,6 +304,7 @@ def export_general_docx(df_year, df_eq, drive_srv):
     return output
 
 def export_batch_docx(df_year, drive_srv):
+    """ 油卡批次：上方列出各單位彙整，最下方統一貼上明細圖檔一次，自動忽略無效連結 """
     doc = Document()
     for section in doc.sections:
         section.orientation = WD_ORIENT.LANDSCAPE
@@ -313,6 +314,9 @@ def export_batch_docx(df_year, drive_srv):
     df_batch = df_year[df_year['備註'].astype(str).str.contains('批次申報', na=False)].copy()
     if df_batch.empty: return None
 
+    doc.add_heading(f"年度油卡批次申報佐證資料總表", level=1)
+    
+    # Step 1: 先全部顯示年度資料摘要
     df_batch['批次類別'] = df_batch['備註'].apply(lambda x: str(x).split(' | ')[0] if ' | ' in str(x) else str(x))
     groups = df_batch.groupby(['填報單位', '原燃物料名稱', '批次類別'])
 
@@ -326,15 +330,28 @@ def export_batch_docx(df_year, drive_srv):
         p.add_run(f"填報單位：{dept}\n").bold = True
         p.add_run(f"設備名稱：{eq_str}\n").bold = True
         p.add_run(f"燃料：{fuel} | 年度總加油量：{yearly_vol:,.1f} 公升\n").bold = True
-        
-        unique_links = group['佐證資料'].dropna().unique()
-        images = []
-        for link in unique_links:
-            if str(link).strip() in ["無", ""]: continue
-            for l in str(link).split('\n'):
-                fid = get_drive_id(l)
-                if fid: images.extend(download_and_convert_drive_files(drive_srv, fid))
-        
+    
+    # Step 2: 收集唯一且有效的佐證資料，放在最後統一顯示
+    unique_links = df_batch['佐證資料'].dropna().unique()
+    images = []
+    seen_fids = set()
+    
+    for link_str in unique_links:
+        for l in str(link_str).split('\n'):
+            l = l.strip()
+            # 忽略無效字眼
+            if not l or l in ["無", ""] or "佐證如" in l:
+                continue
+            
+            fid = get_drive_id(l)
+            # 防止重複下載同一個檔案
+            if fid and fid not in seen_fids:
+                seen_fids.add(fid)
+                images.extend(download_and_convert_drive_files(drive_srv, fid))
+    
+    if images:
+        doc.add_page_break()
+        doc.add_heading("佐證資料明細", level=2)
         if len(images) == 1:
             p_img = doc.add_paragraph()
             p_img.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -350,7 +367,6 @@ def export_batch_docx(df_year, drive_srv):
                     p_img.alignment = WD_ALIGN_PARAGRAPH.CENTER
                     p_img.add_run().add_picture(img, width=Cm(12.0))
                 except: pass
-        doc.add_page_break()
 
     output = io.BytesIO()
     doc.save(output)
@@ -375,6 +391,7 @@ def render_tab1_overview(df_clean, df_equip, all_years):
         diesel_eq = int(df_equip[df_equip['原燃物料名稱'].str.contains('柴油', na=False)]['設備數量_num'].sum())
         
         k1, k2, k3 = st.columns(3)
+        # 加深一階莫蘭迪底色
         k1.markdown(f"""<div class="top-kpi-card" style="background-color: #D6EAF8; border-color: #85C1E9;"><div class="top-kpi-title">🚜 全校燃油設備總數</div><div class="top-kpi-value">{total_eq}</div></div>""", unsafe_allow_html=True)
         k2.markdown(f"""<div class="top-kpi-card" style="background-color: #D1F2EB; border-color: #76D7C4;"><div class="top-kpi-title">⛽ 全校汽油設備數</div><div class="top-kpi-value">{gas_eq}</div></div>""", unsafe_allow_html=True)
         k3.markdown(f"""<div class="top-kpi-card" style="background-color: #FCF3CF; border-color: #F1C40F;"><div class="top-kpi-title">🚛 全校柴油設備數</div><div class="top-kpi-value">{diesel_eq}</div></div>""", unsafe_allow_html=True)
@@ -552,8 +569,8 @@ def render_tab2_dashboard(df_clean, all_years):
         df_top = df_year[df_year['油品大類'] == top_fuel]
         if not df_top.empty:
             top10_data = df_top.groupby('填報單位')['加油量'].sum().nlargest(10).reset_index()
-            # 將前十大柱狀圖顏色改為莫蘭迪深灰藍
-            fig_top = px.bar(top10_data, x='填報單位', y='加油量', title=f"{top_fuel}用量前十大單位", color_discrete_sequence=['#5D6D7E'])
+            # 柱狀圖顏色改成淺藍色 #85C1E9
+            fig_top = px.bar(top10_data, x='填報單位', y='加油量', title=f"{top_fuel}用量前十大單位", color_discrete_sequence=['#85C1E9'])
             fig_top.update_layout(xaxis=dict(categoryorder='total descending', title_font=dict(size=20), tickfont=dict(size=18, color='#566573')), yaxis=dict(title="加油量(公升)", title_font=dict(size=20), tickfont=dict(size=18, color='#566573')), font=dict(size=18), height=600, margin=dict(t=50))
             fig_top.update_traces(texttemplate='%{y:,.2f}', selector=dict(type='bar'), width=0.5, textposition='outside', textangle=0, textfont=dict(color='black', size=18))
             st.plotly_chart(fig_top, use_container_width=True)
@@ -755,7 +772,7 @@ def main():
     with admin_tabs[3]: render_tab4_edit(df_clean, df_records, all_years) 
     with admin_tabs[4]: render_tab5_export(df_clean, df_equip, all_years)
     
-    st.markdown('<div style="text-align: center; color: #BDC3C7; font-size: 0.9rem; margin-top: 50px;">管理員系統版本 V172.0 (Deep Morandi UI Refine)</div>', unsafe_allow_html=True)
+    st.markdown('<div style="text-align: center; color: #BDC3C7; font-size: 0.9rem; margin-top: 50px;">管理員系統版本 V173.0 (Color Refine & Single Image Print)</div>', unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
