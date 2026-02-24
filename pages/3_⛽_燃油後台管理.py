@@ -60,10 +60,10 @@ st.markdown("""
     button[kind="primary"] p { color: #FFFFFF !important; } 
     button[kind="primary"]:hover { background-color: var(--orange-dark) !important; transform: translateY(-2px) !important; color: #FFFFFF !important; }
     
-    /* 次按鈕 (Secondary) - 下載按鈕、產生Word等 (莫蘭迪藍底、白字) */
-    button[kind="secondary"] { background-color: #85C1E9 !important; color: #FFFFFF !important; border: 2px solid #5DADE2 !important; border-radius: 12px !important; font-size: 1.15rem !important; font-weight: 800 !important; padding: 0.7rem 1.5rem !important; box-shadow: 0 4px 6px rgba(133, 193, 233, 0.3) !important; width: 100%; }
+    /* 次按鈕 (Secondary) - 下載按鈕、產生Word等 (莫蘭迪深色底、白字) */
+    button[kind="secondary"] { background-color: #5D6D7E !important; color: #FFFFFF !important; border: 2px solid #34495E !important; border-radius: 12px !important; font-size: 1.15rem !important; font-weight: 800 !important; padding: 0.7rem 1.5rem !important; box-shadow: 0 4px 6px rgba(52, 73, 94, 0.3) !important; width: 100%; }
     button[kind="secondary"] p { color: #FFFFFF !important; } 
-    button[kind="secondary"]:hover { background-color: #5DADE2 !important; transform: translateY(-2px) !important; color: #FFFFFF !important; }
+    button[kind="secondary"]:hover { background-color: #34495E !important; transform: translateY(-2px) !important; color: #FFFFFF !important; }
     button[kind="secondary"]:hover p { color: #FFFFFF !important; }
 
     button[data-baseweb="tab"] div p { font-size: 1.3rem !important; font-weight: 900 !important; color: var(--text-sub); }
@@ -88,7 +88,7 @@ st.markdown("""
     .dev-section { text-align: center; border-right: 1px solid #F2F3F4; padding: 0 5px; }
     .dev-section:last-child { border-right: none; }
     .dev-label { font-weight: 700; color: var(--text-sub) !important; font-size: 0.9rem; margin-bottom: 3px; }
-    .dev-val { color: #333333 !important; font-weight: 800; font-size: 1.05rem; word-break: break-word; }
+    .dev-val { color: #333333 !important; font-weight: 800; font-size: 1.05rem; word-break: break-word; } /* 灰黑字體 */
     .dev-footer { padding: 10px 15px; background-color: #F8F9F9; border-top: 1px solid #E5E7E9; display: flex; justify-content: space-between; align-items: center; }
     .dev-count { font-weight: 700; color: #34495E; font-size: 0.95rem; }
     .alert-status { color: #C0392B; font-weight: 900; display: flex; align-items: center; gap: 5px; background-color: #FADBD8; padding: 4px 12px; border-radius: 12px; font-size: 0.9rem; }
@@ -115,7 +115,7 @@ st.markdown("""
     .admin-kpi-header { padding: 10px; font-size: 1.2rem; font-weight: bold; color: #2C3E50; border-bottom: 1px solid rgba(0,0,0,0.1); }
     .admin-kpi-body { padding: 20px; }
     .admin-kpi-value { font-size: 2.8rem; font-weight: 900; color: #2C3E50; margin-bottom: 5px; }
-    .admin-kpi-unit { font-size: 1.05rem; color: #333333 !important; font-weight: 700; margin-left: 5px; }
+    .admin-kpi-unit { font-size: 1.05rem; color: #333333 !important; font-weight: 700; margin-left: 5px; } /* 深灰色字體 */
     .admin-kpi-sub { font-size: 0.9rem; display: inline-block; padding: 2px 10px; border-radius: 15px; background-color: #F9E79F; color: #7D6608; margin-top: 5px; font-weight: bold; }
 
     /* 其他 */
@@ -123,6 +123,9 @@ st.markdown("""
     .unreported-title { font-size: 1.6rem; font-weight: 900; margin-bottom: 12px; border-bottom: 2px solid rgba(0,0,0,0.1); padding-bottom: 8px; }
     .bar-chart-box { border: 1px solid #BDC3C7; border-radius: 12px; padding: 15px; background-color: #FFFFFF; box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-bottom: 15px;}
     
+    /* 儀表板大標題恢復明顯置中大字 */
+    .dashboard-main-title { font-size: 2.4rem; font-weight: 900; text-align: center; color: #1A5276; margin-bottom: 25px; margin-top: 10px; letter-spacing: 2px; }
+
     /* 單選按鈕 (Radio) - 淺藍底 + 深藍字 */
     .stRadio div[role="radiogroup"] label { background-color: #D6EAF8 !important; border: 1px solid #AED6F1 !important; border-radius: 8px !important; padding: 8px 15px !important; margin-right: 10px !important; }
     .stRadio div[role="radiogroup"] label p { font-size: 1.25rem !important; font-weight: 800 !important; color: #1A5276 !important; }
@@ -301,7 +304,6 @@ def export_general_docx(df_year, df_eq, drive_srv):
     return output
 
 def export_batch_docx(df_year, drive_srv):
-    """ 油卡批次：所有設備摘要印在最上方，同一份佐證檔案只貼一次在最下方 """
     doc = Document()
     for section in doc.sections:
         section.orientation = WD_ORIENT.LANDSCAPE
@@ -550,7 +552,8 @@ def render_tab2_dashboard(df_clean, all_years):
         df_top = df_year[df_year['油品大類'] == top_fuel]
         if not df_top.empty:
             top10_data = df_top.groupby('填報單位')['加油量'].sum().nlargest(10).reset_index()
-            fig_top = px.bar(top10_data, x='填報單位', y='加油量', title=f"{top_fuel}用量前十大單位", color_discrete_sequence=DASH_PALETTE)
+            # 將前十大柱狀圖顏色改為莫蘭迪深灰藍
+            fig_top = px.bar(top10_data, x='填報單位', y='加油量', title=f"{top_fuel}用量前十大單位", color_discrete_sequence=['#5D6D7E'])
             fig_top.update_layout(xaxis=dict(categoryorder='total descending', title_font=dict(size=20), tickfont=dict(size=18, color='#566573')), yaxis=dict(title="加油量(公升)", title_font=dict(size=20), tickfont=dict(size=18, color='#566573')), font=dict(size=18), height=600, margin=dict(t=50))
             fig_top.update_traces(texttemplate='%{y:,.2f}', selector=dict(type='bar'), width=0.5, textposition='outside', textangle=0, textfont=dict(color='black', size=18))
             st.plotly_chart(fig_top, use_container_width=True)
@@ -752,7 +755,7 @@ def main():
     with admin_tabs[3]: render_tab4_edit(df_clean, df_records, all_years) 
     with admin_tabs[4]: render_tab5_export(df_clean, df_equip, all_years)
     
-    st.markdown('<div style="text-align: center; color: #BDC3C7; font-size: 0.9rem; margin-top: 50px;">管理員系統版本 V171.0 (UX Refine & Fixes)</div>', unsafe_allow_html=True)
+    st.markdown('<div style="text-align: center; color: #BDC3C7; font-size: 0.9rem; margin-top: 50px;">管理員系統版本 V172.0 (Deep Morandi UI Refine)</div>', unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
