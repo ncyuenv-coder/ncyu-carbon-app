@@ -11,7 +11,7 @@ import plotly.graph_objects as go
 import time
 import re
 import os
-import streamlit.components.v1 as components
+import streamlit.components.v1 as components  # 引入前端組件以支援圖片下載
 
 # ==========================================
 # 0. 系統設定
@@ -30,6 +30,8 @@ if 'form_id' not in st.session_state:
 # ==========================================
 st.markdown("""
 <style>
+    @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;800;900&display=swap');
+
     /* --- 全域設定 --- */
     :root {
         color-scheme: light;
@@ -45,9 +47,14 @@ st.markdown("""
         --morandi-blue: #34495E;
     }
     
-    /* 強制全域使用微軟正黑體 */
-    * {
-        font-family: "Microsoft JhengHei", "PingFang TC", "Noto Sans TC", sans-serif !important;
+    /* 安全地套用圓體，解決左上角 keyboard_double_arrow_right 變成文字的 Bug */
+    .stApp, p, h1, h2, h3, h4, h5, h6, label, input, button, select, textarea, div.stMarkdown, div.stText {
+        font-family: 'Nunito', 'cwTeXYen', 'TsukuBRdGothic-Regular', 'Microsoft JhengHei UI', sans-serif;
+    }
+    
+    /* 強制保護系統圖示字體，避免跑版 */
+    .material-symbols-rounded, .material-icons {
+        font-family: 'Material Symbols Rounded' !important;
     }
 
     [data-testid="stAppViewContainer"] { background-color: #EAEDED; color: var(--text-main); }
@@ -450,7 +457,7 @@ def render_user_interface():
 
                     total_emission = df_view['排放量(kgCO2e)'].sum()
                     
-                    # 內部 HTML 也強制套用微軟正黑體，確保截圖時字體不跑位
+                    # 生成供截圖使用的 HTML 結構，碳排字體為莫蘭迪橘色 #D35400
                     card_html_content = f"""
                     <div class="horizontal-card" id="capture-card">
                         <div class="card-left">{left_html}</div>
@@ -466,7 +473,7 @@ def render_user_interface():
                     """
                     st.markdown("---")
                     
-                    # 導入前端截圖模組，並將字體強制寫死為微軟正黑體
+                    # 導入前端截圖模組，並於內部強制套用圓體設定，確保截圖與顯示風格一致
                     html_snippet = f"""
                     <!DOCTYPE html>
                     <html>
@@ -474,7 +481,8 @@ def render_user_interface():
                         <meta charset="utf-8">
                         <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
                         <style>
-                            body {{ font-family: "Microsoft JhengHei", "PingFang TC", "Noto Sans TC", sans-serif !important; padding: 10px; margin: 0; background-color: #EAEDED; }}
+                            @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;800;900&display=swap');
+                            body {{ font-family: 'Nunito', 'cwTeXYen', 'TsukuBRdGothic-Regular', 'Microsoft JhengHei UI', sans-serif !important; padding: 10px; margin: 0; background-color: #EAEDED; }}
                             .horizontal-card {{ display: flex; border: 1px solid #BDC3C7; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 8px rgba(0,0,0,0.08); background-color: #FFFFFF; min-height: 280px; max-width: 100%; margin-bottom: 15px; }}
                             .card-left {{ flex: 3; background-color: #34495E; color: #FFFFFF; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 20px; text-align: center; border-right: 1px solid #2C3E50; }}
                             .dept-text {{ font-size: 1.6rem; font-weight: 700; margin-bottom: 8px; line-height: 1.4; }}
@@ -490,7 +498,7 @@ def render_user_interface():
                                 display: inline-block; padding: 10px 20px; font-size: 1.1rem; font-weight: bold; color: white;
                                 background-color: #5D6D7E; border: 2px solid #34495E; border-radius: 8px; cursor: pointer; text-align: center;
                                 box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: background-color 0.3s;
-                                font-family: "Microsoft JhengHei", "PingFang TC", sans-serif !important;
+                                font-family: 'Nunito', 'cwTeXYen', 'TsukuBRdGothic-Regular', 'Microsoft JhengHei UI', sans-serif !important;
                             }}
                             .download-btn:hover {{ background-color: #34495E; }}
                         </style>
