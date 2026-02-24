@@ -11,7 +11,7 @@ import plotly.graph_objects as go
 import time
 import re
 import os
-import streamlit.components.v1 as components  # 引入前端組件以支援圖片下載
+import streamlit.components.v1 as components
 
 # ==========================================
 # 0. 系統設定
@@ -44,6 +44,12 @@ st.markdown("""
         --kpi-co2: #AF7AC5;
         --morandi-blue: #34495E;
     }
+    
+    /* 強制全域使用微軟正黑體 */
+    * {
+        font-family: "Microsoft JhengHei", "PingFang TC", "Noto Sans TC", sans-serif !important;
+    }
+
     [data-testid="stAppViewContainer"] { background-color: #EAEDED; color: var(--text-main); }
     [data-testid="stHeader"] { background-color: rgba(0,0,0,0); }
     [data-testid="stSidebar"] { background-color: #FFFFFF; border-right: 1px solid #BDC3C7; }
@@ -90,6 +96,20 @@ st.markdown("""
     .stRadio div[role="radiogroup"] label p { font-size: 1.0rem !important; font-weight: 800 !important; color: #154360 !important; }
     [data-testid="stFileUploaderDropzone"] { background-color: #D6EAF8 !important; border: 2px dashed #2E86C1 !important; padding: 20px; border-radius: 12px; }
     [data-testid="stFileUploaderDropzone"] div, span, small { color: #154360 !important; font-weight: bold !important; }
+    
+    /* --- 資訊卡前端樣式同步 --- */
+    .horizontal-card {
+        display: flex; border: 1px solid #BDC3C7; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 8px rgba(0,0,0,0.08); background-color: #FFFFFF; min-height: 280px; max-width: 100%; margin-bottom: 15px; 
+    }
+    .card-left { flex: 3; background-color: #34495E; color: #FFFFFF; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 20px; text-align: center; border-right: 1px solid #2C3E50; }
+    .dept-text { font-size: 1.6rem; font-weight: 700; margin-bottom: 8px; line-height: 1.4; }
+    .unit-text { font-size: 1.3rem; font-weight: 500; opacity: 0.9; }
+    .card-right { flex: 7; padding: 20px 30px; display: flex; flex-direction: column; justify-content: center; }
+    .info-row { display: flex; align-items: flex-start; padding: 10px 0; font-size: 1.05rem; color: #566573; border-bottom: 1px dashed #F2F3F4; }
+    .info-row:last-child { border-bottom: none; }
+    .info-icon { margin-right: 12px; font-size: 1.2rem; width: 30px; text-align: center; }
+    .info-label { font-weight: 700; margin-right: 10px; min-width: 160px; color: #2E4053; }
+    .info-value { font-weight: 500; color: #17202A; flex: 1; line-height: 1.6; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -148,7 +168,6 @@ except Exception as e:
 # ==========================================
 # 4. 內建靜態資料庫 (Hardcoded Data)
 # ==========================================
-
 DATA_UNITS = {
     '教務處': ['教務長室/副教務長室/專門委員室', '註冊與課務組', '教學發展組', '招生與出版組', '綜合行政組', '通識教育中心', '民雄教務'],
     '學生事務處': ['學務長室/副學務長室', '住宿服務組', '生活輔導組', '課外活動組', '學生輔導中心', '學生職涯發展中心', '衛生保健組', '原住民族學生資源中心', '特殊教育學生資源中心', '民雄學務'],
@@ -431,7 +450,7 @@ def render_user_interface():
 
                     total_emission = df_view['排放量(kgCO2e)'].sum()
                     
-                    # 生成供截圖使用的 HTML 結構，碳排字體改為莫蘭迪橘色 #D35400
+                    # 內部 HTML 也強制套用微軟正黑體，確保截圖時字體不跑位
                     card_html_content = f"""
                     <div class="horizontal-card" id="capture-card">
                         <div class="card-left">{left_html}</div>
@@ -447,7 +466,7 @@ def render_user_interface():
                     """
                     st.markdown("---")
                     
-                    # 導入前端截圖模組，取代原有的 st.markdown 與 HTML 下載
+                    # 導入前端截圖模組，並將字體強制寫死為微軟正黑體
                     html_snippet = f"""
                     <!DOCTYPE html>
                     <html>
@@ -455,7 +474,7 @@ def render_user_interface():
                         <meta charset="utf-8">
                         <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
                         <style>
-                            body {{ font-family: "Microsoft JhengHei", sans-serif; padding: 10px; margin: 0; background-color: #EAEDED; }}
+                            body {{ font-family: "Microsoft JhengHei", "PingFang TC", "Noto Sans TC", sans-serif !important; padding: 10px; margin: 0; background-color: #EAEDED; }}
                             .horizontal-card {{ display: flex; border: 1px solid #BDC3C7; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 8px rgba(0,0,0,0.08); background-color: #FFFFFF; min-height: 280px; max-width: 100%; margin-bottom: 15px; }}
                             .card-left {{ flex: 3; background-color: #34495E; color: #FFFFFF; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 20px; text-align: center; border-right: 1px solid #2C3E50; }}
                             .dept-text {{ font-size: 1.6rem; font-weight: 700; margin-bottom: 8px; line-height: 1.4; }}
@@ -471,6 +490,7 @@ def render_user_interface():
                                 display: inline-block; padding: 10px 20px; font-size: 1.1rem; font-weight: bold; color: white;
                                 background-color: #5D6D7E; border: 2px solid #34495E; border-radius: 8px; cursor: pointer; text-align: center;
                                 box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: background-color 0.3s;
+                                font-family: "Microsoft JhengHei", "PingFang TC", sans-serif !important;
                             }}
                             .download-btn:hover {{ background-color: #34495E; }}
                         </style>
