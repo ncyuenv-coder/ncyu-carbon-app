@@ -6,10 +6,15 @@ from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
 import streamlit_authenticator as stauth
+import plotly.express as px
+import plotly.graph_objects as go
 import time
+import re
+import os
+import streamlit.components.v1 as components  # 引入前端組件以支援圖片下載
 
 # ==========================================
-# 0. 系統設定 (輕量前台版)
+# 0. 系統設定
 # ==========================================
 st.set_page_config(page_title="冷媒填報 - 嘉義大學", page_icon="❄️", layout="wide")
 
@@ -21,7 +26,7 @@ if 'form_id' not in st.session_state:
     st.session_state['form_id'] = 0
 
 # ==========================================
-# 1. CSS 樣式表
+# 1. CSS 樣式表 (定案版)
 # ==========================================
 st.markdown("""
 <style>
@@ -42,11 +47,20 @@ st.markdown("""
     [data-testid="stAppViewContainer"] { background-color: #EAEDED; color: var(--text-main); }
     [data-testid="stHeader"] { background-color: rgba(0,0,0,0); }
     [data-testid="stSidebar"] { background-color: #FFFFFF; border-right: 1px solid #BDC3C7; }
+    
     div[data-baseweb="input"] > div, div[data-baseweb="base-input"] > input, textarea, input {
         background-color: #FFFFFF !important; border-color: #BDC3C7 !important; color: #000000 !important; font-size: 1.15rem !important;
     }
     div[data-baseweb="select"] > div { border-color: #BDC3C7 !important; background-color: #FFFFFF !important; }
     ul[data-baseweb="menu"] { background-color: #FFFFFF !important; }
+    
+    /* 針對所有預設輸入欄位標題，放大字體並加粗 */
+    div[data-testid="stWidgetLabel"] p {
+        font-size: 1.15rem !important;
+        font-weight: 800 !important;
+        color: #2C3E50 !important;
+    }
+
     div.stButton > button, button[kind="primary"], [data-testid="stFormSubmitButton"] > button {
         background-color: var(--orange-bg) !important; 
         color: #FFFFFF !important; border: 2px solid var(--orange-dark) !important; border-radius: 12px !important;
@@ -68,23 +82,7 @@ st.markdown("""
     .privacy-box { background-color: #F8F9F9; border: 1px solid #BDC3C7; padding: 15px; border-radius: 10px; font-size: 0.95rem; color: #566573; margin-bottom: 10px; }
     .privacy-title { font-weight: bold; color: #2C3E50; margin-bottom: 5px; font-size: 1.1rem; }
     .correction-note { color: #566573; font-size: 0.95rem; font-weight: bold; margin-top: 5px; margin-bottom: 20px; }
-    .horizontal-card {
-        display: flex; border: 1px solid #BDC3C7; border-radius: 12px; overflow: hidden;
-        margin-bottom: 25px; box-shadow: 0 4px 8px rgba(0,0,0,0.08); background-color: #FFFFFF; min-height: 280px;
-    }
-    .card-left {
-        flex: 3; background-color: var(--morandi-blue); color: #FFFFFF;
-        display: flex; flex-direction: column; justify-content: center; align-items: center;
-        padding: 20px; text-align: center; border-right: 1px solid #2C3E50;
-    }
-    .dept-text { font-size: 1.6rem; font-weight: 700; margin-bottom: 8px; line-height: 1.4; }
-    .unit-text { font-size: 1.3rem; font-weight: 500; opacity: 0.9; }
-    .card-right { flex: 7; padding: 20px 30px; display: flex; flex-direction: column; justify-content: center; }
-    .info-row { display: flex; align-items: flex-start; padding: 10px 0; font-size: 1.05rem; color: #566573; border-bottom: 1px dashed #F2F3F4; }
-    .info-row:last-child { border-bottom: none; }
-    .info-icon { margin-right: 12px; font-size: 1.2rem; width: 30px; text-align: center; }
-    .info-label { font-weight: 700; margin-right: 10px; min-width: 160px; color: #2E4053; }
-    .info-value { font-weight: 500; color: #17202A; flex: 1; line-height: 1.6; }
+    
     .stRadio div[role="radiogroup"] label {
         background-color: #D6EAF8 !important; border: 1px solid #AED6F1 !important;
         border-radius: 8px !important; padding: 8px 15px !important; margin-right: 10px !important;
@@ -150,6 +148,7 @@ except Exception as e:
 # ==========================================
 # 4. 內建靜態資料庫 (Hardcoded Data)
 # ==========================================
+
 DATA_UNITS = {
     '教務處': ['教務長室/副教務長室/專門委員室', '註冊與課務組', '教學發展組', '招生與出版組', '綜合行政組', '通識教育中心', '民雄教務'],
     '學生事務處': ['學務長室/副學務長室', '住宿服務組', '生活輔導組', '課外活動組', '學生輔導中心', '學生職涯發展中心', '衛生保健組', '原住民族學生資源中心', '特殊教育學生資源中心', '民雄學務'],
@@ -340,12 +339,19 @@ def render_user_interface():
         e_model = c10.text_input("設備品牌型號", placeholder="例如：國際 CS-100FL+CU-100FLC", key=f"u_model_{fid}")
         sel_rtype = c11.selectbox("冷媒種類", r_types, index=None, placeholder="請選擇...", key=f"u_rtype_{fid}")
         
-        amount = st.number_input("冷媒填充量 **:red[(公斤)]**", min_value=0.0, step=0.1, format="%.2f", key=f"u_amt_{fid}")
-        st.markdown("請上傳冷媒填充單據佐證資料")
+        # 標題精細客製：粗體與莫蘭迪紅色 (公斤)
+        st.markdown("<div style='font-size: 1.15rem; font-weight: 800; color: #2C3E50; margin-bottom: 5px;'>冷媒填充量 <span style='color: #C0392B; font-weight: 900;'>(公斤)</span></div>", unsafe_allow_html=True)
+        amount = st.number_input("冷媒填充量", min_value=0.0, step=0.1, format="%.2f", key=f"u_amt_{fid}", label_visibility="collapsed")
+        
+        # 標題精細客製：粗體上傳提示
+        st.markdown("<div style='font-size: 1.15rem; font-weight: 800; color: #2C3E50; margin-bottom: 5px; margin-top: 15px;'>請上傳冷媒填充單據佐證資料</div>", unsafe_allow_html=True)
         f_file = st.file_uploader("上傳佐證 (必填)", type=['pdf', 'jpg', 'png'], label_visibility="collapsed", key=f"u_file_{fid}")
         
         st.markdown("---")
-        note = st.text_input("備註內容", placeholder="備註 (選填)", key=f"u_note_{fid}")
+        # 標題精細客製：放大粗體的備註
+        st.markdown("<div style='font-size: 1.15rem; font-weight: 800; color: #2C3E50; margin-bottom: 5px;'>備註</div>", unsafe_allow_html=True)
+        note = st.text_input("備註", placeholder="備註 (選填)", key=f"u_note_{fid}", label_visibility="collapsed")
+        
         st.markdown('<div class="correction-note">如有資料誤繕情形，請重新登錄1次資訊，並於備註欄填寫：「前筆資料誤繕，請刪除。」，管理單位將協助刪除誤打資訊</div>', unsafe_allow_html=True)
         
         st.markdown("""<div class="privacy-box"><div class="privacy-title">📜 個人資料蒐集、處理及利用告知聲明</div>1. 蒐集機關：國立嘉義大學。<br>2. 蒐集目的：進行本校冷媒設備之冷媒填充紀錄管理、校園溫室氣體（碳）盤查統計、稽核佐證資料蒐集及後續能源使用分析。<br>3. 個資類別：填報人姓名。<br>4. 利用期間：姓名保留至填報年度後第二年1月1日，期滿即進行「去識別化」刪除，其餘數據永久保存。<br>5. 利用對象：本校教師、行政人員及碳盤查查驗人員。<br>6. 您有權依個資法請求查詢、更正或刪除您的個資。如不提供，將無法完成填報。</div>""", unsafe_allow_html=True)
@@ -425,8 +431,9 @@ def render_user_interface():
 
                     total_emission = df_view['排放量(kgCO2e)'].sum()
                     
+                    # 生成供截圖使用的 HTML 結構，碳排字體改為莫蘭迪橘色 #D35400
                     card_html_content = f"""
-                    <div class="horizontal-card">
+                    <div class="horizontal-card" id="capture-card">
                         <div class="card-left">{left_html}</div>
                         <div class="card-right">
                             <div class="info-row"><span class="info-icon">📅</span><span class="info-label">查詢區間</span><span class="info-value">{q_start_date} ~ {q_end_date}</span></div>
@@ -434,21 +441,22 @@ def render_user_interface():
                             <div class="info-row"><span class="info-icon">🏢</span><span class="info-label">建築物</span><span class="info-value">{build_str}</span></div>
                             <div class="info-row"><span class="info-icon">❄️</span><span class="info-label">冷媒填充資訊</span><span class="info-value">{fill_info_str}</span></div>
                             <div class="info-row"><span class="info-icon">⚖️</span><span class="info-label">重量統計</span><span class="info-value">{weight_str}</span></div>
-                            <div class="info-row"><span class="info-icon">🌍</span><span class="info-label">碳排放量</span><span class="info-value" style="color:#C0392B;font-size:1.8rem;font-weight:900;">{total_emission:,.4f} <span style="font-size:1rem;">kgCO2e</span></span></div>
+                            <div class="info-row"><span class="info-icon">🌍</span><span class="info-label">碳排放量</span><span class="info-value" style="color:#D35400;font-size:1.8rem;font-weight:900;">{total_emission:,.4f} <span style="font-size:1rem;">kgCO2e</span></span></div>
                         </div>
                     </div>
                     """
                     st.markdown("---")
-                    st.markdown(card_html_content, unsafe_allow_html=True)
                     
-                    download_html = f"""
+                    # 導入前端截圖模組，取代原有的 st.markdown 與 HTML 下載
+                    html_snippet = f"""
                     <!DOCTYPE html>
                     <html>
                     <head>
                         <meta charset="utf-8">
+                        <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
                         <style>
-                            body {{ font-family: "Microsoft JhengHei", sans-serif; padding: 20px; background-color: #f8f9fa; }}
-                            .horizontal-card {{ display: flex; border: 1px solid #BDC3C7; border-radius: 12px; overflow: hidden; margin-bottom: 25px; box-shadow: 0 4px 8px rgba(0,0,0,0.08); background-color: #FFFFFF; min-height: 280px; max-width: 800px; }}
+                            body {{ font-family: "Microsoft JhengHei", sans-serif; padding: 10px; margin: 0; background-color: #EAEDED; }}
+                            .horizontal-card {{ display: flex; border: 1px solid #BDC3C7; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 8px rgba(0,0,0,0.08); background-color: #FFFFFF; min-height: 280px; max-width: 100%; margin-bottom: 15px; }}
                             .card-left {{ flex: 3; background-color: #34495E; color: #FFFFFF; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 20px; text-align: center; border-right: 1px solid #2C3E50; }}
                             .dept-text {{ font-size: 1.6rem; font-weight: 700; margin-bottom: 8px; line-height: 1.4; }}
                             .unit-text {{ font-size: 1.3rem; font-weight: 500; opacity: 0.9; }}
@@ -458,14 +466,35 @@ def render_user_interface():
                             .info-icon {{ margin-right: 12px; font-size: 1.2rem; width: 30px; text-align: center; }}
                             .info-label {{ font-weight: 700; margin-right: 10px; min-width: 160px; color: #2E4053; }}
                             .info-value {{ font-weight: 500; color: #17202A; flex: 1; line-height: 1.6; }}
+                            .download-btn-container {{ text-align: right; padding-right: 5px; }}
+                            .download-btn {{
+                                display: inline-block; padding: 10px 20px; font-size: 1.1rem; font-weight: bold; color: white;
+                                background-color: #5D6D7E; border: 2px solid #34495E; border-radius: 8px; cursor: pointer; text-align: center;
+                                box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: background-color 0.3s;
+                            }}
+                            .download-btn:hover {{ background-color: #34495E; }}
                         </style>
                     </head>
                     <body>
                         {card_html_content}
+                        <div class="download-btn-container">
+                            <button class="download-btn" onclick="downloadImage()">🖼️ 下載為圖片 (PNG)</button>
+                        </div>
+                        <script>
+                            function downloadImage() {{
+                                html2canvas(document.getElementById('capture-card'), {{ scale: 2, backgroundColor: null }}).then(canvas => {{
+                                    let a = document.createElement('a');
+                                    a.href = canvas.toDataURL('image/png');
+                                    a.download = '{sel_q_unit}_冷媒資訊卡.png';
+                                    a.click();
+                                }});
+                            }}
+                        </script>
                     </body>
                     </html>
                     """
-                    st.download_button(label="📥 下載資訊卡 (HTML)", data=download_html, file_name=f"{sel_q_unit}_冷媒資訊卡.html", mime="text/html")
+                    # 使用 components 渲染出資訊卡與下載按鈕
+                    components.html(html_snippet, height=450, scrolling=True)
                     
                     st.markdown("<br>", unsafe_allow_html=True)
                     st.subheader("📋 單位申報明細")
