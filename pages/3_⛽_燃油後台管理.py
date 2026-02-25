@@ -73,6 +73,13 @@ st.markdown("""
     [data-testid="stDataFrame"] { font-size: 1.25rem !important; }
     [data-testid="stDataFrame"] div { font-size: 1.25rem !important; }
     
+    /* 展開面板 (Expander) 樣式優化 */
+    [data-testid="stExpander"] { background-color: #FFFFFF; border: 1px solid #BDC3C7; border-radius: 12px; box-shadow: 0 3px 6px rgba(0,0,0,0.08); margin-bottom: 15px; }
+    [data-testid="stExpander"] summary { padding: 10px 15px; }
+    [data-testid="stExpander"] summary p { font-size: 1.4rem !important; font-weight: 900 !important; color: #000000 !important; }
+    [data-testid="stExpander"] summary:hover { background-color: #F8F9F9; }
+    [data-testid="stExpanderDetails"] { padding: 15px; background-color: #FAFAFA; border-top: 1px dashed #E5E7E9; }
+
     /* --- 設備詳細卡片樣式 --- */
     .dev-card-v148 { background-color: #FFFFFF; border: 1px solid #BDC3C7; border-radius: 12px; overflow: hidden; box-shadow: 0 3px 6px rgba(0,0,0,0.08); margin-bottom: 20px; display: flex; flex-direction: column; }
     .dev-header { padding: 12px 15px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(0,0,0,0.1); }
@@ -89,7 +96,7 @@ st.markdown("""
     .dev-section { text-align: center; border-right: 1px solid #F2F3F4; padding: 0 5px; }
     .dev-section:last-child { border-right: none; }
     .dev-label { font-weight: 700; color: var(--text-sub) !important; font-size: 0.9rem; margin-bottom: 3px; }
-    .dev-val { color: #333333 !important; font-weight: 800; font-size: 1.05rem; word-break: break-word; } /* 灰黑字體 */
+    .dev-val { color: #333333 !important; font-weight: 800; font-size: 1.05rem; word-break: break-word; } 
     .dev-footer { padding: 10px 15px; background-color: #F8F9F9; border-top: 1px solid #E5E7E9; display: flex; justify-content: space-between; align-items: center; }
     .dev-count { font-weight: 700; color: #34495E; font-size: 0.95rem; }
     .alert-status { color: #C0392B; font-weight: 900; display: flex; align-items: center; gap: 5px; background-color: #FADBD8; padding: 4px 12px; border-radius: 12px; font-size: 0.9rem; }
@@ -549,68 +556,81 @@ def render_tab1_overview(df_clean, df_equip, all_years):
         st.markdown("---")
         st.subheader("📋 各類設備詳細申報紀錄一覽")
         
+        # 定義七大類別的專屬 Icon
+        CATEGORY_ICONS = {
+            "公務車輛(GV-1-)": "🚗",
+            "乘坐式割草機(GV-2-)": "🚜",
+            "乘坐式農用機具(GV-3-)": "🌾",
+            "鍋爐(GS-1-)": "♨️",
+            "發電機(GS-2-)": "⚡",
+            "肩背或手持式割草機、吹葉機(GS-3-)": "🍃",
+            "肩背或手持式農用機具(GS-4-)": "🛠️"
+        }
+        
         for category in DEVICE_ORDER:
             target_devices = df_equip[df_equip['統計類別'] == category]
             if not target_devices.empty:
-                st.markdown(f"<h3 style='color: #2874A6; font-size: 1.6rem; margin-top: 40px; margin-bottom: 25px;'>{category}</h3>", unsafe_allow_html=True)
+                icon = CATEGORY_ICONS.get(category, "📌")
                 
-                device_list = []
-                for _, row in target_devices.iterrows():
-                    d_name = row['設備名稱備註']
-                    d_id = row.get('設備編號', '無編號')
-                    d_unit = row.get('填報單位', '-')
-                    d_sub = row.get('設備所屬單位/部門', '-')
-                    d_keeper = row.get('保管人', '-')
-                    d_loc = row.get('設備詳細位置/樓層', '-')
-                    d_qty = row.get('設備數量', '1')
-                    raw_fuel = row.get('原燃物料名稱', '-')
-                    d_fuel = '汽油' if '汽油' in raw_fuel else ('柴油' if '柴油' in raw_fuel else raw_fuel)
-                    d_vol = df_year[df_year['設備名稱備註'] == d_name]['加油量'].sum()
-                    d_count = len(df_year[df_year['設備名稱備註'] == d_name])
-                    status_html = '<span class="alert-status">⚠️ 尚未申報</span>' if d_count == 0 else ""
-                    bg_col = MORANDI_COLORS.get(category, '#EBF5FB')
+                # 修改：改為點擊展開式的 Expander 設計
+                with st.expander(f"{icon} {category}"):
+                    device_list = []
+                    for _, row in target_devices.iterrows():
+                        d_name = row['設備名稱備註']
+                        d_id = row.get('設備編號', '無編號')
+                        d_unit = row.get('填報單位', '-')
+                        d_sub = row.get('設備所屬單位/部門', '-')
+                        d_keeper = row.get('保管人', '-')
+                        d_loc = row.get('設備詳細位置/樓層', '-')
+                        d_qty = row.get('設備數量', '1')
+                        raw_fuel = row.get('原燃物料名稱', '-')
+                        d_fuel = '汽油' if '汽油' in raw_fuel else ('柴油' if '柴油' in raw_fuel else raw_fuel)
+                        d_vol = df_year[df_year['設備名稱備註'] == d_name]['加油量'].sum()
+                        d_count = len(df_year[df_year['設備名稱備註'] == d_name])
+                        status_html = '<span class="alert-status">⚠️ 尚未申報</span>' if d_count == 0 else ""
+                        bg_col = MORANDI_COLORS.get(category, '#EBF5FB')
 
-                    device_list.append({ "id": d_id, "name": d_name, "vol": d_vol, "fuel": d_fuel, "unit": d_unit, "sub": d_sub, "keeper": d_keeper, "loc": d_loc, "qty": d_qty, "count": d_count, "status": status_html, "bg_col": bg_col })
-                
-                for k in range(0, len(device_list), 2):
-                    d_cols = st.columns(2)
-                    for m in range(2):
-                        if k + m < len(device_list):
-                            item = device_list[k + m]
-                            with d_cols[m]:
-                                st.markdown(f"""
-                                <div class="dev-card-v148">
-                                    <div class="dev-header" style="background-color: {item['bg_col']};">
-                                        <div class="dev-header-left">
-                                            <div class="dev-id">{item['id']}</div>
-                                            <div class="dev-name-row"><span class="dev-name">{item['name']}</span><span class="qty-badge">數量:{item['qty']}</span></div>
+                        device_list.append({ "id": d_id, "name": d_name, "vol": d_vol, "fuel": d_fuel, "unit": d_unit, "sub": d_sub, "keeper": d_keeper, "loc": d_loc, "qty": d_qty, "count": d_count, "status": status_html, "bg_col": bg_col })
+                    
+                    for k in range(0, len(device_list), 2):
+                        d_cols = st.columns(2)
+                        for m in range(2):
+                            if k + m < len(device_list):
+                                item = device_list[k + m]
+                                with d_cols[m]:
+                                    st.markdown(f"""
+                                    <div class="dev-card-v148">
+                                        <div class="dev-header" style="background-color: {item['bg_col']};">
+                                            <div class="dev-header-left">
+                                                <div class="dev-id">{item['id']}</div>
+                                                <div class="dev-name-row"><span class="dev-name">{item['name']}</span><span class="qty-badge">數量:{item['qty']}</span></div>
+                                            </div>
+                                            <div class="dev-header-right">
+                                                <span class="dev-fuel-type">{item['fuel']}</span>
+                                                <span class="dev-vol">{item['vol']:,.1f}</span>
+                                                <span class="dev-unit" style="color:#333333;">公升</span>
+                                            </div>
                                         </div>
-                                        <div class="dev-header-right">
-                                            <span class="dev-fuel-type">{item['fuel']}</span>
-                                            <span class="dev-vol">{item['vol']:,.1f}</span>
-                                            <span class="dev-unit" style="color:#333333;">公升</span>
+                                        <div class="dev-body">
+                                            <div class="dev-section" style="flex: 3;">
+                                                <div class="dev-label">所屬部門</div>
+                                                <div class="dev-val">{item['sub']}</div>
+                                            </div>
+                                            <div class="dev-section" style="flex: 3;">
+                                                <div class="dev-label">保管人</div>
+                                                <div class="dev-val">{item['keeper']}</div>
+                                            </div>
+                                            <div class="dev-section" style="flex: 4;">
+                                                <div class="dev-label">位置</div>
+                                                <div class="dev-val">{item['loc']}</div>
+                                            </div>
+                                        </div>
+                                        <div class="dev-footer">
+                                            <div class="dev-count">年度申報次數:{item['count']}次</div>
+                                            <div>{item['status']}</div>
                                         </div>
                                     </div>
-                                    <div class="dev-body">
-                                        <div class="dev-section" style="flex: 3;">
-                                            <div class="dev-label">所屬部門</div>
-                                            <div class="dev-val">{item['sub']}</div>
-                                        </div>
-                                        <div class="dev-section" style="flex: 3;">
-                                            <div class="dev-label">保管人</div>
-                                            <div class="dev-val">{item['keeper']}</div>
-                                        </div>
-                                        <div class="dev-section" style="flex: 4;">
-                                            <div class="dev-label">位置</div>
-                                            <div class="dev-val">{item['loc']}</div>
-                                        </div>
-                                    </div>
-                                    <div class="dev-footer">
-                                        <div class="dev-count">年度申報次數:{item['count']}次</div>
-                                        <div>{item['status']}</div>
-                                    </div>
-                                </div>
-                                """, unsafe_allow_html=True)
+                                    """, unsafe_allow_html=True)
             
     else: st.warning("尚無資料可供統計。")
 
@@ -623,7 +643,6 @@ def render_tab2_dashboard(df_clean, all_years):
     df_year = df_clean[df_clean['年份'] == selected_year]
     
     if not df_year.empty:
-        # 修改：大標題雙語化且英文斷行至下方
         st.markdown(f"<div class='dashboard-main-title'>{selected_year}年度 能源使用與碳排統計<br><span style='font-size: 1.5rem; color: #5D6D7E; font-weight: 600;'>Energy Use and Carbon Emission Statistics for {selected_year}</span></div>", unsafe_allow_html=True)
         gas_sum = df_year[df_year['油品大類'] == '汽油']['加油量'].sum()
         diesel_sum = df_year[df_year['油品大類'] == '柴油']['加油量'].sum()
@@ -633,12 +652,10 @@ def render_tab2_dashboard(df_clean, all_years):
         diesel_pct = (diesel_sum / total_sum * 100) if total_sum > 0 else 0
         
         c1, c2 = st.columns(2)
-        # 修改：單位雙語化 (Liters)
         with c1: st.markdown(f"""<div class="admin-kpi-card"><div class="admin-kpi-header" style="background-color: #B0C4DE;">⛽ 汽油使用量 (Gasoline Usage)</div><div class="admin-kpi-body"><div class="admin-kpi-value">{gas_sum:,.2f}<span class="admin-kpi-unit">公升 (Liters)</span></div><div class="admin-kpi-sub">佔比 {gas_pct:.1f}%</div></div></div>""", unsafe_allow_html=True)
         with c2: st.markdown(f"""<div class="admin-kpi-card"><div class="admin-kpi-header" style="background-color: #F5CBA7;">🚛 柴油使用量 (Diesel Usage)</div><div class="admin-kpi-body"><div class="admin-kpi-value">{diesel_sum:,.2f}<span class="admin-kpi-unit">公升 (Liters)</span></div><div class="admin-kpi-sub">佔比 {diesel_pct:.1f}%</div></div></div>""", unsafe_allow_html=True)
         st.write("") 
         c3, c4 = st.columns(2)
-        # 修改：單位雙語化 (Liters) & (tCO2e 加入下標)
         with c3: st.markdown(f"""<div class="admin-kpi-card"><div class="admin-kpi-header" style="background-color: #A9CCE3;">💧 總用油量 (Total Fuel Usage)</div><div class="admin-kpi-body"><div class="admin-kpi-value">{total_sum:,.2f}<span class="admin-kpi-unit">公升 (Liters)</span></div><div class="admin-kpi-sub">100%</div></div></div>""", unsafe_allow_html=True)
         with c4: st.markdown(f"""<div class="admin-kpi-card"><div class="admin-kpi-header" style="background-color: #E6B0AA;">☁️ 碳排放量 (Carbon Emissions)</div><div class="admin-kpi-body"><div class="admin-kpi-value">{total_co2:,.4f}<span class="admin-kpi-unit">公噸CO<sub>2</sub>e (tCO<sub>2</sub>e)</span></div><div class="admin-kpi-sub">ESG 指標</div></div></div>""", unsafe_allow_html=True)
         st.markdown("---")
@@ -656,14 +673,16 @@ def render_tab2_dashboard(df_clean, all_years):
         st.markdown("---")
         st.markdown("<h3 style='color: #2C3E50;'>🏆 全校前十大加油量單位 (Top 10 Fuel Consuming Units)</h3>", unsafe_allow_html=True)
         
-        # 修改：切換按鈕雙語化，並對應過濾邏輯
         top_fuel_label = st.radio("選擇油品類型", ["汽油 (Gasoline)", "柴油 (Diesel)"], horizontal=True, label_visibility="collapsed", key="t2_fuel_radio")
         top_fuel = "汽油" if "汽油" in top_fuel_label else "柴油"
         df_top = df_year[df_year['油品大類'] == top_fuel]
         if not df_top.empty:
             top10_data = df_top.groupby('填報單位')['加油量'].sum().nlargest(10).reset_index()
-            # 修改：圖表名稱雙語化
-            fig_top = px.bar(top10_data, x='填報單位', y='加油量', title=f"{top_fuel_label}用量前十大單位", color_discrete_sequence=['#85C1E9'])
+            
+            # 修改：圖表名稱雙語完整呈現
+            chart_title = "汽油用量前十大單位 (Top 10 Gasoline Consuming Units)" if top_fuel == "汽油" else "柴油用量前十大單位 (Top 10 Diesel Consuming Units)"
+            
+            fig_top = px.bar(top10_data, x='填報單位', y='加油量', title=chart_title, color_discrete_sequence=['#85C1E9'])
             fig_top.update_layout(xaxis=dict(categoryorder='total descending', title_font=dict(size=20), tickfont=dict(size=18, color='#566573')), yaxis=dict(title="加油量(公升)", title_font=dict(size=20), tickfont=dict(size=18, color='#566573')), font=dict(size=18), height=600, margin=dict(t=50))
             fig_top.update_traces(texttemplate='%{y:,.2f}', selector=dict(type='bar'), width=0.5, textposition='outside', textangle=0, textfont=dict(color='black', size=18))
             st.plotly_chart(fig_top, use_container_width=True)
@@ -683,7 +702,6 @@ def render_tab2_dashboard(df_clean, all_years):
                 total_gu = gas_u_data['加油量'].sum()
                 gas_u_data['Label'] = gas_u_data['加油量'].apply(lambda x: f"{(x/total_gu)*100:.1f}% ({x:,.1f} 公升)")
                 
-                # 修改：圖表名稱雙語化
                 fig_dg = px.bar(gas_u_data, x='加油量', y='填報單位', orientation='h', title='⛽ 汽油用量分佈 (Gasoline Usage Distribution)', color='填報單位', color_discrete_sequence=DASH_PALETTE, text='Label')
                 fig_dg.update_layout(height=550, showlegend=False, plot_bgcolor='rgba(0,0,0,0)', font=dict(size=14))
                 fig_dg.update_xaxes(title="加油量 (公升)", showgrid=True, gridcolor='#EAEDED', tickfont=axis_font, title_font=axis_font, range=[0, gas_u_data['加油量'].max() * 1.5])
@@ -701,7 +719,6 @@ def render_tab2_dashboard(df_clean, all_years):
                 total_du = dsl_u_data['加油量'].sum()
                 dsl_u_data['Label'] = dsl_u_data['加油量'].apply(lambda x: f"{(x/total_du)*100:.1f}% ({x:,.1f} 公升)")
                 
-                # 修改：圖表名稱雙語化
                 fig_dd = px.bar(dsl_u_data, x='加油量', y='填報單位', orientation='h', title='🚛 柴油用量分佈 (Diesel Usage Distribution)', color='填報單位', color_discrete_sequence=DASH_PALETTE, text='Label')
                 fig_dd.update_layout(height=550, showlegend=False, plot_bgcolor='rgba(0,0,0,0)', font=dict(size=14))
                 fig_dd.update_xaxes(title="加油量 (公升)", showgrid=True, gridcolor='#EAEDED', tickfont=axis_font, title_font=axis_font, range=[0, dsl_u_data['加油量'].max() * 1.5])
@@ -712,7 +729,6 @@ def render_tab2_dashboard(df_clean, all_years):
             st.markdown('</div>', unsafe_allow_html=True)
 
         st.markdown("---")
-        # 修改：英文標題中的 2 加入下標 (tCO2e -> tCO₂e)
         st.markdown("<h3 style='color: #2C3E50;'>🌍 全校油料使用碳排放量(公噸二氧化碳當量)結構 (Carbon Emission Structure of Fuel Use in tCO<sub>2</sub>e)</h3>", unsafe_allow_html=True)
         df_year['CO2e'] = df_year.apply(lambda r: r['加油量']*0.0022 if '汽油' in str(r['原燃物料名稱']) else r['加油量']*0.0027, axis=1)
         if not df_year.empty:
