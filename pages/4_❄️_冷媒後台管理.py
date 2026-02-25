@@ -304,20 +304,23 @@ def render_tab1_dashboard(df_clean_dash, all_years):
     df_year = df_clean_dash[df_clean_dash['年份'] == sel_year] if not df_clean_dash.empty else pd.DataFrame()
     
     if not df_year.empty:
-        st.markdown(f"<div class='dashboard-main-title'>{sel_year}年度 冷媒填充與碳排統計</div>", unsafe_allow_html=True)
+        # 修改：主標題雙語化 (英文斷行放於下方)
+        st.markdown(f"<div class='dashboard-main-title'>{sel_year}年度 冷媒填充與碳排統計<br><span style='font-size: 1.5rem; color: #5D6D7E; font-weight: 600;'>Refrigerant Refill and Carbon Emission Statistics for {sel_year}</span></div>", unsafe_allow_html=True)
         
         total_kg = df_year['冷媒填充量'].sum()
         total_co2_t = df_year['排放量(公噸)'].sum()
         count = len(df_year)
         
-        k1, k2, k3 = st.columns(3)
-        k1.markdown(f"""<div class="admin-kpi-card"><div class="admin-kpi-header" style="background-color: #A9CCE3;">📄 年度申報筆數</div><div class="admin-kpi-body"><div class="admin-kpi-value">{count}</div></div></div>""", unsafe_allow_html=True)
-        k2.markdown(f"""<div class="admin-kpi-card"><div class="admin-kpi-header" style="background-color: #F5CBA7;">⚖️ 年度總填充量</div><div class="admin-kpi-body"><div class="admin-kpi-value">{total_kg:,.2f}<span class="admin-kpi-unit">公斤</span></div></div></div>""", unsafe_allow_html=True)
-        k3.markdown(f"""<div class="admin-kpi-card"><div class="admin-kpi-header" style="background-color: #E6B0AA;">☁️ 年度總碳排放量</div><div class="admin-kpi-body"><div class="admin-kpi-value">{total_co2_t:,.4f}<span class="admin-kpi-unit">公噸CO<sub>2</sub>e</span></div></div></div>""", unsafe_allow_html=True)
+        c1, c2, c3 = st.columns(3)
+        # 修改：KPI 卡片標題與單位雙語化 (加上下標處理)
+        with c1: c1.markdown(f"""<div class="admin-kpi-card"><div class="admin-kpi-header" style="background-color: #A9CCE3;">📄 年度申報筆數 (Annual Report Count)</div><div class="admin-kpi-body"><div class="admin-kpi-value">{count}</div></div></div>""", unsafe_allow_html=True)
+        with c2: c2.markdown(f"""<div class="admin-kpi-card"><div class="admin-kpi-header" style="background-color: #F5CBA7;">⚖️ 年度總填充量 (Total Annual Refill)</div><div class="admin-kpi-body"><div class="admin-kpi-value">{total_kg:,.2f}<span class="admin-kpi-unit">公斤 (kg)</span></div></div></div>""", unsafe_allow_html=True)
+        with c3: c3.markdown(f"""<div class="admin-kpi-card"><div class="admin-kpi-header" style="background-color: #E6B0AA;">☁️ 年度總碳排放量 (Total Annual Carbon Emissions)</div><div class="admin-kpi-body"><div class="admin-kpi-value">{total_co2_t:,.4f}<span class="admin-kpi-unit">公噸CO<sub>2</sub>e (tCO<sub>2</sub>e)</span></div></div></div>""", unsafe_allow_html=True)
         
         st.markdown("---")
         
-        st.subheader("📈 年度冷媒填充概況")
+        # 修改：區塊小標題雙語化
+        st.markdown("<h3 style='color: #2C3E50;'>📈 年度冷媒填充概況 (Annual Refrigerant Refill Overview)</h3>", unsafe_allow_html=True)
         campus_opts = ["全校", "蘭潭校區", "民雄校區", "新民校區", "林森校區"]
         f_campus_1 = st.radio("填充概況校區選擇", campus_opts, horizontal=True, key="radio_c1", label_visibility="collapsed")
         
@@ -355,7 +358,8 @@ def render_tab1_dashboard(df_clean_dash, all_years):
 
         st.markdown("---")
         
-        st.subheader("🏆 年度前十大填充單位")
+        # 修改：區塊小標題雙語化
+        st.markdown("<h3 style='color: #2C3E50;'>🏆 年度前十大填充單位 (Top 10 Refill Units of the Year)</h3>", unsafe_allow_html=True)
         top_units = df_year.groupby('填報單位名稱')['冷媒填充量'].sum().nlargest(10).index.tolist()
         df_top10 = df_year[df_year['填報單位名稱'].isin(top_units)].copy()
         
@@ -389,14 +393,16 @@ def render_tab1_dashboard(df_clean_dash, all_years):
         
         st.markdown("---")
         
-        st.subheader("🍩 冷媒填充資訊分析")
+        # 修改：區塊小標題雙語化
+        st.markdown("<h3 style='color: #2C3E50;'>🍩 冷媒填充資訊分析 (Refrigerant Refill Information Analysis)</h3>", unsafe_allow_html=True)
         f_campus_3 = st.radio("資訊分析校區選擇", campus_opts, horizontal=True, key="radio_c3", label_visibility="collapsed")
         df_c3 = df_year.copy()
         if f_campus_3 != "全校":
             df_c3 = df_c3[df_c3['校區'] == f_campus_3]
         
         if not df_c3.empty:
-            st.markdown("##### 1. 冷媒種類填充量佔比")
+            # 修改：次小標題雙語化
+            st.markdown("##### 1. 冷媒種類填充量佔比 (Refill Proportion by Refrigerant Type)")
             # 改為水平長條圖，顯示: 百分比 (填充量 公斤)
             type_kg = df_c3.groupby('冷媒顯示名稱')['冷媒填充量'].sum().reset_index()
             type_kg = type_kg[type_kg['冷媒填充量'] > 0].sort_values('冷媒填充量', ascending=True)
@@ -416,7 +422,8 @@ def render_tab1_dashboard(df_clean_dash, all_years):
             
             st.markdown("<br>", unsafe_allow_html=True)
             
-            st.markdown("##### 2. 冷媒填充設備類型統計")
+            # 修改：次小標題雙語化
+            st.markdown("##### 2. 冷媒填充設備類型統計 (Statistics by Equipment Type)")
             c3_l, c3_r = st.columns(2)
             
             eq_count = df_c3.groupby('設備類型')['冷媒填充量'].count().reset_index(name='count')
@@ -440,7 +447,8 @@ def render_tab1_dashboard(df_clean_dash, all_years):
         
         st.markdown("---")
         
-        st.subheader("🌍 全校冷媒填充碳排放量(公噸二氧化碳當量)結構")
+        # 修改：區塊小標題雙語化 (加上下標處理)
+        st.markdown("<h3 style='color: #2C3E50;'>🌍 全校冷媒填充碳排放量(公噸二氧化碳當量)結構 (Carbon Emission Structure of Refrigerant Refill in tCO<sub>2</sub>e)</h3>", unsafe_allow_html=True)
         fig_tree = px.treemap(df_year, path=['校區', '填報單位名稱'], values='排放量(公噸)', 
                               color='校區', color_discrete_sequence=MORANDI_PALETTE)
         fig_tree.update_traces(texttemplate='%{label}<br>%{value:.4f}<br>%{percentRoot:.1%}', textfont=dict(size=24))
@@ -546,7 +554,8 @@ def render_tab3_export(df_clean_dash, all_years):
 # 6. 主程式 (管理員後台)
 # ==========================================
 def render_admin_dashboard():
-    st.markdown("### 👑 冷媒管理後台")
+    # 修改：頁首標題放大並加入英文雙語化
+    st.markdown('<div style="font-size: 2.4rem; font-weight: 900; color: #2C3E50; margin-bottom: 20px;">👑 冷媒管理後台 (Refrigerant Management Backend)</div>', unsafe_allow_html=True)
     
     if 'gwp_map' not in st.session_state:
         st.session_state['gwp_map'] = DATA_GWP
