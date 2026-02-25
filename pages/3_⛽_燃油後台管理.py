@@ -623,8 +623,8 @@ def render_tab2_dashboard(df_clean, all_years):
     df_year = df_clean[df_clean['年份'] == selected_year]
     
     if not df_year.empty:
-        # 修改：標題雙語化
-        st.markdown(f"<div class='dashboard-main-title'>{selected_year}年度 能源使用與碳排統計<br><span style='font-size: 1.4rem; color: #5D6D7E; font-weight: 600;'>Energy Use and Carbon Emission Statistics for {selected_year}</span></div>", unsafe_allow_html=True)
+        # 修改：大標題雙語化且放於同一列
+        st.markdown(f"<div class='dashboard-main-title'>{selected_year}年度 能源使用與碳排統計 (Energy Use and Carbon Emission Statistics for {selected_year})</div>", unsafe_allow_html=True)
         gas_sum = df_year[df_year['油品大類'] == '汽油']['加油量'].sum()
         diesel_sum = df_year[df_year['油品大類'] == '柴油']['加油量'].sum()
         total_sum = df_year['加油量'].sum()
@@ -633,17 +633,18 @@ def render_tab2_dashboard(df_clean, all_years):
         diesel_pct = (diesel_sum / total_sum * 100) if total_sum > 0 else 0
         
         c1, c2 = st.columns(2)
-        # 修改：四大 KPI 卡片標題雙語化
-        with c1: st.markdown(f"""<div class="admin-kpi-card"><div class="admin-kpi-header" style="background-color: #B0C4DE;">⛽ 汽油使用量 (Gasoline Usage)</div><div class="admin-kpi-body"><div class="admin-kpi-value">{gas_sum:,.2f}<span class="admin-kpi-unit">公升</span></div><div class="admin-kpi-sub">佔比 {gas_pct:.1f}%</div></div></div>""", unsafe_allow_html=True)
-        with c2: st.markdown(f"""<div class="admin-kpi-card"><div class="admin-kpi-header" style="background-color: #F5CBA7;">🚛 柴油使用量 (Diesel Usage)</div><div class="admin-kpi-body"><div class="admin-kpi-value">{diesel_sum:,.2f}<span class="admin-kpi-unit">公升</span></div><div class="admin-kpi-sub">佔比 {diesel_pct:.1f}%</div></div></div>""", unsafe_allow_html=True)
+        # 修改：單位雙語化 (Liters)
+        with c1: st.markdown(f"""<div class="admin-kpi-card"><div class="admin-kpi-header" style="background-color: #B0C4DE;">⛽ 汽油使用量 (Gasoline Usage)</div><div class="admin-kpi-body"><div class="admin-kpi-value">{gas_sum:,.2f}<span class="admin-kpi-unit">公升 (Liters)</span></div><div class="admin-kpi-sub">佔比 {gas_pct:.1f}%</div></div></div>""", unsafe_allow_html=True)
+        with c2: st.markdown(f"""<div class="admin-kpi-card"><div class="admin-kpi-header" style="background-color: #F5CBA7;">🚛 柴油使用量 (Diesel Usage)</div><div class="admin-kpi-body"><div class="admin-kpi-value">{diesel_sum:,.2f}<span class="admin-kpi-unit">公升 (Liters)</span></div><div class="admin-kpi-sub">佔比 {diesel_pct:.1f}%</div></div></div>""", unsafe_allow_html=True)
         st.write("") 
         c3, c4 = st.columns(2)
-        with c3: st.markdown(f"""<div class="admin-kpi-card"><div class="admin-kpi-header" style="background-color: #A9CCE3;">💧 總用油量 (Total Fuel Usage)</div><div class="admin-kpi-body"><div class="admin-kpi-value">{total_sum:,.2f}<span class="admin-kpi-unit">公升</span></div><div class="admin-kpi-sub">100%</div></div></div>""", unsafe_allow_html=True)
-        with c4: st.markdown(f"""<div class="admin-kpi-card"><div class="admin-kpi-header" style="background-color: #E6B0AA;">☁️ 碳排放量 (Carbon Emissions)</div><div class="admin-kpi-body"><div class="admin-kpi-value">{total_co2:,.4f}<span class="admin-kpi-unit">公噸CO<sub>2</sub>e</span></div><div class="admin-kpi-sub">ESG 指標</div></div></div>""", unsafe_allow_html=True)
+        # 修改：單位雙語化 (Liters) & (tCO2e)
+        with c3: st.markdown(f"""<div class="admin-kpi-card"><div class="admin-kpi-header" style="background-color: #A9CCE3;">💧 總用油量 (Total Fuel Usage)</div><div class="admin-kpi-body"><div class="admin-kpi-value">{total_sum:,.2f}<span class="admin-kpi-unit">公升 (Liters)</span></div><div class="admin-kpi-sub">100%</div></div></div>""", unsafe_allow_html=True)
+        with c4: st.markdown(f"""<div class="admin-kpi-card"><div class="admin-kpi-header" style="background-color: #E6B0AA;">☁️ 碳排放量 (Carbon Emissions)</div><div class="admin-kpi-body"><div class="admin-kpi-value">{total_co2:,.4f}<span class="admin-kpi-unit">公噸CO<sub>2</sub>e (tCO2e)</span></div><div class="admin-kpi-sub">ESG 指標</div></div></div>""", unsafe_allow_html=True)
         st.markdown("---")
 
-        # 修改：區塊標題雙語化
-        st.markdown("<h3 style='color: #2C3E50;'>📈 全校逐月加油量統計<br><span style='font-size: 1.2rem; color: #5D6D7E; font-weight: 600;'>Monthly Fuel Consumption Statistics</span></h3>", unsafe_allow_html=True)
+        # 修改：區塊小標題雙語化且放於同一列
+        st.markdown("<h3 style='color: #2C3E50;'>📈 全校逐月加油量統計 (Monthly Fuel Consumption Statistics)</h3>", unsafe_allow_html=True)
         monthly = df_year.groupby(['月份', '油品大類'])['加油量'].sum().reset_index()
         full_months = pd.DataFrame({'月份': range(1, 13)})
         monthly = full_months.merge(monthly, on='月份', how='left').fillna({'加油量':0, '油品大類':'汽油'})
@@ -654,8 +655,8 @@ def render_tab2_dashboard(df_clean, all_years):
         st.plotly_chart(fig_month, use_container_width=True)
 
         st.markdown("---")
-        # 修改：區塊標題雙語化
-        st.markdown("<h3 style='color: #2C3E50;'>🏆 全校前十大加油量單位<br><span style='font-size: 1.2rem; color: #5D6D7E; font-weight: 600;'>Top 10 Fuel Consuming Units</span></h3>", unsafe_allow_html=True)
+        # 修改：區塊小標題雙語化且放於同一列
+        st.markdown("<h3 style='color: #2C3E50;'>🏆 全校前十大加油量單位 (Top 10 Fuel Consuming Units)</h3>", unsafe_allow_html=True)
         top_fuel = st.radio("選擇油品類型", ["汽油", "柴油"], horizontal=True, label_visibility="collapsed", key="t2_fuel_radio")
         df_top = df_year[df_year['油品大類'] == top_fuel]
         if not df_top.empty:
@@ -668,8 +669,8 @@ def render_tab2_dashboard(df_clean, all_years):
         else: st.info("無此油品數據。")
 
         st.markdown("---")
-        # 修改：區塊標題雙語化
-        st.markdown("<h3 style='color: #2C3E50;'>📊 全校加油量單位佔比<br><span style='font-size: 1.2rem; color: #5D6D7E; font-weight: 600;'>Fuel Consumption Proportion by Unit</span></h3>", unsafe_allow_html=True)
+        # 修改：區塊小標題雙語化且放於同一列
+        st.markdown("<h3 style='color: #2C3E50;'>📊 全校加油量單位佔比 (Fuel Consumption Proportion by Unit)</h3>", unsafe_allow_html=True)
         
         c_bu1, c_bu2 = st.columns(2)
         axis_font = dict(size=16, color='#424949')
@@ -709,8 +710,8 @@ def render_tab2_dashboard(df_clean, all_years):
             st.markdown('</div>', unsafe_allow_html=True)
 
         st.markdown("---")
-        # 修改：區塊標題雙語化
-        st.markdown("<h3 style='color: #2C3E50;'>🌍 全校油料使用碳排放量(公噸二氧化碳當量)結構<br><span style='font-size: 1.2rem; color: #5D6D7E; font-weight: 600;'>Carbon Emission Structure of Fuel Use (tCO2e)</span></h3>", unsafe_allow_html=True)
+        # 修改：區塊小標題雙語化且放於同一列
+        st.markdown("<h3 style='color: #2C3E50;'>🌍 全校油料使用碳排放量(公噸二氧化碳當量)結構 (Carbon Emission Structure of Fuel Use in tCO2e)</h3>", unsafe_allow_html=True)
         df_year['CO2e'] = df_year.apply(lambda r: r['加油量']*0.0022 if '汽油' in str(r['原燃物料名稱']) else r['加油量']*0.0027, axis=1)
         if not df_year.empty:
             fig_tree = px.treemap(df_year, path=['填報單位', '設備名稱備註'], values='CO2e', color='填報單位', color_discrete_sequence=DASH_PALETTE)
@@ -829,8 +830,8 @@ def render_tab5_export(df_clean, df_equip, all_years):
 # 6. 主程式入口
 # ==========================================
 def main():
-    # 修改：頁首標題放大並加入英文雙語化
-    st.markdown('<div style="font-size: 2.8rem; font-weight: 900; color: #2C3E50; margin-bottom: 20px;">⛽ 燃油設備動態管理專區<br><span style="font-size: 1.5rem; font-weight: 600; color: #5D6D7E;">Fuel Equipment Dynamic Management Area</span></div>', unsafe_allow_html=True)
+    # 修改：頁首大標題單列雙語呈現
+    st.markdown('<div style="font-size: 2.4rem; font-weight: 900; color: #2C3E50; margin-bottom: 20px;">⛽ 燃油設備動態管理專區 (Fuel Equipment Dynamic Management Area)</div>', unsafe_allow_html=True)
     
     try:
         df_equip, df_records = load_fuel_data()
