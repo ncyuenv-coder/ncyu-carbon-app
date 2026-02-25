@@ -43,7 +43,8 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # 2. 顯示標題 (不管有無登入都顯示)
-st.markdown('<div class="main-header">🏫 國立嘉義大學<br>溫室氣體盤查填報系統</div>', unsafe_allow_html=True)
+# 【修改】：英文名稱精準調整為 Data Reporting System，符合「填報」現況
+st.markdown('<div class="main-header">🏫 國立嘉義大學溫室氣體盤查填報系統<br><span style="font-size: 1.2rem; font-weight: 600; color: #5D6D7E;">National Chiayi University Greenhouse Gas Data Reporting System</span></div>', unsafe_allow_html=True)
 
 # 3. 身份驗證邏輯
 def clean_secrets(obj):
