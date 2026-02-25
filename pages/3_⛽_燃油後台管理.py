@@ -78,10 +78,11 @@ st.markdown("""
     [data-testid="stExpander"] summary { padding: 10px 15px; }
     [data-testid="stExpander"] summary p { font-size: 1.4rem !important; font-weight: 900 !important; color: #000000 !important; }
     [data-testid="stExpander"] summary:hover { background-color: #F8F9F9; }
-    [data-testid="stExpanderDetails"] { padding: 15px; background-color: #FAFAFA; border-top: 1px dashed #E5E7E9; }
+    /* 【修改】：加上淺色底色 (#EAECEE) 讓內部白色資訊卡浮現 */
+    [data-testid="stExpanderDetails"] { padding: 20px; background-color: #EAECEE; border-top: 1px solid #BDC3C7; border-radius: 0 0 12px 12px; }
 
     /* --- 設備詳細卡片樣式 --- */
-    .dev-card-v148 { background-color: #FFFFFF; border: 1px solid #BDC3C7; border-radius: 12px; overflow: hidden; box-shadow: 0 3px 6px rgba(0,0,0,0.08); margin-bottom: 20px; display: flex; flex-direction: column; }
+    .dev-card-v148 { background-color: #FFFFFF; border: 1px solid #BDC3C7; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 8px rgba(0,0,0,0.1); margin-bottom: 20px; display: flex; flex-direction: column; }
     .dev-header { padding: 12px 15px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(0,0,0,0.1); }
     .dev-header-left { display: flex; flex-direction: column; gap: 3px; }
     .dev-id { font-size: 1.15rem; font-weight: 800; color: #000000 !important; opacity: 0.8; } 
@@ -269,7 +270,7 @@ def export_general_docx(df_year, df_eq, drive_srv):
     df_shared = valid_df[shared_mask]
     df_indiv = valid_df[~shared_mask]
 
-    # 全域防呆紀錄器 (擋網址 &擋重複圖片)
+    # 全域防呆紀錄器 (擋網址 & 擋重複圖片)
     global_seen_fids = set()
     global_image_hashes = set()
 
@@ -572,7 +573,7 @@ def render_tab1_overview(df_clean, df_equip, all_years):
             if not target_devices.empty:
                 icon = CATEGORY_ICONS.get(category, "📌")
                 
-                # 修改：改為點擊展開式的 Expander 設計
+                # 修改：點擊展開式的 Expander 設計
                 with st.expander(f"{icon} {category}"):
                     device_list = []
                     for _, row in target_devices.iterrows():
