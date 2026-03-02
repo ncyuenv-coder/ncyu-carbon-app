@@ -310,7 +310,6 @@ def render_tab1_dashboard(df_clean_dash, all_years):
         total_co2_t = df_year['排放量(公噸)'].sum()
         count = len(df_year)
         
-        # 修正 1：版面配置調整為 3:3:4 比例
         c1, c2, c3 = st.columns([3, 3, 4])
         with c1: c1.markdown(f"""<div class="admin-kpi-card"><div class="admin-kpi-header" style="background-color: #A9CCE3;">📄 年度申報筆數 (Annual Report Count)</div><div class="admin-kpi-body"><div class="admin-kpi-value">{count}</div></div></div>""", unsafe_allow_html=True)
         with c2: c2.markdown(f"""<div class="admin-kpi-card"><div class="admin-kpi-header" style="background-color: #F5CBA7;">⚖️ 年度總填充量 (Total Annual Refill)</div><div class="admin-kpi-body"><div class="admin-kpi-value">{total_kg:,.2f}<span class="admin-kpi-unit">公斤 (kg)</span></div></div></div>""", unsafe_allow_html=True)
@@ -422,14 +421,16 @@ def render_tab1_dashboard(df_clean_dash, all_years):
             fig3b_l = px.pie(eq_count, values='count', names='設備類型', title='依填充次數統計', hole=0.4,
                              color_discrete_sequence=MORANDI_PALETTE)
             fig3b_l.update_layout(font=dict(size=18), legend=dict(font=dict(size=16)), uniformtext_minsize=16, uniformtext_mode='show')
-            fig3b_l.update_traces(textinfo='label+percent', textfont_size=18, textposition='outside',
+            # 修正 1：圓餅圖標籤字體設定為黑色
+            fig3b_l.update_traces(textinfo='label+percent', textfont=dict(size=18, color='black'), textposition='outside',
                                   hovertemplate='<b>%{label}</b><br>填充次數: %{value} 次<br>佔比: %{percent:.1%}<extra></extra>')
             
             eq_weight = df_c3.groupby('設備類型')['冷媒填充量'].sum().reset_index()
             fig3b_r = px.pie(eq_weight, values='冷媒填充量', names='設備類型', title='依填充重量統計', hole=0.4,
                              color_discrete_sequence=MORANDI_PALETTE)
             fig3b_r.update_layout(font=dict(size=18), legend=dict(font=dict(size=16)), uniformtext_minsize=16, uniformtext_mode='show')
-            fig3b_r.update_traces(textinfo='label+percent', textfont_size=18, textposition='outside',
+            # 修正 1：圓餅圖標籤字體設定為黑色
+            fig3b_r.update_traces(textinfo='label+percent', textfont=dict(size=18, color='black'), textposition='outside',
                                   hovertemplate='<b>%{label}</b><br>填充重量: %{value:.2f} kg<br>佔比: %{percent:.1%}<extra></extra>')
             
             with c3_l: st.plotly_chart(fig3b_l, use_container_width=True)
@@ -440,12 +441,19 @@ def render_tab1_dashboard(df_clean_dash, all_years):
         st.markdown("---")
         
         st.markdown("<h3 style='color: #2C3E50;'>🌍 全校冷媒填充碳排放量(公噸二氧化碳當量)結構 (Carbon Emission Structure of Refrigerant Refill in tCO<sub>2</sub>e)</h3>", unsafe_allow_html=True)
-        fig_tree = px.treemap(df_year, path=['校區', '填報單位名稱'], values='排放量(公噸)', 
-                              color='校區', color_discrete_sequence=MORANDI_PALETTE)
-        # 修正 2：移除 uniformtext 限制，套用與燃油後台一致的標籤邏輯，並加上 tCO2e 與百分比格式
-        fig_tree.update_traces(texttemplate='%{label}<br>%{value:.4f} tCO<sub>2</sub>e<br>%{percentRoot:.1%}')
-        fig_tree.update_layout(height=700, margin=dict(t=20, l=10, r=10, b=10))
-        st.plotly_chart(fig_tree, use_container_width=True)
+        
+        # 修正 2：加入旭日圖切換按鈕，並套用自適應字體與 tCO2e 百分比標籤設計
+        chart_type = st.radio("圖表切換", ["⭕ 旭日圖 (Sunburst Chart)", "🔲 矩形樹狀圖 (Treemap)"], horizontal=True, label_visibility="collapsed")
+        
+        if "旭日圖" in chart_type:
+            fig_chart = px.sunburst(df_year, path=['校區', '填報單位名稱'], values='排放量(公噸)', color='校區', color_discrete_sequence=MORANDI_PALETTE)
+            fig_chart.update_traces(texttemplate='%{label}<br>%{value:.4f} tCO<sub>2</sub>e<br>%{percentRoot:.1%}')
+        else:
+            fig_chart = px.treemap(df_year, path=['校區', '填報單位名稱'], values='排放量(公噸)', color='校區', color_discrete_sequence=MORANDI_PALETTE)
+            fig_chart.update_traces(texttemplate='%{label}<br>%{value:.4f} tCO<sub>2</sub>e<br>%{percentRoot:.1%}')
+            
+        fig_chart.update_layout(height=700, margin=dict(t=20, l=10, r=10, b=10))
+        st.plotly_chart(fig_chart, use_container_width=True)
         
     else:
         st.info("該年度無資料")
@@ -512,7 +520,6 @@ def render_tab3_export(df_clean_dash, all_years):
         else:
             c1, c2 = st.columns(2)
             with c1:
-                # 嚴格精簡 CSV 匯出欄位
                 target_cols = ['校區', '所屬單位', '填報單位名稱', '建築物名稱', '辦公室編號', '設備類型', '設備品牌型號', '維修日期', '冷媒種類', '冷媒填充量', '排放量(公噸)']
                 df_csv = df_year[[c for c in target_cols if c in df_year.columns]].copy()
                 if '維修日期' in df_csv.columns:
@@ -527,7 +534,6 @@ def render_tab3_export(df_clean_dash, all_years):
                     use_container_width=True
                 )
             with c2:
-                # 下載 Word
                 if st.button("⚡ 產生冷媒填充佐證 (Word)", use_container_width=True):
                     with st.spinner("正在下載圖片並合併 (自動進行 MD5 圖像去重)，可能需要幾分鐘..."):
                         st.session_state['doc_ref'] = export_ref_docx(df_year, drive_service)
@@ -547,7 +553,6 @@ def render_tab3_export(df_clean_dash, all_years):
 # 6. 主程式 (管理員後台)
 # ==========================================
 def render_admin_dashboard():
-    # 頁首標題放大並加入英文雙語化
     st.markdown('<div style="font-size: 2.4rem; font-weight: 900; color: #2C3E50; margin-bottom: 20px;">👑 冷媒管理後台 (Refrigerant Management Backend)</div>', unsafe_allow_html=True)
     
     if 'gwp_map' not in st.session_state:
@@ -558,7 +563,6 @@ def render_admin_dashboard():
 
     admin_tabs = st.tabs(["📊 全校冷媒填充儀表板", "📝 申報資料異動", "📁 年度冷媒填充統計及佐證下載"])
 
-    # 預處理資料 (供儀表板與下載使用)
     df_clean_dash = df_records.copy()
     if not df_clean_dash.empty:
         campus_map = {"林森校區-民國路": "林森校區", "社口林場": "蘭潭校區"}
@@ -574,7 +578,6 @@ def render_admin_dashboard():
 
     all_years = sorted(df_clean_dash['年份'].unique(), reverse=True) if not df_clean_dash.empty else [datetime.now().year]
 
-    # 套用 fragment 防跳轉
     with admin_tabs[0]: 
         render_tab1_dashboard(df_clean_dash, all_years)
         
