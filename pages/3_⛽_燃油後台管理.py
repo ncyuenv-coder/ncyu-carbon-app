@@ -732,7 +732,6 @@ def render_tab2_dashboard(df_clean, all_years):
         df_year['CO2e'] = df_year.apply(lambda r: r['加油量']*0.0022 if '汽油' in str(r['原燃物料名稱']) else r['加油量']*0.0027, axis=1)
         if not df_year.empty:
             fig_tree = px.treemap(df_year, path=['填報單位', '設備名稱備註'], values='CO2e', color='填報單位', color_discrete_sequence=DASH_PALETTE)
-            # 修正點：移除強制字體大小 textfont=dict(size=24)，並改用 uniformtext 自動適應縮放
             fig_tree.update_traces(texttemplate='%{label}<br>%{value:.4f}<br>%{percentRoot:.1%}')
             fig_tree.update_layout(height=700, uniformtext=dict(minsize=12, mode='hide'))
             st.plotly_chart(fig_tree, use_container_width=True)
@@ -777,18 +776,27 @@ def render_tab3_missing(df_clean, df_equip_full, all_years):
                 with st.spinner("正在批次發送每月提醒信件..."):
                     groups = df_equip.groupby(['填報單位', '電子郵件'])
                     success_count, fail_count = 0, 0
-                    error_logs = [] # 收集錯誤訊息
+                    error_logs = [] 
+                    
+                    # 取當前西元年與月
+                    cur_year = datetime.now().year
                     cur_month = datetime.now().month
-                    subject = f"【提醒】{cur_month}月份燃油設備油料使用申報通知"
+                    subject = f"【提醒】{cur_year}年{cur_month}月份燃油設備油料使用申報通知，請於次月5日前完成申報"
                     
                     for (unit, email), group in groups:
-                        eq_li = "".join([f"<li>{r['設備名稱備註']} ({r.get('設備編號','-')})</li>" for _, r in group.iterrows()])
+                        # 精準修改清單格式
+                        eq_li = "".join([f"<li>{r['設備名稱備註']} ：{r.get('設備所屬單位/部門','-')}、{r.get('保管人','-')}、{r.get('設備數量','1')}</li>" for _, r in group.iterrows()])
                         body = f"""
                         <p>您好：</p>
-                        <p>提醒您，每月燃油設備油料使用情形需於<b>次月5日</b>前完成系統申報。</p>
+                        <p>依據環境部「事業應盤查登錄溫室氣體排放量之排放源」及「溫室氣體排放量盤查登錄及查驗管理辦法」，本校須依辦理溫室氣體排放量盤查登錄作業。</p>
+                        <p>提醒您，請於每月5日前(遇假日順延至下一工作日)至校內溫室氣體盤查填報系統(連結：<a href="https://ncyu-carbon-app-mduue5hffp7uknsskmjet9.streamlit.app/">https://ncyu-carbon-app-mduue5hffp7uknsskmjet9.streamlit.app/</a>)，申報貴單位前一月份之燃油設備油料使用情形。</p>
                         <p>貴單位 ({unit}) 負責之設備清單如下，請撥冗確認並至系統填報：</p>
                         <ul>{eq_li}</ul>
-                        <p>感謝您的配合！<br><span style="color:#7F8C8D;font-size:12px;">(此為系統自動發送，請勿直接回覆)</span></p>
+                        <p>若有疑問，請洽環境保護及安全管理中心林小姐 (分機7137)</p>
+                        <br>
+                        <p>感謝您的配合！<br>
+                        環境保護及安全管理中心  敬上<br>
+                        <span style="color:#7F8C8D;font-size:12px;">(此為系統自動發送，請勿直接回覆)</span></p>
                         """
                         ok, msg = send_system_email(email, subject, body)
                         if ok: 
@@ -819,17 +827,23 @@ def render_tab3_missing(df_clean, df_equip_full, all_years):
                     with st.spinner("正在發送催報信件..."):
                         groups = unreported.groupby(['填報單位', '電子郵件'])
                         success_count, fail_count = 0, 0
-                        error_logs = [] # 收集錯誤訊息
-                        subject = f"【催告】未完成燃油設備油料使用申報通知 ({d_start} ~ {d_end})"
+                        error_logs = [] 
+                        subject = f"【催報提醒】查貴單位尚未申報({d_start} ~ {d_end})之燃油設備油料使用情形，請於通知日起3日內申報，謝謝"
                         
                         for (unit, email), group in groups:
-                            eq_li = "".join([f"<li>{r['設備名稱備註']} ({r.get('設備編號','-')})</li>" for _, r in group.iterrows()])
+                            # 精準修改清單格式
+                            eq_li = "".join([f"<li>{r['設備名稱備註']} ：{r.get('設備所屬單位/部門','-')}、{r.get('保管人','-')}、{r.get('設備數量','1')}</li>" for _, r in group.iterrows()])
                             body = f"""
                             <p>您好：</p>
-                            <p>經系統比對，貴單位 ({unit}) 於期間 <b>{d_start} 至 {d_end}</b> 有以下設備<b>尚未完成</b>油料使用申報：</p>
+                            <p>依據環境部「事業應盤查登錄溫室氣體排放量之排放源」及「溫室氣體排放量盤查登錄及查驗管理辦法」，本校須依辦理溫室氣體排放量盤查登錄作業，先予說明。</p>
+                            <p>經系統比對，貴單位 ({unit}) 於 {d_start} 至 {d_end} 期間有以下設備尚未完成油料使用申報：</p>
                             <ul>{eq_li}</ul>
-                            <p>請儘速登入系統完成補登作業，以免影響全校能源及碳排統計正確性。</p>
-                            <p>感謝您的配合！<br><span style="color:#7F8C8D;font-size:12px;">(此為系統自動發送，請勿直接回覆)</span></p>
+                            <p>請於通知日起3日內至校內溫室氣體盤查填報系統(連結：<a href="https://ncyu-carbon-app-mduue5hffp7uknsskmjet9.streamlit.app/">https://ncyu-carbon-app-mduue5hffp7uknsskmjet9.streamlit.app/</a>)，申報貴單位之燃油設備油料使用情形，以免影響全校溫室氣體排放量盤查統計正確性。</p>
+                            <p>若有疑問，請洽環境保護及安全管理中心林小姐 (分機7137)</p>
+                            <br>
+                            <p>感謝您的配合！<br>
+                            環境保護及安全管理中心  敬上<br>
+                            <span style="color:#7F8C8D;font-size:12px;">(此為系統自動發送，請勿直接回覆)</span></p>
                             """
                             ok, msg = send_system_email(email, subject, body)
                             if ok: 
@@ -976,7 +990,7 @@ def main():
     with admin_tabs[3]: render_tab4_edit(df_clean, df_records, all_years) 
     with admin_tabs[4]: render_tab5_export(df_clean, df_equip, all_years)
     
-    st.markdown('<div style="text-align: center; color: #BDC3C7; font-size: 0.9rem; margin-top: 50px;">管理員系統版本 V178 (Treemap Auto-Scaling & Email Error Logger)</div>', unsafe_allow_html=True)
+    st.markdown('<div style="text-align: center; color: #BDC3C7; font-size: 0.9rem; margin-top: 50px;">管理員系統版本 V179 (Official Email Template Update)</div>', unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
