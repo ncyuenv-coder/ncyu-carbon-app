@@ -304,22 +304,20 @@ def render_tab1_dashboard(df_clean_dash, all_years):
     df_year = df_clean_dash[df_clean_dash['年份'] == sel_year] if not df_clean_dash.empty else pd.DataFrame()
     
     if not df_year.empty:
-        # 修改：主標題雙語化 (英文斷行放於下方)
         st.markdown(f"<div class='dashboard-main-title'>{sel_year}年度 冷媒填充與碳排統計<br><span style='font-size: 1.5rem; color: #5D6D7E; font-weight: 600;'>Refrigerant Refill and Carbon Emission Statistics for {sel_year}</span></div>", unsafe_allow_html=True)
         
         total_kg = df_year['冷媒填充量'].sum()
         total_co2_t = df_year['排放量(公噸)'].sum()
         count = len(df_year)
         
-        c1, c2, c3 = st.columns(3)
-        # 修改：KPI 卡片標題與單位雙語化 (加上下標處理)
+        # 修正 1：版面配置調整為 3:3:4 比例
+        c1, c2, c3 = st.columns([3, 3, 4])
         with c1: c1.markdown(f"""<div class="admin-kpi-card"><div class="admin-kpi-header" style="background-color: #A9CCE3;">📄 年度申報筆數 (Annual Report Count)</div><div class="admin-kpi-body"><div class="admin-kpi-value">{count}</div></div></div>""", unsafe_allow_html=True)
         with c2: c2.markdown(f"""<div class="admin-kpi-card"><div class="admin-kpi-header" style="background-color: #F5CBA7;">⚖️ 年度總填充量 (Total Annual Refill)</div><div class="admin-kpi-body"><div class="admin-kpi-value">{total_kg:,.2f}<span class="admin-kpi-unit">公斤 (kg)</span></div></div></div>""", unsafe_allow_html=True)
         with c3: c3.markdown(f"""<div class="admin-kpi-card"><div class="admin-kpi-header" style="background-color: #E6B0AA;">☁️ 年度總碳排放量 (Total Annual Carbon Emissions)</div><div class="admin-kpi-body"><div class="admin-kpi-value">{total_co2_t:,.4f}<span class="admin-kpi-unit">公噸CO<sub>2</sub>e (tCO<sub>2</sub>e)</span></div></div></div>""", unsafe_allow_html=True)
         
         st.markdown("---")
         
-        # 修改：區塊小標題雙語化
         st.markdown("<h3 style='color: #2C3E50;'>📈 年度冷媒填充概況 (Annual Refrigerant Refill Overview)</h3>", unsafe_allow_html=True)
         campus_opts = ["全校", "蘭潭校區", "民雄校區", "新民校區", "林森校區"]
         f_campus_1 = st.radio("填充概況校區選擇", campus_opts, horizontal=True, key="radio_c1", label_visibility="collapsed")
@@ -358,7 +356,6 @@ def render_tab1_dashboard(df_clean_dash, all_years):
 
         st.markdown("---")
         
-        # 修改：區塊小標題雙語化
         st.markdown("<h3 style='color: #2C3E50;'>🏆 年度前十大填充單位 (Top 10 Refill Units of the Year)</h3>", unsafe_allow_html=True)
         top_units = df_year.groupby('填報單位名稱')['冷媒填充量'].sum().nlargest(10).index.tolist()
         df_top10 = df_year[df_year['填報單位名稱'].isin(top_units)].copy()
@@ -393,7 +390,6 @@ def render_tab1_dashboard(df_clean_dash, all_years):
         
         st.markdown("---")
         
-        # 修改：區塊小標題雙語化
         st.markdown("<h3 style='color: #2C3E50;'>🍩 冷媒填充資訊分析 (Refrigerant Refill Information Analysis)</h3>", unsafe_allow_html=True)
         f_campus_3 = st.radio("資訊分析校區選擇", campus_opts, horizontal=True, key="radio_c3", label_visibility="collapsed")
         df_c3 = df_year.copy()
@@ -401,9 +397,7 @@ def render_tab1_dashboard(df_clean_dash, all_years):
             df_c3 = df_c3[df_c3['校區'] == f_campus_3]
         
         if not df_c3.empty:
-            # 修改：次小標題雙語化
             st.markdown("##### 1. 冷媒種類填充量佔比 (Refill Proportion by Refrigerant Type)")
-            # 改為水平長條圖，顯示: 百分比 (填充量 公斤)
             type_kg = df_c3.groupby('冷媒顯示名稱')['冷媒填充量'].sum().reset_index()
             type_kg = type_kg[type_kg['冷媒填充量'] > 0].sort_values('冷媒填充量', ascending=True)
             if not type_kg.empty:
@@ -412,7 +406,6 @@ def render_tab1_dashboard(df_clean_dash, all_years):
                 
                 fig3a = px.bar(type_kg, x='冷媒填充量', y='冷媒顯示名稱', orientation='h', text='Label', color='冷媒顯示名稱', color_discrete_sequence=MORANDI_PALETTE)
                 fig3a.update_layout(height=500, showlegend=False, xaxis_title="填充量 (公斤)", yaxis_title="", font=dict(size=16), plot_bgcolor='rgba(0,0,0,0)')
-                # X軸自動延展 35%，確保文字不會被切掉
                 fig3a.update_xaxes(showgrid=True, gridcolor='#EAEDED', tickfont=dict(size=16, color='#333333'), title_font=dict(size=18, color='#333333'), range=[0, type_kg['冷媒填充量'].max() * 1.35])
                 fig3a.update_yaxes(tickfont=dict(size=16, color='#333333'))
                 fig3a.update_traces(textposition='outside', textfont=dict(size=18, color='black'))
@@ -422,7 +415,6 @@ def render_tab1_dashboard(df_clean_dash, all_years):
             
             st.markdown("<br>", unsafe_allow_html=True)
             
-            # 修改：次小標題雙語化
             st.markdown("##### 2. 冷媒填充設備類型統計 (Statistics by Equipment Type)")
             c3_l, c3_r = st.columns(2)
             
@@ -447,11 +439,12 @@ def render_tab1_dashboard(df_clean_dash, all_years):
         
         st.markdown("---")
         
-        # 修改：區塊小標題雙語化 (加上下標處理)
         st.markdown("<h3 style='color: #2C3E50;'>🌍 全校冷媒填充碳排放量(公噸二氧化碳當量)結構 (Carbon Emission Structure of Refrigerant Refill in tCO<sub>2</sub>e)</h3>", unsafe_allow_html=True)
         fig_tree = px.treemap(df_year, path=['校區', '填報單位名稱'], values='排放量(公噸)', 
                               color='校區', color_discrete_sequence=MORANDI_PALETTE)
-        fig_tree.update_traces(texttemplate='%{label}<br>%{value:.4f}<br>%{percentRoot:.1%}', textfont=dict(size=24))
+        # 修正 2：移除 uniformtext 限制，套用與燃油後台一致的標籤邏輯，並加上 tCO2e 與百分比格式
+        fig_tree.update_traces(texttemplate='%{label}<br>%{value:.4f} tCO<sub>2</sub>e<br>%{percentRoot:.1%}')
+        fig_tree.update_layout(height=700, margin=dict(t=20, l=10, r=10, b=10))
         st.plotly_chart(fig_tree, use_container_width=True)
         
     else:
@@ -554,7 +547,7 @@ def render_tab3_export(df_clean_dash, all_years):
 # 6. 主程式 (管理員後台)
 # ==========================================
 def render_admin_dashboard():
-    # 修改：頁首標題放大並加入英文雙語化
+    # 頁首標題放大並加入英文雙語化
     st.markdown('<div style="font-size: 2.4rem; font-weight: 900; color: #2C3E50; margin-bottom: 20px;">👑 冷媒管理後台 (Refrigerant Management Backend)</div>', unsafe_allow_html=True)
     
     if 'gwp_map' not in st.session_state:
