@@ -453,12 +453,14 @@ def send_system_email(to_email, subject, body):
     """共用寄信函式 (需在 st.secrets 設定 smtp)"""
     try:
         smtp_cfg = st.secrets.get("smtp", {})
-        if not smtp_cfg: return False, "系統尚未設定 SMTP 參數 (st.secrets['smtp'])，信件已產生但無法實際寄出。"
-        if not str(to_email).strip() or str(to_email).strip().lower() in ['nan', 'none', '']: return False, "無效的電子郵件地址"
+        if not smtp_cfg: 
+            return False, "系統尚未設定 SMTP 參數 (st.secrets['smtp'])，請確認秘密金鑰設定檔。"
+        if not str(to_email).strip() or str(to_email).strip().lower() in ['nan', 'none', '']: 
+            return False, "無效的電子郵件地址 (Email 欄位為空)"
         
         msg = MIMEMultipart()
         msg['From'] = smtp_cfg.get("email", "noreply@system.com")
-        msg['To'] = to_email
+        msg['To'] = str(to_email).strip()
         msg['Subject'] = subject
         msg.attach(MIMEText(body, 'html'))
         
@@ -469,7 +471,7 @@ def send_system_email(to_email, subject, body):
         server.quit()
         return True, "發送成功"
     except Exception as e:
-        return False, str(e)
+        return False, f"連線或驗證失敗: {str(e)}"
 
 # ==========================================
 # 5. 後台分頁 Fragment 模組 
@@ -481,7 +483,6 @@ def render_tab1_overview(df_clean, df_equip_full, all_years):
     selected_year = st.selectbox("📅 請選擇檢視年度", all_years, index=0, key="t1_year")
     st.markdown("---")
     
-    # 邏輯 1：依照年度過濾設備清單 (避免舊設備混入新年度)
     if '設備檢視年度' in df_equip_full.columns:
         df_equip = df_equip_full[df_equip_full['設備檢視年度'].astype(str) == str(selected_year)].copy()
         if df_equip.empty:
@@ -731,8 +732,9 @@ def render_tab2_dashboard(df_clean, all_years):
         df_year['CO2e'] = df_year.apply(lambda r: r['加油量']*0.0022 if '汽油' in str(r['原燃物料名稱']) else r['加油量']*0.0027, axis=1)
         if not df_year.empty:
             fig_tree = px.treemap(df_year, path=['填報單位', '設備名稱備註'], values='CO2e', color='填報單位', color_discrete_sequence=DASH_PALETTE)
-            fig_tree.update_traces(texttemplate='%{label}<br>%{value:.4f}<br>%{percentRoot:.1%}', textfont=dict(size=24))
-            fig_tree.update_layout(height=700)
+            # 修正點：移除強制字體大小 textfont=dict(size=24)，並改用 uniformtext 自動適應縮放
+            fig_tree.update_traces(texttemplate='%{label}<br>%{value:.4f}<br>%{percentRoot:.1%}')
+            fig_tree.update_layout(height=700, uniformtext=dict(minsize=12, mode='hide'))
             st.plotly_chart(fig_tree, use_container_width=True)
         else: st.info("無數據")
     else: st.info("尚無該年度資料，無法顯示儀表板。")
@@ -747,7 +749,6 @@ def render_tab3_missing(df_clean, df_equip_full, all_years):
     d_start = c_f1.date_input("查詢起始日", date(default_year, 1, 1), key="t3_d1")
     d_end = c_f2.date_input("查詢結束日", date.today(), key="t3_d2")
     
-    # 邏輯 1：取得比對用的設備清單 (根據查詢結束日的年份)
     target_year = d_end.year
     if '設備檢視年度' in df_equip_full.columns:
         df_equip = df_equip_full[df_equip_full['設備檢視年度'].astype(str) == str(target_year)].copy()
@@ -776,6 +777,7 @@ def render_tab3_missing(df_clean, df_equip_full, all_years):
                 with st.spinner("正在批次發送每月提醒信件..."):
                     groups = df_equip.groupby(['填報單位', '電子郵件'])
                     success_count, fail_count = 0, 0
+                    error_logs = [] # 收集錯誤訊息
                     cur_month = datetime.now().month
                     subject = f"【提醒】{cur_month}月份燃油設備油料使用申報通知"
                     
@@ -789,15 +791,22 @@ def render_tab3_missing(df_clean, df_equip_full, all_years):
                         <p>感謝您的配合！<br><span style="color:#7F8C8D;font-size:12px;">(此為系統自動發送，請勿直接回覆)</span></p>
                         """
                         ok, msg = send_system_email(email, subject, body)
-                        if ok: success_count += 1
-                        else: fail_count += 1
+                        if ok: 
+                            success_count += 1
+                        else: 
+                            fail_count += 1
+                            if f"[{email}] {msg}" not in error_logs:
+                                error_logs.append(f"[{email}] {msg}")
                     
                     if success_count > 0: st.success(f"✅ 成功寄送 {success_count} 封提醒信件。")
-                    if fail_count > 0: st.warning(f"⚠️ 有 {fail_count} 封信件發送失敗，請確認 SMTP 設定或郵件地址。")
+                    if fail_count > 0: 
+                        st.warning(f"⚠️ 有 {fail_count} 封信件發送失敗。請查看下方錯誤詳情：")
+                        with st.expander("展開查看發送失敗原因"):
+                            for log in error_logs:
+                                st.code(log)
 
     st.markdown("---")
     
-    # 若已有篩選結果，顯示名單並提供催報按鈕
     if st.session_state.get('unreported_df') is not None:
         unreported = st.session_state['unreported_df']
         if not unreported.empty:
@@ -810,6 +819,7 @@ def render_tab3_missing(df_clean, df_equip_full, all_years):
                     with st.spinner("正在發送催報信件..."):
                         groups = unreported.groupby(['填報單位', '電子郵件'])
                         success_count, fail_count = 0, 0
+                        error_logs = [] # 收集錯誤訊息
                         subject = f"【催告】未完成燃油設備油料使用申報通知 ({d_start} ~ {d_end})"
                         
                         for (unit, email), group in groups:
@@ -822,11 +832,19 @@ def render_tab3_missing(df_clean, df_equip_full, all_years):
                             <p>感謝您的配合！<br><span style="color:#7F8C8D;font-size:12px;">(此為系統自動發送，請勿直接回覆)</span></p>
                             """
                             ok, msg = send_system_email(email, subject, body)
-                            if ok: success_count += 1
-                            else: fail_count += 1
+                            if ok: 
+                                success_count += 1
+                            else: 
+                                fail_count += 1
+                                if f"[{email}] {msg}" not in error_logs:
+                                    error_logs.append(f"[{email}] {msg}")
                         
                         if success_count > 0: st.success(f"✅ 成功寄送 {success_count} 封催報信件。")
-                        if fail_count > 0: st.warning(f"⚠️ 有 {fail_count} 封信件發送失敗。")
+                        if fail_count > 0: 
+                            st.warning(f"⚠️ 有 {fail_count} 封信件發送失敗。請查看下方錯誤詳情：")
+                            with st.expander("展開查看發送失敗原因"):
+                                for log in error_logs:
+                                    st.code(log)
 
             for idx, (unit, group) in enumerate(unreported.groupby('填報單位')):
                 bg_color = UNREPORTED_COLORS[idx % len(UNREPORTED_COLORS)]
@@ -880,7 +898,6 @@ def render_tab5_export(df_clean, df_equip_full, all_years):
     
     st.subheader("📁 年度加油統計及佐證下載")
     
-    # 邏輯 1：依照年度過濾設備清單
     if '設備檢視年度' in df_equip_full.columns:
         df_equip = df_equip_full[df_equip_full['設備檢視年度'].astype(str) == str(selected_admin_year)].copy()
     else:
@@ -959,7 +976,7 @@ def main():
     with admin_tabs[3]: render_tab4_edit(df_clean, df_records, all_years) 
     with admin_tabs[4]: render_tab5_export(df_clean, df_equip, all_years)
     
-    st.markdown('<div style="text-align: center; color: #BDC3C7; font-size: 0.9rem; margin-top: 50px;">管理員系統版本 V177 (Equipment Year Filter & Email Notification)</div>', unsafe_allow_html=True)
+    st.markdown('<div style="text-align: center; color: #BDC3C7; font-size: 0.9rem; margin-top: 50px;">管理員系統版本 V178 (Treemap Auto-Scaling & Email Error Logger)</div>', unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
