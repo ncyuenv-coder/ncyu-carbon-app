@@ -731,17 +731,14 @@ def render_tab2_dashboard(df_clean, all_years):
         st.markdown("<h3 style='color: #2C3E50;'>🌍 全校油料使用碳排放量結構 (Carbon Emission Structure in tCO<sub>2</sub>e)</h3>", unsafe_allow_html=True)
         df_year['CO2e'] = df_year.apply(lambda r: r['加油量']*0.0022 if '汽油' in str(r['原燃物料名稱']) else r['加油量']*0.0027, axis=1)
         if not df_year.empty:
-            st.markdown("<div style='margin-bottom: 10px; color: #566573;'>💡 <b>顯示建議：</b> 您可切換下方圖表類型。字體大小將會自動依據資料佔比(區塊面積)完美縮放。</div>", unsafe_allow_html=True)
-            chart_type = st.radio("圖表切換", ["⭕ 旭日圖 (推薦：內圈單位加計、外圈設備明細)", "🔲 矩形樹狀圖 (Treemap)"], horizontal=True, label_visibility="collapsed")
+            chart_type = st.radio("圖表切換", ["⭕ 旭日圖 (Sunburst Chart)", "🔲 矩形樹狀圖 (Treemap)"], horizontal=True, label_visibility="collapsed")
             
             if "旭日圖" in chart_type:
                 fig_chart = px.sunburst(df_year, path=['填報單位', '設備名稱備註'], values='CO2e', color='填報單位', color_discrete_sequence=DASH_PALETTE)
-                # 套用樣板，Plotly 自動處理字體縮放
-                fig_chart.update_traces(texttemplate='%{label}<br>%{value:.4f} tCO2e<br>%{percentRoot:.1%}')
+                fig_chart.update_traces(texttemplate='%{label}<br>%{value:.4f} tCO<sub>2</sub>e<br>%{percentRoot:.1%}')
             else:
                 fig_chart = px.treemap(df_year, path=['填報單位', '設備名稱備註'], values='CO2e', color='填報單位', color_discrete_sequence=DASH_PALETTE)
-                # 移除所有強制字體大小，完全讓 Plotly 按比例縮放，並讓父節點也能顯示數值
-                fig_chart.update_traces(texttemplate='%{label}<br>%{value:.4f} tCO2e<br>%{percentRoot:.1%}')
+                fig_chart.update_traces(texttemplate='%{label}<br>%{value:.4f} tCO<sub>2</sub>e<br>%{percentRoot:.1%}')
                 
             fig_chart.update_layout(height=800, margin=dict(t=20, l=10, r=10, b=10))
             st.plotly_chart(fig_chart, use_container_width=True)
@@ -772,7 +769,7 @@ def render_tab3_missing(df_clean, df_equip_full, all_years):
         else:
             df_equip = df_equip_full.copy()
 
-        if st.button(f"🔔 寄送{sel_year}年{sel_month}月申報提醒通知", use_container_width=True):
+        if st.button(f"🔔 寄送 {sel_year}年{sel_month}月申報提醒通知", use_container_width=True):
             if '電子郵件' not in df_equip.columns:
                 st.error("❌ 找不到「電子郵件」欄位，請確認 Sheet1 的 K 欄已正確建檔。")
             else:
@@ -1011,7 +1008,7 @@ def main():
     with admin_tabs[3]: render_tab4_edit(df_clean, df_records, all_years) 
     with admin_tabs[4]: render_tab5_export(df_clean, df_equip, all_years)
     
-    st.markdown('<div style="text-align: center; color: #BDC3C7; font-size: 0.9rem; margin-top: 50px;">管理員系統版本 V182 (Dynamic Font Scaling & Sunburst Chart)</div>', unsafe_allow_html=True)
+    st.markdown('<div style="text-align: center; color: #BDC3C7; font-size: 0.9rem; margin-top: 50px;">管理員系統版本 V182 (Final UI Polish)</div>', unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
