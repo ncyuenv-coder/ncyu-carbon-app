@@ -732,9 +732,9 @@ def render_tab2_dashboard(df_clean, all_years):
         df_year['CO2e'] = df_year.apply(lambda r: r['加油量']*0.0022 if '汽油' in str(r['原燃物料名稱']) else r['加油量']*0.0027, axis=1)
         if not df_year.empty:
             fig_tree = px.treemap(df_year, path=['填報單位', '設備名稱備註'], values='CO2e', color='填報單位', color_discrete_sequence=DASH_PALETTE)
-            # 修正點：加大字體並調整縮放機制
-            fig_tree.update_traces(texttemplate='%{label}<br>%{value:.4f}<br>%{percentRoot:.1%}', textfont=dict(size=16))
-            fig_tree.update_layout(height=700, uniformtext=dict(minsize=14, mode='hide'))
+            # 修正點：移除 uniformtext 設定，允許 Plotly 完全顯示標籤文字，並強制放大字體為 18
+            fig_tree.update_traces(texttemplate='%{label}<br>%{value:.4f}<br>%{percentRoot:.1%}', textfont=dict(size=18))
+            fig_tree.update_layout(height=700) # 取消 uniformtext 避免標籤消失
             st.plotly_chart(fig_tree, use_container_width=True)
         else: st.info("無數據")
     else: st.info("尚無該年度資料，無法顯示儀表板。")
@@ -742,14 +742,14 @@ def render_tab2_dashboard(df_clean, all_years):
 @st.fragment
 def render_tab3_missing(df_clean, df_equip_full, all_years):
     st.markdown("<br>", unsafe_allow_html=True)
-    st.subheader("⚠️ 寄送通知與未申報篩選")
     
-    # 新增雙模式切換
-    mode = st.radio("請選擇作業模式：", ["📅 1. 每月申報提醒 (一鍵通知全校單位)", "🔍 2. 篩選未申報名單催報 (針對特定期間未報者)"], horizontal=True)
+    # 修改點：移除舊的 st.subheader，改用精緻的標題與選項設計
+    st.markdown("<h3 style='color: #2C3E50;'>⚙️ 請選擇作業模式：</h3>", unsafe_allow_html=True)
+    mode = st.radio("請選擇作業模式：", ["📅 每月申報提醒通知", "🔍 篩選未申報名單催報"], horizontal=True, label_visibility="collapsed")
     st.markdown("---")
     
     if "每月申報提醒" in mode:
-        st.markdown("#### 📅 批次寄送每月申報提醒信")
+        st.markdown("#### 📅 批次寄送每月申報提醒通知")
         st.info("此功能將會向資料庫內所有設備單位寄送當月例行性申報提醒通知。")
         
         c_y, c_m = st.columns(2)
@@ -764,7 +764,8 @@ def render_tab3_missing(df_clean, df_equip_full, all_years):
         else:
             df_equip = df_equip_full.copy()
 
-        if st.button(f"🔔 寄送 {sel_year}年{sel_month}月 申報提醒通知 (全庫)", use_container_width=True):
+        # 修改點：精簡按鈕文字
+        if st.button(f"🔔 寄送 {sel_year}年{sel_month}月申報提醒通知", use_container_width=True):
             if '電子郵件' not in df_equip.columns:
                 st.error("❌ 找不到「電子郵件」欄位，請確認 Sheet1 的 K 欄已正確建檔。")
             else:
@@ -816,7 +817,8 @@ def render_tab3_missing(df_clean, df_equip_full, all_years):
         else:
             df_equip = df_equip_full.copy()
 
-        if st.button("🔍 開始篩選未申報單", use_container_width=True):
+        # 修改點：精簡按鈕文字
+        if st.button("🔍 開始篩選未申報單位", use_container_width=True):
             if not df_clean.empty:
                 mask = (df_clean['日期格式'].dt.date >= d_start) & (df_clean['日期格式'].dt.date <= d_end)
                 reported = set(df_clean[mask]['設備名稱備註'].unique())
@@ -834,7 +836,8 @@ def render_tab3_missing(df_clean, df_equip_full, all_years):
             if not unreported.empty:
                 st.error(f"🚩 期間 [{d_start} ~ {d_end}] 共有 {len(unreported)} 台設備未申報！")
                 
-                if st.button("📨 寄送催報通知 (針對目前篩選名單)", use_container_width=True):
+                # 修改點：精簡按鈕文字
+                if st.button("📨 寄送催報通知", use_container_width=True):
                     if '電子郵件' not in unreported.columns:
                         st.error("❌ 找不到「電子郵件」欄位，請確認 Sheet1 已正確建檔。")
                     else:
@@ -1003,7 +1006,7 @@ def main():
     with admin_tabs[3]: render_tab4_edit(df_clean, df_records, all_years) 
     with admin_tabs[4]: render_tab5_export(df_clean, df_equip, all_years)
     
-    st.markdown('<div style="text-align: center; color: #BDC3C7; font-size: 0.9rem; margin-top: 50px;">管理員系統版本 V180 (Split Notification Modes & Enhanced Treemap)</div>', unsafe_allow_html=True)
+    st.markdown('<div style="text-align: center; color: #BDC3C7; font-size: 0.9rem; margin-top: 50px;">管理員系統版本 V181 (UI Copy Refining & Visible Treemap Labels)</div>', unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
