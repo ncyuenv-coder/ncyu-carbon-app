@@ -732,8 +732,9 @@ def render_tab2_dashboard(df_clean, all_years):
         df_year['CO2e'] = df_year.apply(lambda r: r['加油量']*0.0022 if '汽油' in str(r['原燃物料名稱']) else r['加油量']*0.0027, axis=1)
         if not df_year.empty:
             fig_tree = px.treemap(df_year, path=['填報單位', '設備名稱備註'], values='CO2e', color='填報單位', color_discrete_sequence=DASH_PALETTE)
-            fig_tree.update_traces(texttemplate='%{label}<br>%{value:.4f}<br>%{percentRoot:.1%}')
-            fig_tree.update_layout(height=700, uniformtext=dict(minsize=12, mode='hide'))
+            # 修正點：加大字體並調整縮放機制
+            fig_tree.update_traces(texttemplate='%{label}<br>%{value:.4f}<br>%{percentRoot:.1%}', textfont=dict(size=16))
+            fig_tree.update_layout(height=700, uniformtext=dict(minsize=14, mode='hide'))
             st.plotly_chart(fig_tree, use_container_width=True)
         else: st.info("無數據")
     else: st.info("尚無該年度資料，無法顯示儀表板。")
@@ -741,35 +742,29 @@ def render_tab2_dashboard(df_clean, all_years):
 @st.fragment
 def render_tab3_missing(df_clean, df_equip_full, all_years):
     st.markdown("<br>", unsafe_allow_html=True)
+    st.subheader("⚠️ 寄送通知與未申報篩選")
     
-    st.subheader("⚠️ 篩選未申報名單與寄送通知")
-    c_f1, c_f2 = st.columns(2)
-    default_year = all_years[0] if all_years else datetime.now().year
-    d_start = c_f1.date_input("查詢起始日", date(default_year, 1, 1), key="t3_d1")
-    d_end = c_f2.date_input("查詢結束日", date.today(), key="t3_d2")
+    # 新增雙模式切換
+    mode = st.radio("請選擇作業模式：", ["📅 1. 每月申報提醒 (一鍵通知全校單位)", "🔍 2. 篩選未申報名單催報 (針對特定期間未報者)"], horizontal=True)
+    st.markdown("---")
     
-    target_year = d_end.year
-    if '設備檢視年度' in df_equip_full.columns:
-        df_equip = df_equip_full[df_equip_full['設備檢視年度'].astype(str) == str(target_year)].copy()
-    else:
-        df_equip = df_equip_full.copy()
+    if "每月申報提醒" in mode:
+        st.markdown("#### 📅 批次寄送每月申報提醒信")
+        st.info("此功能將會向資料庫內所有設備單位寄送當月例行性申報提醒通知。")
+        
+        c_y, c_m = st.columns(2)
+        cur_year = datetime.now().year
+        cur_month = datetime.now().month
+        
+        sel_year = c_y.number_input("通知年度", value=cur_year, min_value=2020, max_value=2100, step=1)
+        sel_month = c_m.selectbox("通知月份", range(1, 13), index=cur_month-1)
+        
+        if '設備檢視年度' in df_equip_full.columns:
+            df_equip = df_equip_full[df_equip_full['設備檢視年度'].astype(str) == str(sel_year)].copy()
+        else:
+            df_equip = df_equip_full.copy()
 
-    col_btn1, col_btn2 = st.columns(2)
-    
-    with col_btn1:
-        if st.button("🔍 開始篩選未申報單", use_container_width=True):
-            if not df_clean.empty:
-                mask = (df_clean['日期格式'].dt.date >= d_start) & (df_clean['日期格式'].dt.date <= d_end)
-                reported = set(df_clean[mask]['設備名稱備註'].unique())
-                df_eq_copy = df_equip.copy()
-                df_eq_copy['已申報'] = df_eq_copy['設備名稱備註'].apply(lambda x: x in reported)
-                unreported = df_eq_copy[~df_eq_copy['已申報']]
-                st.session_state['unreported_df'] = unreported
-            else:
-                st.warning("無資料可供篩選。")
-
-    with col_btn2:
-        if st.button("🔔 寄送每月申報提醒通知 (全庫)", use_container_width=True):
+        if st.button(f"🔔 寄送 {sel_year}年{sel_month}月 申報提醒通知 (全庫)", use_container_width=True):
             if '電子郵件' not in df_equip.columns:
                 st.error("❌ 找不到「電子郵件」欄位，請確認 Sheet1 的 K 欄已正確建檔。")
             else:
@@ -778,14 +773,10 @@ def render_tab3_missing(df_clean, df_equip_full, all_years):
                     success_count, fail_count = 0, 0
                     error_logs = [] 
                     
-                    # 取當前西元年與月
-                    cur_year = datetime.now().year
-                    cur_month = datetime.now().month
-                    subject = f"【提醒】{cur_year}年{cur_month}月份燃油設備油料使用申報通知，請於次月5日前完成申報"
+                    subject = f"【提醒】{sel_year}年{sel_month}月份燃油設備油料使用申報通知，請於次月5日前完成申報"
                     
                     for (unit, email), group in groups:
-                        # 精準修改清單格式
-                        eq_li = "".join([f"<li>{r['設備名稱備註']} ：{r.get('設備所屬單位/部門','-')}、{r.get('保管人','-')}、{r.get('設備數量','1')}</li>" for _, r in group.iterrows()])
+                        eq_li = "".join([f"<li>{r['設備名稱備註']} ：{r.get('設備數量','1')}台，保管人：{r.get('保管人','-')}</li>" for _, r in group.iterrows()])
                         body = f"""
                         <p>您好：</p>
                         <p>依據環境部「事業應盤查登錄溫室氣體排放量之排放源」及「溫室氣體排放量盤查登錄及查驗管理辦法」，本校須依辦理溫室氣體排放量盤查登錄作業。</p>
@@ -795,7 +786,7 @@ def render_tab3_missing(df_clean, df_equip_full, all_years):
                         <p>若有疑問，請洽環境保護及安全管理中心林小姐 (分機7137)</p>
                         <br>
                         <p>感謝您的配合！<br>
-                        環境保護及安全管理中心  敬上<br>
+                        環境保護及安全管理中心 敬上<br>
                         <span style="color:#7F8C8D;font-size:12px;">(此為系統自動發送，請勿直接回覆)</span></p>
                         """
                         ok, msg = send_system_email(email, subject, body)
@@ -812,60 +803,82 @@ def render_tab3_missing(df_clean, df_equip_full, all_years):
                         with st.expander("展開查看發送失敗原因"):
                             for log in error_logs:
                                 st.code(log)
+    else:
+        st.markdown("#### 🔍 篩選未申報清單並催報")
+        c_f1, c_f2 = st.columns(2)
+        default_year = all_years[0] if all_years else datetime.now().year
+        d_start = c_f1.date_input("查詢起始日", date(default_year, 1, 1), key="t3_d1")
+        d_end = c_f2.date_input("查詢結束日", date.today(), key="t3_d2")
+        
+        target_year = d_end.year
+        if '設備檢視年度' in df_equip_full.columns:
+            df_equip = df_equip_full[df_equip_full['設備檢視年度'].astype(str) == str(target_year)].copy()
+        else:
+            df_equip = df_equip_full.copy()
 
-    st.markdown("---")
-    
-    if st.session_state.get('unreported_df') is not None:
-        unreported = st.session_state['unreported_df']
-        if not unreported.empty:
-            st.error(f"🚩 期間 [{d_start} ~ {d_end}] 共有 {len(unreported)} 台設備未申報！")
-            
-            if st.button("📨 寄送催報通知 (針對目前篩選名單)"):
-                if '電子郵件' not in unreported.columns:
-                    st.error("❌ 找不到「電子郵件」欄位，請確認 Sheet1 已正確建檔。")
-                else:
-                    with st.spinner("正在發送催報信件..."):
-                        groups = unreported.groupby(['填報單位', '電子郵件'])
-                        success_count, fail_count = 0, 0
-                        error_logs = [] 
-                        subject = f"【催報提醒】查貴單位尚未申報({d_start} ~ {d_end})之燃油設備油料使用情形，請於通知日起3日內申報，謝謝"
-                        
-                        for (unit, email), group in groups:
-                            # 精準修改清單格式
-                            eq_li = "".join([f"<li>{r['設備名稱備註']} ：{r.get('設備所屬單位/部門','-')}、{r.get('保管人','-')}、{r.get('設備數量','1')}</li>" for _, r in group.iterrows()])
-                            body = f"""
-                            <p>您好：</p>
-                            <p>依據環境部「事業應盤查登錄溫室氣體排放量之排放源」及「溫室氣體排放量盤查登錄及查驗管理辦法」，本校須依辦理溫室氣體排放量盤查登錄作業，先予說明。</p>
-                            <p>經系統比對，貴單位 ({unit}) 於 {d_start} 至 {d_end} 期間有以下設備尚未完成油料使用申報：</p>
-                            <ul>{eq_li}</ul>
-                            <p>請於通知日起3日內至校內溫室氣體盤查填報系統(連結：<a href="https://ncyu-carbon-app-mduue5hffp7uknsskmjet9.streamlit.app/">https://ncyu-carbon-app-mduue5hffp7uknsskmjet9.streamlit.app/</a>)，申報貴單位之燃油設備油料使用情形，以免影響全校溫室氣體排放量盤查統計正確性。</p>
-                            <p>若有疑問，請洽環境保護及安全管理中心林小姐 (分機7137)</p>
-                            <br>
-                            <p>感謝您的配合！<br>
-                            環境保護及安全管理中心  敬上<br>
-                            <span style="color:#7F8C8D;font-size:12px;">(此為系統自動發送，請勿直接回覆)</span></p>
-                            """
-                            ok, msg = send_system_email(email, subject, body)
-                            if ok: 
-                                success_count += 1
-                            else: 
-                                fail_count += 1
-                                if f"[{email}] {msg}" not in error_logs:
-                                    error_logs.append(f"[{email}] {msg}")
-                        
-                        if success_count > 0: st.success(f"✅ 成功寄送 {success_count} 封催報信件。")
-                        if fail_count > 0: 
-                            st.warning(f"⚠️ 有 {fail_count} 封信件發送失敗。請查看下方錯誤詳情：")
-                            with st.expander("展開查看發送失敗原因"):
-                                for log in error_logs:
-                                    st.code(log)
+        if st.button("🔍 開始篩選未申報單", use_container_width=True):
+            if not df_clean.empty:
+                mask = (df_clean['日期格式'].dt.date >= d_start) & (df_clean['日期格式'].dt.date <= d_end)
+                reported = set(df_clean[mask]['設備名稱備註'].unique())
+                df_eq_copy = df_equip.copy()
+                df_eq_copy['已申報'] = df_eq_copy['設備名稱備註'].apply(lambda x: x in reported)
+                unreported = df_eq_copy[~df_eq_copy['已申報']]
+                st.session_state['unreported_df'] = unreported
+            else:
+                st.warning("無資料可供篩選。")
 
-            for idx, (unit, group) in enumerate(unreported.groupby('填報單位')):
-                bg_color = UNREPORTED_COLORS[idx % len(UNREPORTED_COLORS)]
-                st.markdown(f"""<div class="unreported-block" style="background-color: {bg_color};"><div class="unreported-title">🏢 {unit} (未申報數: {len(group)})</div></div>""", unsafe_allow_html=True)
-                st.dataframe(group[['設備名稱備註', '保管人', '校內財產編號', '電子郵件']], use_container_width=True)
-        else: 
-            st.success("🎉 太棒了！該期間全數設備皆已完成申報。")
+        st.markdown("---")
+        
+        if st.session_state.get('unreported_df') is not None:
+            unreported = st.session_state['unreported_df']
+            if not unreported.empty:
+                st.error(f"🚩 期間 [{d_start} ~ {d_end}] 共有 {len(unreported)} 台設備未申報！")
+                
+                if st.button("📨 寄送催報通知 (針對目前篩選名單)", use_container_width=True):
+                    if '電子郵件' not in unreported.columns:
+                        st.error("❌ 找不到「電子郵件」欄位，請確認 Sheet1 已正確建檔。")
+                    else:
+                        with st.spinner("正在發送催報信件..."):
+                            groups = unreported.groupby(['填報單位', '電子郵件'])
+                            success_count, fail_count = 0, 0
+                            error_logs = [] 
+                            subject = f"【催報提醒】查貴單位尚未申報({d_start} ~ {d_end})之燃油設備油料使用情形，請於通知日起3日內申報，謝謝"
+                            
+                            for (unit, email), group in groups:
+                                eq_li = "".join([f"<li>{r['設備名稱備註']} ：{r.get('設備數量','1')}台，保管人：{r.get('保管人','-')}</li>" for _, r in group.iterrows()])
+                                body = f"""
+                                <p>您好：</p>
+                                <p>依據環境部「事業應盤查登錄溫室氣體排放量之排放源」及「溫室氣體排放量盤查登錄及查驗管理辦法」，本校須依辦理溫室氣體排放量盤查登錄作業，先予說明。</p>
+                                <p>經系統比對，貴單位 ({unit}) 於 {d_start} 至 {d_end} 期間有以下設備尚未完成油料使用申報：</p>
+                                <ul>{eq_li}</ul>
+                                <p>請於通知日起3日內至校內溫室氣體盤查填報系統(連結：<a href="https://ncyu-carbon-app-mduue5hffp7uknsskmjet9.streamlit.app/">https://ncyu-carbon-app-mduue5hffp7uknsskmjet9.streamlit.app/</a>)，申報貴單位之燃油設備油料使用情形，以免影響全校溫室氣體排放量盤查統計正確性。</p>
+                                <p>若有疑問，請洽環境保護及安全管理中心林小姐 (分機7137)</p>
+                                <br>
+                                <p>感謝您的配合！<br>
+                                環境保護及安全管理中心 敬上<br>
+                                <span style="color:#7F8C8D;font-size:12px;">(此為系統自動發送，請勿直接回覆)</span></p>
+                                """
+                                ok, msg = send_system_email(email, subject, body)
+                                if ok: 
+                                    success_count += 1
+                                else: 
+                                    fail_count += 1
+                                    if f"[{email}] {msg}" not in error_logs:
+                                        error_logs.append(f"[{email}] {msg}")
+                            
+                            if success_count > 0: st.success(f"✅ 成功寄送 {success_count} 封催報信件。")
+                            if fail_count > 0: 
+                                st.warning(f"⚠️ 有 {fail_count} 封信件發送失敗。請查看下方錯誤詳情：")
+                                with st.expander("展開查看發送失敗原因"):
+                                    for log in error_logs:
+                                        st.code(log)
+
+                for idx, (unit, group) in enumerate(unreported.groupby('填報單位')):
+                    bg_color = UNREPORTED_COLORS[idx % len(UNREPORTED_COLORS)]
+                    st.markdown(f"""<div class="unreported-block" style="background-color: {bg_color};"><div class="unreported-title">🏢 {unit} (未申報數: {len(group)})</div></div>""", unsafe_allow_html=True)
+                    st.dataframe(group[['設備名稱備註', '保管人', '校內財產編號', '電子郵件']], use_container_width=True)
+            else: 
+                st.success("🎉 太棒了！該期間全數設備皆已完成申報。")
 
 @st.fragment
 def render_tab4_edit(df_clean, df_records, all_years):
@@ -979,7 +992,7 @@ def main():
     admin_tabs = st.tabs([
         "📝 全校燃油設備總覽", 
         "📊 全校油料使用儀表板", 
-        "⚠️ 篩選未申報名單與寄送通知", 
+        "⚠️ 寄送通知與未申報篩選", 
         "🔍 申報資料異動", 
         "📁 年度加油統計及佐證下載"
     ])
@@ -990,7 +1003,7 @@ def main():
     with admin_tabs[3]: render_tab4_edit(df_clean, df_records, all_years) 
     with admin_tabs[4]: render_tab5_export(df_clean, df_equip, all_years)
     
-    st.markdown('<div style="text-align: center; color: #BDC3C7; font-size: 0.9rem; margin-top: 50px;">管理員系統版本 V179 (Official Email Template Update)</div>', unsafe_allow_html=True)
+    st.markdown('<div style="text-align: center; color: #BDC3C7; font-size: 0.9rem; margin-top: 50px;">管理員系統版本 V180 (Split Notification Modes & Enhanced Treemap)</div>', unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
