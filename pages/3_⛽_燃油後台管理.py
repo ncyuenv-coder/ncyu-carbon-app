@@ -11,7 +11,10 @@ import plotly.graph_objects as go
 import time
 import re
 import io
-import hashlib  # 引入指紋辨識防呆機制
+import hashlib
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 try:
     from docx import Document
@@ -56,12 +59,12 @@ st.markdown("""
     div[data-baseweb="select"] > div { border-color: #BDC3C7 !important; background-color: #FFFFFF !important; }
     ul[data-baseweb="menu"] { background-color: #FFFFFF !important; }
     
-    /* 主按鈕 (Primary) - 儲存變更等 */
+    /* 主按鈕 (Primary) */
     button[kind="primary"] { background-color: var(--orange-bg) !important; color: #FFFFFF !important; border: 2px solid var(--orange-dark) !important; border-radius: 12px !important; font-size: 1.3rem !important; font-weight: 800 !important; padding: 0.7rem 1.5rem !important; box-shadow: 0 4px 6px rgba(230, 126, 34, 0.3) !important; width: 100%; }
     button[kind="primary"] p { color: #FFFFFF !important; } 
     button[kind="primary"]:hover { background-color: var(--orange-dark) !important; transform: translateY(-2px) !important; color: #FFFFFF !important; }
     
-    /* 次按鈕 (Secondary) - 下載按鈕、產生Word等 (莫蘭迪深色底、白字) */
+    /* 次按鈕 (Secondary) */
     button[kind="secondary"] { background-color: #5D6D7E !important; color: #FFFFFF !important; border: 2px solid #34495E !important; border-radius: 12px !important; font-size: 1.15rem !important; font-weight: 800 !important; padding: 0.7rem 1.5rem !important; box-shadow: 0 4px 6px rgba(52, 73, 94, 0.3) !important; width: 100%; }
     button[kind="secondary"] p { color: #FFFFFF !important; } 
     button[kind="secondary"]:hover { background-color: #34495E !important; transform: translateY(-2px) !important; color: #FFFFFF !important; }
@@ -73,12 +76,11 @@ st.markdown("""
     [data-testid="stDataFrame"] { font-size: 1.25rem !important; }
     [data-testid="stDataFrame"] div { font-size: 1.25rem !important; }
     
-    /* 展開面板 (Expander) 樣式優化 */
+    /* 展開面板 (Expander) */
     [data-testid="stExpander"] { background-color: #FFFFFF; border: 1px solid #BDC3C7; border-radius: 12px; box-shadow: 0 3px 6px rgba(0,0,0,0.08); margin-bottom: 15px; }
     [data-testid="stExpander"] summary { padding: 10px 15px; }
     [data-testid="stExpander"] summary p { font-size: 1.4rem !important; font-weight: 900 !important; color: #000000 !important; }
     [data-testid="stExpander"] summary:hover { background-color: #F8F9F9; }
-    /* 【修改】：加上淺色底色 (#EAECEE) 讓內部白色資訊卡浮現 */
     [data-testid="stExpanderDetails"] { padding: 20px; background-color: #EAECEE; border-top: 1px solid #BDC3C7; border-radius: 0 0 12px 12px; }
 
     /* --- 設備詳細卡片樣式 --- */
@@ -132,7 +134,7 @@ st.markdown("""
     .unreported-title { font-size: 1.6rem; font-weight: 900; margin-bottom: 12px; border-bottom: 2px solid rgba(0,0,0,0.1); padding-bottom: 8px; }
     .bar-chart-box { border: 1px solid #BDC3C7; border-radius: 12px; padding: 15px; background-color: #FFFFFF; box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-bottom: 15px;}
     
-    /* 儀表板大標題恢復明顯置中大字 */
+    /* 儀表板大標題 */
     .dashboard-main-title { font-size: 2.4rem; font-weight: 900; text-align: center; color: #1A5276; margin-bottom: 25px; margin-top: 10px; letter-spacing: 2px; }
 
     /* 單選按鈕 (Radio) */
@@ -158,7 +160,6 @@ if st.session_state.get("authentication_status") is not True:
 username = st.session_state.get("username")
 name = st.session_state.get("name")
 
-# 安全管控：限制只有 admin 能夠進入
 if username != 'admin':
     st.error("🚫 權限不足：此頁面僅供系統管理員使用。")
     st.stop()
@@ -192,7 +193,6 @@ def init_google_fuel():
     gc = gspread.authorize(creds); drive = build('drive', 'v3', credentials=creds)
     return gc, drive
 
-# 安全初始化：將 drive_service 保留至全域供匯出使用
 try:
     _, drive_service = init_google_fuel()
 except Exception as e: 
@@ -217,7 +217,7 @@ def load_fuel_data():
     return df_e, df_r
 
 # ==========================================
-# 4. Word 匯出輔助函數 
+# 4. 輔助函數 (Word 及 Email)
 # ==========================================
 def get_drive_id(url):
     match = re.search(r'/d/([a-zA-Z0-9_-]+)', str(url))
@@ -232,8 +232,7 @@ def download_and_convert_drive_files(drive_service_obj, file_id):
         fh = io.BytesIO()
         downloader = MediaIoBaseDownload(fh, request)
         done = False
-        while done is False:
-            status, done = downloader.next_chunk()
+        while done is False: status, done = downloader.next_chunk()
         fh.seek(0)
         header = fh.read(4)
         fh.seek(0)
@@ -252,7 +251,6 @@ def download_and_convert_drive_files(drive_service_obj, file_id):
     except: return []
 
 def export_general_docx(df_year, df_eq, drive_srv):
-    """ 一般申報：加入雙軌制與 MD5 圖像內容去重邏輯 """
     doc = Document()
     for section in doc.sections:
         section.page_width = Cm(21.0); section.page_height = Cm(29.7)
@@ -264,17 +262,13 @@ def export_general_docx(df_year, df_eq, drive_srv):
     df_merged['佐證資料_clean'] = df_merged['佐證資料'].fillna('無').astype(str).str.strip()
 
     valid_df = df_merged[(df_merged['佐證資料_clean'] != '') & (df_merged['佐證資料_clean'] != '無')]
-    
-    # 區分共用與獨立
     shared_mask = valid_df['與其他設備共用加油單'].astype(str).str.strip() == '是'
     df_shared = valid_df[shared_mask]
     df_indiv = valid_df[~shared_mask]
 
-    # 全域防呆紀錄器 (擋網址 & 擋重複圖片)
     global_seen_fids = set()
     global_image_hashes = set()
 
-    # Part 1: 獨立設備申報
     if not df_indiv.empty:
         doc.add_heading("【獨立設備申報明細】", level=1)
         groups = df_indiv.groupby(['設備編號', '設備名稱備註', '填報單位', '原燃物料名稱'], dropna=False)
@@ -283,14 +277,12 @@ def export_general_docx(df_year, df_eq, drive_srv):
         for name, group in sorted_groups:
             eq_id, eq_name, dept, fuel = name
             yearly_vol = df_year[df_year['設備名稱備註'] == eq_name]['加油量'].sum()
-            
             p = doc.add_paragraph()
             p.add_run(f"填報單位：{dept} | 設備名稱：{eq_name} ({eq_id})\n").bold = True
             p.add_run(f"燃料：{fuel} | 年度總加油量：{yearly_vol:,.1f} 公升\n").bold = True
             
             images_to_print = []
             skipped_dup = False
-            
             for link_str in group['佐證資料_clean']:
                 for link in str(link_str).split('\n'):
                     link = link.strip()
@@ -302,16 +294,13 @@ def export_general_docx(df_year, df_eq, drive_srv):
                             downloaded_imgs = download_and_convert_drive_files(drive_srv, fid)
                             for img_io in downloaded_imgs:
                                 img_io.seek(0)
-                                # 採用 MD5 驗證圖片內容是否已出現過
                                 img_hash = hashlib.md5(img_io.read()).hexdigest()
                                 img_io.seek(0)
                                 if img_hash not in global_image_hashes:
                                     global_image_hashes.add(img_hash)
                                     images_to_print.append(img_io)
-                                else:
-                                    skipped_dup = True
-                        else:
-                            skipped_dup = True
+                                else: skipped_dup = True
+                        else: skipped_dup = True
             
             if len(images_to_print) == 1:
                 p_img = doc.add_paragraph()
@@ -332,16 +321,13 @@ def export_general_docx(df_year, df_eq, drive_srv):
             if skipped_dup and not images_to_print:
                 p_dup = doc.add_paragraph()
                 p_dup.add_run("*(此設備之佐證資料與前方共用或已顯示過，為節省篇幅自動省略)*").italic = True
-                
             doc.add_page_break()
 
-    # Part 2: 共用加油單申報
     if not df_shared.empty:
         doc.add_heading("【共用加油單申報明細】", level=1)
         groups = df_shared.groupby('佐證資料_clean', dropna=False)
         for link_str, group in groups:
             eqs = group[['設備編號', '設備名稱備註', '填報單位']].drop_duplicates().sort_values('設備編號')
-            
             p = doc.add_paragraph()
             p.add_run("⚠️ 此為共用加油單，包含以下設備：\n").bold = True
             for _, eq in eqs.iterrows():
@@ -365,10 +351,8 @@ def export_general_docx(df_year, df_eq, drive_srv):
                             if img_hash not in global_image_hashes:
                                 global_image_hashes.add(img_hash)
                                 images_to_print.append(img_io)
-                            else:
-                                skipped_dup = True
-                    else:
-                        skipped_dup = True
+                            else: skipped_dup = True
+                    else: skipped_dup = True
             
             if len(images_to_print) == 1:
                 p_img = doc.add_paragraph()
@@ -389,7 +373,6 @@ def export_general_docx(df_year, df_eq, drive_srv):
             if skipped_dup and not images_to_print:
                 p_dup = doc.add_paragraph()
                 p_dup.add_run("*(此佐證資料與前方共用或已顯示過，為節省篇幅自動省略)*").italic = True
-
             doc.add_page_break()
             
     output = io.BytesIO()
@@ -398,7 +381,6 @@ def export_general_docx(df_year, df_eq, drive_srv):
     return output
 
 def export_batch_docx(df_year, drive_srv):
-    """ 油卡批次：同樣套用 MD5 內容防呆機制 """
     doc = Document()
     for section in doc.sections:
         section.orientation = WD_ORIENT.LANDSCAPE
@@ -409,7 +391,6 @@ def export_batch_docx(df_year, drive_srv):
     if df_batch.empty: return None
 
     doc.add_heading(f"年度油卡批次申報佐證資料總表", level=1)
-    
     df_batch['批次類別'] = df_batch['備註'].apply(lambda x: str(x).split(' | ')[0] if ' | ' in str(x) else str(x))
     groups = df_batch.groupby(['填報單位', '原燃物料名稱', '批次類別'])
 
@@ -418,7 +399,6 @@ def export_batch_docx(df_year, drive_srv):
         eq_names = group['設備名稱備註'].unique()
         eq_str = "、".join(eq_names)
         yearly_vol = group['加油量'].sum()
-        
         p = doc.add_paragraph()
         p.add_run(f"填報單位：{dept}\n").bold = True
         p.add_run(f"設備名稱：{eq_str}\n").bold = True
@@ -469,16 +449,47 @@ def export_batch_docx(df_year, drive_srv):
     output.seek(0)
     return output
 
+def send_system_email(to_email, subject, body):
+    """共用寄信函式 (需在 st.secrets 設定 smtp)"""
+    try:
+        smtp_cfg = st.secrets.get("smtp", {})
+        if not smtp_cfg: return False, "系統尚未設定 SMTP 參數 (st.secrets['smtp'])，信件已產生但無法實際寄出。"
+        if not str(to_email).strip() or str(to_email).strip().lower() in ['nan', 'none', '']: return False, "無效的電子郵件地址"
+        
+        msg = MIMEMultipart()
+        msg['From'] = smtp_cfg.get("email", "noreply@system.com")
+        msg['To'] = to_email
+        msg['Subject'] = subject
+        msg.attach(MIMEText(body, 'html'))
+        
+        server = smtplib.SMTP(smtp_cfg["server"], smtp_cfg["port"])
+        server.starttls()
+        server.login(smtp_cfg["email"], smtp_cfg["password"])
+        server.send_message(msg)
+        server.quit()
+        return True, "發送成功"
+    except Exception as e:
+        return False, str(e)
+
 # ==========================================
 # 5. 後台分頁 Fragment 模組 
 # ==========================================
 
 @st.fragment
-def render_tab1_overview(df_clean, df_equip, all_years):
+def render_tab1_overview(df_clean, df_equip_full, all_years):
     st.markdown("<br>", unsafe_allow_html=True)
     selected_year = st.selectbox("📅 請選擇檢視年度", all_years, index=0, key="t1_year")
     st.markdown("---")
     
+    # 邏輯 1：依照年度過濾設備清單 (避免舊設備混入新年度)
+    if '設備檢視年度' in df_equip_full.columns:
+        df_equip = df_equip_full[df_equip_full['設備檢視年度'].astype(str) == str(selected_year)].copy()
+        if df_equip.empty:
+            st.warning(f"⚠️ {selected_year} 年度目前查無設備資料，請確認 Sheet1 的「設備檢視年度」欄位是否已確實建檔。")
+    else:
+        df_equip = df_equip_full.copy()
+        st.info("💡 提示：Sheet1 尚未建立「設備檢視年度」欄位，目前顯示為系統全庫設備。")
+
     df_year = df_clean[df_clean['年份'] == selected_year]
     
     if not df_year.empty and not df_equip.empty:
@@ -556,24 +567,12 @@ def render_tab1_overview(df_clean, df_equip, all_years):
 
         st.markdown("---")
         st.subheader("📋 各類設備詳細申報紀錄一覽")
-        
-        # 定義七大類別的專屬 Icon
-        CATEGORY_ICONS = {
-            "公務車輛(GV-1-)": "🚗",
-            "乘坐式割草機(GV-2-)": "🚜",
-            "乘坐式農用機具(GV-3-)": "🌾",
-            "鍋爐(GS-1-)": "♨️",
-            "發電機(GS-2-)": "⚡",
-            "肩背或手持式割草機、吹葉機(GS-3-)": "🍃",
-            "肩背或手持式農用機具(GS-4-)": "🛠️"
-        }
+        CATEGORY_ICONS = { "公務車輛(GV-1-)": "🚗", "乘坐式割草機(GV-2-)": "🚜", "乘坐式農用機具(GV-3-)": "🌾", "鍋爐(GS-1-)": "♨️", "發電機(GS-2-)": "⚡", "肩背或手持式割草機、吹葉機(GS-3-)": "🍃", "肩背或手持式農用機具(GS-4-)": "🛠️" }
         
         for category in DEVICE_ORDER:
             target_devices = df_equip[df_equip['統計類別'] == category]
             if not target_devices.empty:
                 icon = CATEGORY_ICONS.get(category, "📌")
-                
-                # 修改：點擊展開式的 Expander 設計
                 with st.expander(f"{icon} {category}"):
                     device_list = []
                     for _, row in target_devices.iterrows():
@@ -679,8 +678,6 @@ def render_tab2_dashboard(df_clean, all_years):
         df_top = df_year[df_year['油品大類'] == top_fuel]
         if not df_top.empty:
             top10_data = df_top.groupby('填報單位')['加油量'].sum().nlargest(10).reset_index()
-            
-            # 修改：圖表名稱雙語完整呈現
             chart_title = "汽油用量前十大單位 (Top 10 Gasoline Consuming Units)" if top_fuel == "汽油" else "柴油用量前十大單位 (Top 10 Diesel Consuming Units)"
             
             fig_top = px.bar(top10_data, x='填報單位', y='加油量', title=chart_title, color_discrete_sequence=['#85C1E9'])
@@ -730,7 +727,7 @@ def render_tab2_dashboard(df_clean, all_years):
             st.markdown('</div>', unsafe_allow_html=True)
 
         st.markdown("---")
-        st.markdown("<h3 style='color: #2C3E50;'>🌍 全校油料使用碳排放量(公噸二氧化碳當量)結構 (Carbon Emission Structure of Fuel Use in tCO<sub>2</sub>e)</h3>", unsafe_allow_html=True)
+        st.markdown("<h3 style='color: #2C3E50;'>🌍 全校油料使用碳排放量結構 (Carbon Emission Structure in tCO<sub>2</sub>e)</h3>", unsafe_allow_html=True)
         df_year['CO2e'] = df_year.apply(lambda r: r['加油量']*0.0022 if '汽油' in str(r['原燃物料名稱']) else r['加油量']*0.0027, axis=1)
         if not df_year.empty:
             fig_tree = px.treemap(df_year, path=['填報單位', '設備名稱備註'], values='CO2e', color='填報單位', color_discrete_sequence=DASH_PALETTE)
@@ -741,30 +738,102 @@ def render_tab2_dashboard(df_clean, all_years):
     else: st.info("尚無該年度資料，無法顯示儀表板。")
 
 @st.fragment
-def render_tab3_missing(df_clean, df_equip, all_years):
+def render_tab3_missing(df_clean, df_equip_full, all_years):
     st.markdown("<br>", unsafe_allow_html=True)
     
-    st.subheader("⚠️ 篩選未申報名單")
+    st.subheader("⚠️ 篩選未申報名單與寄送通知")
     c_f1, c_f2 = st.columns(2)
     default_year = all_years[0] if all_years else datetime.now().year
     d_start = c_f1.date_input("查詢起始日", date(default_year, 1, 1), key="t3_d1")
     d_end = c_f2.date_input("查詢結束日", date.today(), key="t3_d2")
     
-    if st.button("開始篩選"):
-        if not df_clean.empty:
-            mask = (df_clean['日期格式'].dt.date >= d_start) & (df_clean['日期格式'].dt.date <= d_end)
-            reported = set(df_clean[mask]['設備名稱備註'].unique())
-            df_eq_copy = df_equip.copy()
-            df_eq_copy['已申報'] = df_eq_copy['設備名稱備註'].apply(lambda x: x in reported)
-            unreported = df_eq_copy[~df_eq_copy['已申報']]
-            if not unreported.empty:
-                st.error(f"🚩 期間 [{d_start} ~ {d_end}] 共有 {len(unreported)} 台設備未申報！")
-                for idx, (unit, group) in enumerate(unreported.groupby('填報單位')):
-                    bg_color = UNREPORTED_COLORS[idx % len(UNREPORTED_COLORS)]
-                    st.markdown(f"""<div class="unreported-block" style="background-color: {bg_color};"><div class="unreported-title">🏢 {unit} (未申報數: {len(group)})</div></div>""", unsafe_allow_html=True)
-                    st.dataframe(group[['設備名稱備註', '保管人', '校內財產編號']], use_container_width=True)
-            else: st.success("🎉 太棒了！全數已申報。")
-        else: st.warning("無資料可供篩選。")
+    # 邏輯 1：取得比對用的設備清單 (根據查詢結束日的年份)
+    target_year = d_end.year
+    if '設備檢視年度' in df_equip_full.columns:
+        df_equip = df_equip_full[df_equip_full['設備檢視年度'].astype(str) == str(target_year)].copy()
+    else:
+        df_equip = df_equip_full.copy()
+
+    col_btn1, col_btn2 = st.columns(2)
+    
+    with col_btn1:
+        if st.button("🔍 開始篩選未申報單", use_container_width=True):
+            if not df_clean.empty:
+                mask = (df_clean['日期格式'].dt.date >= d_start) & (df_clean['日期格式'].dt.date <= d_end)
+                reported = set(df_clean[mask]['設備名稱備註'].unique())
+                df_eq_copy = df_equip.copy()
+                df_eq_copy['已申報'] = df_eq_copy['設備名稱備註'].apply(lambda x: x in reported)
+                unreported = df_eq_copy[~df_eq_copy['已申報']]
+                st.session_state['unreported_df'] = unreported
+            else:
+                st.warning("無資料可供篩選。")
+
+    with col_btn2:
+        if st.button("🔔 寄送每月申報提醒通知 (全庫)", use_container_width=True):
+            if '電子郵件' not in df_equip.columns:
+                st.error("❌ 找不到「電子郵件」欄位，請確認 Sheet1 的 K 欄已正確建檔。")
+            else:
+                with st.spinner("正在批次發送每月提醒信件..."):
+                    groups = df_equip.groupby(['填報單位', '電子郵件'])
+                    success_count, fail_count = 0, 0
+                    cur_month = datetime.now().month
+                    subject = f"【提醒】{cur_month}月份燃油設備油料使用申報通知"
+                    
+                    for (unit, email), group in groups:
+                        eq_li = "".join([f"<li>{r['設備名稱備註']} ({r.get('設備編號','-')})</li>" for _, r in group.iterrows()])
+                        body = f"""
+                        <p>您好：</p>
+                        <p>提醒您，每月燃油設備油料使用情形需於<b>次月5日</b>前完成系統申報。</p>
+                        <p>貴單位 ({unit}) 負責之設備清單如下，請撥冗確認並至系統填報：</p>
+                        <ul>{eq_li}</ul>
+                        <p>感謝您的配合！<br><span style="color:#7F8C8D;font-size:12px;">(此為系統自動發送，請勿直接回覆)</span></p>
+                        """
+                        ok, msg = send_system_email(email, subject, body)
+                        if ok: success_count += 1
+                        else: fail_count += 1
+                    
+                    if success_count > 0: st.success(f"✅ 成功寄送 {success_count} 封提醒信件。")
+                    if fail_count > 0: st.warning(f"⚠️ 有 {fail_count} 封信件發送失敗，請確認 SMTP 設定或郵件地址。")
+
+    st.markdown("---")
+    
+    # 若已有篩選結果，顯示名單並提供催報按鈕
+    if st.session_state.get('unreported_df') is not None:
+        unreported = st.session_state['unreported_df']
+        if not unreported.empty:
+            st.error(f"🚩 期間 [{d_start} ~ {d_end}] 共有 {len(unreported)} 台設備未申報！")
+            
+            if st.button("📨 寄送催報通知 (針對目前篩選名單)"):
+                if '電子郵件' not in unreported.columns:
+                    st.error("❌ 找不到「電子郵件」欄位，請確認 Sheet1 已正確建檔。")
+                else:
+                    with st.spinner("正在發送催報信件..."):
+                        groups = unreported.groupby(['填報單位', '電子郵件'])
+                        success_count, fail_count = 0, 0
+                        subject = f"【催告】未完成燃油設備油料使用申報通知 ({d_start} ~ {d_end})"
+                        
+                        for (unit, email), group in groups:
+                            eq_li = "".join([f"<li>{r['設備名稱備註']} ({r.get('設備編號','-')})</li>" for _, r in group.iterrows()])
+                            body = f"""
+                            <p>您好：</p>
+                            <p>經系統比對，貴單位 ({unit}) 於期間 <b>{d_start} 至 {d_end}</b> 有以下設備<b>尚未完成</b>油料使用申報：</p>
+                            <ul>{eq_li}</ul>
+                            <p>請儘速登入系統完成補登作業，以免影響全校能源及碳排統計正確性。</p>
+                            <p>感謝您的配合！<br><span style="color:#7F8C8D;font-size:12px;">(此為系統自動發送，請勿直接回覆)</span></p>
+                            """
+                            ok, msg = send_system_email(email, subject, body)
+                            if ok: success_count += 1
+                            else: fail_count += 1
+                        
+                        if success_count > 0: st.success(f"✅ 成功寄送 {success_count} 封催報信件。")
+                        if fail_count > 0: st.warning(f"⚠️ 有 {fail_count} 封信件發送失敗。")
+
+            for idx, (unit, group) in enumerate(unreported.groupby('填報單位')):
+                bg_color = UNREPORTED_COLORS[idx % len(UNREPORTED_COLORS)]
+                st.markdown(f"""<div class="unreported-block" style="background-color: {bg_color};"><div class="unreported-title">🏢 {unit} (未申報數: {len(group)})</div></div>""", unsafe_allow_html=True)
+                st.dataframe(group[['設備名稱備註', '保管人', '校內財產編號', '電子郵件']], use_container_width=True)
+        else: 
+            st.success("🎉 太棒了！該期間全數設備皆已完成申報。")
 
 @st.fragment
 def render_tab4_edit(df_clean, df_records, all_years):
@@ -804,12 +873,19 @@ def render_tab4_edit(df_clean, df_records, all_years):
     else: st.info(f"{selected_admin_year} 年度尚無資料。")
 
 @st.fragment
-def render_tab5_export(df_clean, df_equip, all_years):
+def render_tab5_export(df_clean, df_equip_full, all_years):
     st.markdown("<br>", unsafe_allow_html=True)
     selected_admin_year = st.selectbox("📅 請選擇檢視年度", all_years, index=0, key="t5_year")
     st.markdown("---")
     
     st.subheader("📁 年度加油統計及佐證下載")
+    
+    # 邏輯 1：依照年度過濾設備清單
+    if '設備檢視年度' in df_equip_full.columns:
+        df_equip = df_equip_full[df_equip_full['設備檢視年度'].astype(str) == str(selected_admin_year)].copy()
+    else:
+        df_equip = df_equip_full.copy()
+
     df_year = df_clean[df_clean['年份'] == selected_admin_year]
     
     if not df_year.empty:
@@ -818,7 +894,6 @@ def render_tab5_export(df_clean, df_equip, all_years):
             st.error("⚠️ 系統尚未安裝 `python-docx` 或 `pymupdf` 套件。請確認已將其加入 `requirements.txt` 並重新部署。")
         else:
             c1, c2, c3 = st.columns(3)
-            
             with c1:
                 df_stats = df_year.groupby(['設備名稱備註'])['加油量'].sum().reset_index()
                 df_export = pd.merge(df_equip, df_stats, on='設備名稱備註', how='left')
@@ -831,14 +906,14 @@ def render_tab5_export(df_clean, df_equip, all_years):
 
             with c2:
                 if st.button("⚡ 產生【一般申報】佐證", use_container_width=True):
-                    with st.spinner("正在下載圖片並合併 (自動進行 MD5 圖像去重)，可能需要幾分鐘..."):
+                    with st.spinner("正在下載圖片並合併，可能需要幾分鐘..."):
                         st.session_state['doc_general'] = export_general_docx(df_year, df_equip, drive_service)
                 if 'doc_general' in st.session_state:
                     st.download_button("⬇️ 下載【一般申報】Word", data=st.session_state['doc_general'], file_name=f"{selected_admin_year}_一般申報佐證資料.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document", use_container_width=True)
 
             with c3:
                 if st.button("⚡ 產生【油卡批次】佐證", use_container_width=True):
-                    with st.spinner("正在下載圖片並合併 (自動進行 MD5 圖像去重)，可能需要幾分鐘..."):
+                    with st.spinner("正在下載圖片並合併，可能需要幾分鐘..."):
                         st.session_state['doc_batch'] = export_batch_docx(df_year, drive_service)
                 if 'doc_batch' in st.session_state:
                     st.download_button("⬇️ 下載【油卡批次】Word", data=st.session_state['doc_batch'], file_name=f"{selected_admin_year}_油卡批次申報佐證資料.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document", use_container_width=True)
@@ -873,7 +948,7 @@ def main():
     admin_tabs = st.tabs([
         "📝 全校燃油設備總覽", 
         "📊 全校油料使用儀表板", 
-        "⚠️ 篩選未申報名單", 
+        "⚠️ 篩選未申報名單與寄送通知", 
         "🔍 申報資料異動", 
         "📁 年度加油統計及佐證下載"
     ])
@@ -884,7 +959,7 @@ def main():
     with admin_tabs[3]: render_tab4_edit(df_clean, df_records, all_years) 
     with admin_tabs[4]: render_tab5_export(df_clean, df_equip, all_years)
     
-    st.markdown('<div style="text-align: center; color: #BDC3C7; font-size: 0.9rem; margin-top: 50px;">管理員系統版本 V176.2 (Label & Axis Adjusted)</div>', unsafe_allow_html=True)
+    st.markdown('<div style="text-align: center; color: #BDC3C7; font-size: 0.9rem; margin-top: 50px;">管理員系統版本 V177 (Equipment Year Filter & Email Notification)</div>', unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
