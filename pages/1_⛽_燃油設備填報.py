@@ -72,7 +72,7 @@ st.markdown("""
     [data-testid="stFileUploaderDropzone"] { background-color: #D6EAF8 !important; border: 2px dashed #2E86C1 !important; padding: 20px; border-radius: 12px; }
     [data-testid="stFileUploaderDropzone"] div, span, small { color: #154360 !important; font-weight: bold !important; }
 
-    /* 選項標籤設計 (取消粗體、縮小一號) */
+    /* 選項標籤設計 */
     .stRadio div[role="radiogroup"] label {
         background-color: #D6EAF8 !important; 
         border: 1px solid #AED6F1 !important;
@@ -92,7 +92,7 @@ st.markdown("""
     [data-testid="stDataFrame"] { font-size: 1.25rem !important; }
     [data-testid="stDataFrame"] div { font-size: 1.25rem !important; }
 
-    /* --- 設備詳細卡片樣式 (改為滿版單列) --- */
+    /* --- 設備詳細卡片樣式 --- */
     .dev-card-v148 {
         background-color: #FFFFFF; border: 1px solid #BDC3C7; border-radius: 12px; overflow: hidden;
         box-shadow: 0 3px 6px rgba(0,0,0,0.08); margin-bottom: 20px; display: flex; flex-direction: column;
@@ -110,18 +110,17 @@ st.markdown("""
     }
     
     .dev-header-right { text-align: right; display: flex; flex-direction: row; align-items: baseline; justify-content: flex-end; gap: 3px; }
-    .dev-fuel-type { font-size: 1.0rem; font-weight: 800; color: #2C3E50; margin-right: 4px; } /* 縮小一號 */
+    .dev-fuel-type { font-size: 1.0rem; font-weight: 800; color: #2C3E50; margin-right: 4px; } 
     .dev-vol { font-size: 1.8rem; color: #C0392B !important; font-weight: 900; line-height: 1.1; text-shadow: none !important; }
     .dev-unit { font-size: 0.95rem; color: var(--deep-gray); font-weight: bold; margin-left: 2px; }
 
-    /* 3:3:4 比例分隔內容區 */
     .dev-body {
         padding: 12px 10px; display: flex; flex-direction: row; align-items: center; justify-content: space-around;
     }
     .dev-section { text-align: center; border-right: 1px solid #F2F3F4; padding: 0 5px; }
     .dev-section:last-child { border-right: none; }
     .dev-label { font-weight: 700; color: var(--text-sub) !important; font-size: 0.9rem; margin-bottom: 3px; }
-    .dev-val { color: #333333 !important; font-weight: 800; font-size: 1.05rem; word-break: break-word; } /* 字體改為灰黑色 */
+    .dev-val { color: #333333 !important; font-weight: 800; font-size: 1.05rem; word-break: break-word; }
     
     .dev-footer {
         padding: 10px 15px; background-color: #F8F9F9; border-top: 1px solid #E5E7E9;
@@ -162,7 +161,7 @@ st.markdown("""
     /* 展開面板 (Expander) 改版 */
     div[data-testid="stExpander"] { border: 1px solid #BDC3C7; border-radius: 12px; overflow: hidden; margin-bottom: 15px; box-shadow: 0 3px 6px rgba(0,0,0,0.08); }
     div[data-testid="stExpander"] > details > summary { background-color: #2C3E50 !important; padding: 12px 15px; }
-    div[data-testid="stExpander"] > details > summary p { font-size: 1.5rem !important; font-weight: 900 !important; color: #FFFFFF !important; }
+    div[data-testid="stExpander"] > details > summary p { font-size: 1.35rem !important; font-weight: 900 !important; color: #FFFFFF !important; }
     div[data-testid="stExpander"] > details > summary svg { color: #FFFFFF !important; fill: #FFFFFF !important; }
     div[data-testid="stExpander"] > details > summary:hover { background-color: #1A252F !important; }
     div[data-testid="stExpanderDetails"] { padding: 20px; background-color: #F4F6F7; border-top: 1px solid #BDC3C7; border-radius: 0 0 12px 12px; }
@@ -256,12 +255,22 @@ df_equip, df_records = load_fuel_data()
 if 'multi_row_count' not in st.session_state: st.session_state['multi_row_count'] = 1
 if 'reset_counter' not in st.session_state: st.session_state['reset_counter'] = 0
 
+# === 預備資料 (供 Tab 2 與 Tab 3 共用) ===
+available_years = []
+record_units = []
+if not df_records.empty:
+    df_records['加油量'] = pd.to_numeric(df_records['加油量'], errors='coerce').fillna(0)
+    df_records['日期格式'] = pd.to_datetime(df_records['加油日期'], errors='coerce')
+    available_years = sorted(df_records['日期格式'].dt.year.dropna().astype(int).unique(), reverse=True)
+    if not available_years: available_years = [datetime.now().year]
+    record_units = sorted([str(x) for x in df_records['填報單位'].unique() if str(x) != 'nan'])
+
 # ==========================================
 # 4. 主程式 (前台填報與看板)
 # ==========================================
 def render_user_interface():
     st.markdown("### ⛽ 燃油設備填報專區")
-    tabs = st.tabs(["📝 新增填報", "📊 動態查詢看板"])
+    tabs = st.tabs(["📝 新增填報", "📊 動態查詢看板", "📋 單位申報明細"])
     
     # --- Tab 1: 填報 ---
     with tabs[0]:
@@ -319,16 +328,15 @@ def render_user_interface():
                             p_name = col_p1.text_input("👤 填報人姓名 (必填)")
                             p_ext = col_p2.text_input("📞 聯絡分機 (必填)")
                             
-                            # 第二列：信箱、日期
-                            col_p3, col_p4 = st.columns(2)
+                            # 單獨一列：電子郵件
                             default_email = str(filtered_equip.iloc[0].get('電子郵件', '')).strip() if '電子郵件' in filtered_equip.columns and not filtered_equip.empty else ''
                             if default_email == 'nan': default_email = ''
-                            p_email = col_p3.text_input("✉️ 電子郵件", value=default_email)
-                            col_p3.markdown("<div style='color: #566573; font-size: 0.95rem; margin-top: -10px; margin-bottom: 10px;'>若電子郵件有異動，請直接修改</div>", unsafe_allow_html=True)
+                            p_email = st.text_input("✉️ 電子郵件", value=default_email)
+                            st.markdown("<div style='color: #566573; font-size: 0.95rem; margin-top: -10px; margin-bottom: 10px;'>電子郵件將用於通知申報使用，若貴單位有收件地址異動，請您直接修改。</div>", unsafe_allow_html=True)
                             
-                            batch_date = col_p4.date_input("📅 加油月份 (日期統一選擇該月份最終日)", datetime.today())
+                            batch_date = st.date_input("📅 加油月份 (日期統一選擇該月份最終日)", datetime.today())
                             
-                            st.markdown("⛽ **請填入各設備該月份之加油總量(公升)，若該月份無使用請填0：**")
+                            st.markdown("<div style='font-size: 1.15rem; font-weight: bold; color: #2C3E50; margin-top: 15px; margin-bottom: 10px;'>⛽ 請填入各設備該月份之加油總量(公升)，若該月份無使用請填0：</div>", unsafe_allow_html=True)
                             batch_inputs = {}
                             for idx, row in filtered_equip.iterrows():
                                 c_card, c_val = st.columns([7, 3]) 
@@ -429,17 +437,18 @@ def render_user_interface():
                             p_name = col_p1.text_input("👤 填報人姓名 (必填)")
                             p_ext = col_p2.text_input("📞 聯絡分機 (必填)")
                             
-                            # 第二列：信箱、油卡
-                            col_p3, col_p4 = st.columns(2)
+                            # 單獨一列：電子郵件
                             default_email = str(row.get('電子郵件', '')).strip() if '電子郵件' in row else ''
                             if default_email == 'nan': default_email = ''
-                            p_email = col_p3.text_input("✉️ 電子郵件", value=default_email)
-                            col_p3.markdown("<div style='color: #566573; font-size: 0.95rem; margin-top: -10px; margin-bottom: 10px;'>若電子郵件有異動，請直接修改</div>", unsafe_allow_html=True)
+                            p_email = st.text_input("✉️ 電子郵件", value=default_email)
+                            st.markdown("<div style='color: #566573; font-size: 0.95rem; margin-top: -10px; margin-bottom: 10px;'>電子郵件將用於通知申報使用，若貴單位有收件地址異動，請您直接修改。</div>", unsafe_allow_html=True)
                             
                             fuel_card_id = ""; data_entries = []; f_files = None; note_input = ""
                             
                             if report_mode == "用油量申報 (含單筆/多筆/油卡)":
-                                fuel_card_id = col_p4.text_input("💳 油卡編號 (選填)")
+                                # 單獨一列：油卡編號
+                                fuel_card_id = st.text_input("💳 油卡編號 (選填)")
+                                
                                 for i in range(st.session_state['multi_row_count']):
                                     c_d, c_v = st.columns(2)
                                     _date = c_d.date_input(f"📅 序號 {i+1}-加油日期", datetime.today(), key=f"d_{i}")
@@ -527,17 +536,10 @@ def render_user_interface():
         with col_r2:
             if st.button("🔄 刷新數據", use_container_width=True, key="refresh_all"): st.cache_data.clear(); st.rerun()
         
-        available_years = []
         if not df_records.empty:
-            df_records['加油量'] = pd.to_numeric(df_records['加油量'], errors='coerce').fillna(0)
-            df_records['日期格式'] = pd.to_datetime(df_records['加油日期'], errors='coerce')
-            available_years = sorted(df_records['日期格式'].dt.year.dropna().astype(int).unique(), reverse=True)
-            if not available_years: available_years = [datetime.now().year]
-            record_units = sorted([str(x) for x in df_records['填報單位'].unique() if str(x) != 'nan'])
-            
             c_dept, c_year = st.columns([2, 1])
-            query_dept = c_dept.selectbox("🏢 選擇查詢單位", record_units, index=None, placeholder="請選擇...")
-            query_year = c_year.selectbox("📅 選擇統計年度", available_years, index=0) 
+            query_dept = c_dept.selectbox("🏢 選擇查詢單位", record_units, index=None, placeholder="請選擇...", key="t2_dept")
+            query_year = c_year.selectbox("📅 選擇統計年度", available_years, index=0, key="t2_year") 
             
             if query_dept and query_year:
                 df_dept = df_records[df_records['填報單位'] == query_dept].copy()
@@ -612,7 +614,8 @@ def render_user_interface():
                         
                         if "矩形樹狀圖" in chart_type:
                             fig_tree = px.treemap(treemap_data, path=['設備名稱備註'], values='CO2e', color='設備名稱備註', color_discrete_sequence=DASH_PALETTE)
-                            fig_tree.update_traces(texttemplate='%{label}<br>%{value:.4f} tCO<sub>2</sub>e<br>%{percentRoot:.1%}', textfont=dict(size=18))
+                            # 統一採用後台的字體邏輯設定
+                            fig_tree.update_traces(texttemplate='%{label}<br>%{value:.4f} tCO<sub>2</sub>e<br>%{percentRoot:.1%}')
                             fig_tree.update_layout(height=600, margin=dict(t=20, l=10, r=10, b=10))
                             st.plotly_chart(fig_tree, use_container_width=True)
                         else:
@@ -626,7 +629,7 @@ def render_user_interface():
                                 xaxis_title="碳排放量 (tCO<sub>2</sub>e)", 
                                 yaxis_title="", 
                                 plot_bgcolor='rgba(0,0,0,0)',
-                                xaxis=dict(tickfont=dict(size=15, color='#566573'), title_font=dict(size=16, color='#566573')), 
+                                xaxis=dict(tickfont=dict(size=15, color='#566573'), title_font=dict(size=15, color='#566573')), 
                                 yaxis=dict(tickfont=dict(size=16, color='#566573'))
                             )
                             fig_bar.update_traces(textposition='outside', textfont=dict(size=15, color='black'))
@@ -708,13 +711,29 @@ def render_user_interface():
                                                         </div>
                                                     </div>
                                                     """, unsafe_allow_html=True)
-
-                    st.markdown("---")
-                    st.subheader(f"📋 {query_year}年度 填報明細")
-                    df_display = df_final[["加油日期", "設備名稱備註", "原燃物料名稱", "油卡編號", "加油量", "填報人", "備註"]].sort_values(by='加油日期', ascending=False).rename(columns={'加油量': '加油量(公升)'})
-                    st.dataframe(df_display.style.format({"加油量(公升)": "{:,.2f}"}), use_container_width=True)
                 else: st.warning(f"⚠️ {query_dept} 在 {query_year} 年度尚無填報紀錄。")
         else: st.info("尚無該年度資料，無法顯示儀表板。")
+
+    # === Tab 3: 單位申報明細 ===
+    with tabs[2]:
+        st.markdown("### 📋 單位申報明細")
+        st.info("請選擇「單位」與「年份」，以檢視該年度的逐筆填報明細資料。")
+        if not df_records.empty:
+            c_dept_3, c_year_3 = st.columns([2, 1])
+            query_dept_3 = c_dept_3.selectbox("🏢 選擇查詢單位", record_units, index=None, placeholder="請選擇...", key="t3_dept")
+            query_year_3 = c_year_3.selectbox("📅 選擇統計年度", available_years, index=0, key="t3_year")
+
+            if query_dept_3 and query_year_3:
+                df_dept_3 = df_records[df_records['填報單位'] == query_dept_3].copy()
+                df_final_3 = df_dept_3[df_dept_3['日期格式'].dt.year == query_year_3].copy()
+
+                if not df_final_3.empty:
+                    df_display = df_final_3[["加油日期", "設備名稱備註", "原燃物料名稱", "油卡編號", "加油量", "填報人", "備註"]].sort_values(by='加油日期', ascending=False).rename(columns={'加油量': '加油量(公升)'})
+                    st.dataframe(df_display.style.format({"加油量(公升)": "{:,.2f}"}), use_container_width=True)
+                else:
+                    st.warning(f"⚠️ {query_dept_3} 在 {query_year_3} 年度尚無填報明細紀錄。")
+        else:
+            st.info("尚無該年度資料，無法顯示明細。")
 
 if __name__ == "__main__":
     render_user_interface()
