@@ -164,7 +164,8 @@ st.markdown("""
     div[data-testid="stExpander"] > details > summary p { font-size: 1.35rem !important; font-weight: 900 !important; color: #FFFFFF !important; }
     div[data-testid="stExpander"] > details > summary svg { color: #FFFFFF !important; fill: #FFFFFF !important; }
     div[data-testid="stExpander"] > details > summary:hover { background-color: #1A252F !important; }
-    div[data-testid="stExpanderDetails"] { padding: 20px; background-color: #F4F6F7; border-top: 1px solid #BDC3C7; border-radius: 0 0 12px 12px; }
+    /* 修正底色，採用明顯的淺灰藍色，與內部白色卡片做出視覺區隔 */
+    div[data-testid="stExpanderDetails"] { padding: 20px; background-color: #E5E8E8 !important; border-top: 1px solid #BDC3C7; border-radius: 0 0 12px 12px; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -333,6 +334,9 @@ def render_user_interface():
                             if default_email == 'nan': default_email = ''
                             p_email = st.text_input("✉️ 電子郵件", value=default_email)
                             st.markdown("<div style='color: #566573; font-size: 0.95rem; margin-top: -10px; margin-bottom: 10px;'>電子郵件將用於通知申報使用，若貴單位有收件地址異動，請您直接修改。</div>", unsafe_allow_html=True)
+                            
+                            # 新增分隔線
+                            st.markdown("---")
                             
                             batch_date = st.date_input("📅 加油月份 (日期統一選擇該月份最終日)", datetime.today())
                             
@@ -530,7 +534,7 @@ def render_user_interface():
 
     # === Tab 2: 看板 ===
     with tabs[1]:
-        st.markdown("### 📊 動態查詢看板 (年度檢視)")
+        st.markdown("### 📊 動態查詢看板")
         st.info("請選擇「單位」與「年份」，檢視該年度的用油統計與碳排放分析。")
         col_r1, col_r2 = st.columns([4, 1])
         with col_r2:
@@ -614,8 +618,7 @@ def render_user_interface():
                         
                         if "矩形樹狀圖" in chart_type:
                             fig_tree = px.treemap(treemap_data, path=['設備名稱備註'], values='CO2e', color='設備名稱備註', color_discrete_sequence=DASH_PALETTE)
-                            # 統一採用後台的字體邏輯設定
-                            fig_tree.update_traces(texttemplate='%{label}<br>%{value:.4f} tCO<sub>2</sub>e<br>%{percentRoot:.1%}')
+                            fig_tree.update_traces(texttemplate='%{label}<br>%{value:.4f} tCO<sub>2</sub>e<br>%{percentRoot:.1%}', textfont=dict(size=18))
                             fig_tree.update_layout(height=600, margin=dict(t=20, l=10, r=10, b=10))
                             st.plotly_chart(fig_tree, use_container_width=True)
                         else:
