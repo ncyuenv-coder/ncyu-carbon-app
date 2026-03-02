@@ -158,6 +158,14 @@ st.markdown("""
     .privacy-box { background-color: #F8F9F9; border: 1px solid #BDC3C7; padding: 15px; border-radius: 10px; font-size: 0.9rem; color: #566573; margin-bottom: 10px; }
     .privacy-title { font-weight: bold; color: #2C3E50; margin-bottom: 5px; font-size: 1rem; }
     .dashboard-main-title { font-size: 1.8rem; font-weight: 900; text-align: center; color: #2C3E50; margin-bottom: 20px; background-color: #F8F9F9; padding: 10px; border-radius: 10px; border: 1px solid #BDC3C7; }
+
+    /* 展開面板 (Expander) 改版 */
+    div[data-testid="stExpander"] { border: 1px solid #BDC3C7; border-radius: 12px; overflow: hidden; margin-bottom: 15px; box-shadow: 0 3px 6px rgba(0,0,0,0.08); }
+    div[data-testid="stExpander"] > details > summary { background-color: #2C3E50 !important; padding: 12px 15px; }
+    div[data-testid="stExpander"] > details > summary p { font-size: 1.5rem !important; font-weight: 900 !important; color: #FFFFFF !important; }
+    div[data-testid="stExpander"] > details > summary svg { color: #FFFFFF !important; fill: #FFFFFF !important; }
+    div[data-testid="stExpander"] > details > summary:hover { background-color: #1A252F !important; }
+    div[data-testid="stExpanderDetails"] { padding: 20px; background-color: #F4F6F7; border-top: 1px solid #BDC3C7; border-radius: 0 0 12px 12px; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -306,16 +314,19 @@ def render_user_interface():
                         
                         st.markdown("#### 步驟 2：批次填寫與上傳")
                         with st.form("batch_form", clear_on_submit=True):
-                            col_p1, col_p2, col_p3, col_p4 = st.columns([2, 2, 3, 3])
+                            # 第一列：姓名、分機
+                            col_p1, col_p2 = st.columns(2)
                             p_name = col_p1.text_input("👤 填報人姓名 (必填)")
                             p_ext = col_p2.text_input("📞 聯絡分機 (必填)")
                             
-                            # 預設電子郵件帶入與異動防呆
+                            # 第二列：信箱、日期
+                            col_p3, col_p4 = st.columns(2)
                             default_email = str(filtered_equip.iloc[0].get('電子郵件', '')).strip() if '電子郵件' in filtered_equip.columns and not filtered_equip.empty else ''
                             if default_email == 'nan': default_email = ''
                             p_email = col_p3.text_input("✉️ 電子郵件", value=default_email)
+                            col_p3.markdown("<div style='color: #566573; font-size: 0.95rem; margin-top: -10px; margin-bottom: 10px;'>若電子郵件有異動，請直接修改</div>", unsafe_allow_html=True)
+                            
                             batch_date = col_p4.date_input("📅 加油月份 (日期統一選擇該月份最終日)", datetime.today())
-                            st.caption("💡 若電子郵件有異動，請直接修改。系統會自動於備註標示，提醒管理員更新資料庫。")
                             
                             st.markdown("⛽ **請填入各設備該月份之加油總量(公升)，若該月份無使用請填0：**")
                             batch_inputs = {}
@@ -413,20 +424,22 @@ def render_user_interface():
                                 if st.button("➖ 減少一列") and st.session_state['multi_row_count'] > 1: st.session_state['multi_row_count'] -= 1
 
                         with st.form("entry_form", clear_on_submit=True):
-                            col_p1, col_p2, col_p3 = st.columns([2, 2, 4])
+                            # 第一列：姓名、分機
+                            col_p1, col_p2 = st.columns(2)
                             p_name = col_p1.text_input("👤 填報人姓名 (必填)")
                             p_ext = col_p2.text_input("📞 聯絡分機 (必填)")
                             
-                            # 預設電子郵件帶入與異動防呆
+                            # 第二列：信箱、油卡
+                            col_p3, col_p4 = st.columns(2)
                             default_email = str(row.get('電子郵件', '')).strip() if '電子郵件' in row else ''
                             if default_email == 'nan': default_email = ''
                             p_email = col_p3.text_input("✉️ 電子郵件", value=default_email)
-                            st.caption("💡 若電子郵件有異動，請直接修改。系統會自動於備註標示，提醒管理員更新資料庫。")
+                            col_p3.markdown("<div style='color: #566573; font-size: 0.95rem; margin-top: -10px; margin-bottom: 10px;'>若電子郵件有異動，請直接修改</div>", unsafe_allow_html=True)
                             
                             fuel_card_id = ""; data_entries = []; f_files = None; note_input = ""
                             
                             if report_mode == "用油量申報 (含單筆/多筆/油卡)":
-                                fuel_card_id = st.text_input("💳 油卡編號 (選填)")
+                                fuel_card_id = col_p4.text_input("💳 油卡編號 (選填)")
                                 for i in range(st.session_state['multi_row_count']):
                                     c_d, c_v = st.columns(2)
                                     _date = c_d.date_input(f"📅 序號 {i+1}-加油日期", datetime.today(), key=f"d_{i}")
@@ -607,8 +620,16 @@ def render_user_interface():
                             total_co2 = bar_data['CO2e'].sum()
                             bar_data['Label'] = bar_data['CO2e'].apply(lambda x: f"{x:.4f} tCO<sub>2</sub>e ({(x/total_co2)*100:.1f}%)")
                             fig_bar = px.bar(bar_data, x='CO2e', y='設備名稱備註', orientation='h', text='Label', color='設備名稱備註', color_discrete_sequence=DASH_PALETTE)
-                            fig_bar.update_layout(height=max(400, len(bar_data)*50), showlegend=False, xaxis_title="碳排放量 (tCO2e)", yaxis_title="", plot_bgcolor='rgba(0,0,0,0)')
-                            fig_bar.update_traces(textposition='outside', textfont=dict(size=14, color='black'))
+                            fig_bar.update_layout(
+                                height=max(400, len(bar_data)*50), 
+                                showlegend=False, 
+                                xaxis_title="碳排放量 (tCO<sub>2</sub>e)", 
+                                yaxis_title="", 
+                                plot_bgcolor='rgba(0,0,0,0)',
+                                xaxis=dict(tickfont=dict(size=15, color='#566573'), title_font=dict(size=16, color='#566573')), 
+                                yaxis=dict(tickfont=dict(size=16, color='#566573'))
+                            )
+                            fig_bar.update_traces(textposition='outside', textfont=dict(size=15, color='black'))
                             fig_bar.update_xaxes(showgrid=True, gridcolor='#EAEDED', range=[0, bar_data['CO2e'].max() * 1.3])
                             st.plotly_chart(fig_bar, use_container_width=True)
                     else:
