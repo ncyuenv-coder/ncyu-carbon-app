@@ -237,13 +237,13 @@ DATA_GWP = {
 
 def load_static_data(source='local'):
     if source == 'local':
-        return DATA_UNITS, DATA_BUILDINGS, DATA_TYPES, sorted(list(DATA_GWP.keys())), DATA_GWP
+        return DATA_UNITS, DATA_BUILDINGS, DATA_TYPES, list(DATA_GWP.keys()), DATA_GWP
     else:
         try:
             ws_units = sh_ref.worksheet("單位資訊")
             ws_buildings = sh_ref.worksheet("建築物清單")
             ws_types = sh_ref.worksheet("設備類型")
-            ws_coef = sh_ref.worksheet("冷媒係表")
+            ws_coef = sh_ref.worksheet("冷媒係數表")
             
             df_units = pd.DataFrame(ws_units.get_all_records()).astype(str)
             df_build = pd.DataFrame(ws_buildings.get_all_records()).astype(str)
@@ -266,7 +266,7 @@ def load_static_data(source='local'):
                     if c not in build_dict: build_dict[c] = []
                     if b not in build_dict[c]: build_dict[c].append(b)
             
-            e_types = sorted(df_types.iloc[:, 0].dropna().unique().tolist()) if not df_types.empty else []
+            e_types = df_types.iloc[:, 0].dropna().unique().tolist() if not df_types.empty else []
             
             gwp_map = {}
             r_types = []
@@ -283,11 +283,14 @@ def load_static_data(source='local'):
                 r_types.append('其他')
                 gwp_map['其他'] = 0.0
             
-            return unit_dict, build_dict, e_types, sorted(list(set(r_types))), gwp_map
+            # 使用 dict.fromkeys 來移除重複項同時保持原始讀取順序
+            r_types_ordered = list(dict.fromkeys(r_types))
+            
+            return unit_dict, build_dict, e_types, r_types_ordered, gwp_map
             
         except Exception as e:
             st.error(f"雲端更新失敗: {e}")
-            return DATA_UNITS, DATA_BUILDINGS, DATA_TYPES, sorted(list(DATA_GWP.keys())), DATA_GWP
+            return DATA_UNITS, DATA_BUILDINGS, DATA_TYPES, list(DATA_GWP.keys()), DATA_GWP
 
 @st.cache_data(ttl=60)
 def load_records_data():
@@ -343,9 +346,9 @@ def render_user_interface():
         st.markdown('<div class="morandi-header">填報單位基本資訊區</div>', unsafe_allow_html=True)
         
         c1, c2 = st.columns(2)
-        unit_depts = sorted(unit_dict.keys())
+        unit_depts = list(unit_dict.keys())
         sel_dept = c1.selectbox("所屬單位", unit_depts, index=None, placeholder="請選擇單位...", key=f"u_dept_{fid}")
-        unit_names = sorted(unit_dict.get(sel_dept, [])) if sel_dept else []
+        unit_names = list(unit_dict.get(sel_dept, [])) if sel_dept else []
         sel_unit_name = c2.selectbox("填報單位名稱", unit_names, index=None, placeholder="請先選擇所屬單位...", key=f"u_unit_{fid}")
         
         c3, c4 = st.columns(2)
@@ -353,10 +356,10 @@ def render_user_interface():
         ext = c4.text_input("填報人分機", key=f"u_ext_{fid}")
         
         st.markdown('<div class="morandi-header">冷媒設備所在位置資訊區</div>', unsafe_allow_html=True)
-        loc_campuses = sorted(build_dict.keys())
+        loc_campuses = list(build_dict.keys())
         sel_loc_campus = st.selectbox("填報單位所在校區", loc_campuses, index=None, placeholder="請選擇校區...", key=f"u_campus_{fid}")
         c6, c7 = st.columns(2)
-        buildings = sorted(build_dict.get(sel_loc_campus, [])) if sel_loc_campus else []
+        buildings = list(build_dict.get(sel_loc_campus, [])) if sel_loc_campus else []
         sel_build = c6.selectbox("建築物名稱", buildings, index=None, placeholder="請先選擇校區...", key=f"u_build_{fid}")
         office = c7.text_input("辦公室編號", placeholder="例如：202辦公室、306研究室", key=f"u_office_{fid}")
         
@@ -432,8 +435,8 @@ def render_user_interface():
 
             st.markdown("##### 🔍 查詢條件設定")
             c_f1, c_f2 = st.columns(2)
-            sel_q_dept = c_f1.selectbox("所屬單位 (必選)", sorted(df_records['所屬單位'].dropna().unique()), index=None, key='q_dept')
-            sel_q_unit = c_f2.selectbox("填報單位名稱 (必選)", sorted(df_records[df_records['所屬單位']==sel_q_dept]['填報單位名稱'].dropna().unique()) if sel_q_dept else [], index=None, key='q_unit')
+            sel_q_dept = c_f1.selectbox("所屬單位 (必選)", df_records['所屬單位'].dropna().unique().tolist(), index=None, key='q_dept')
+            sel_q_unit = c_f2.selectbox("填報單位名稱 (必選)", df_records[df_records['所屬單位']==sel_q_dept]['填報單位名稱'].dropna().unique().tolist() if sel_q_dept else [], index=None, key='q_unit')
             
             c_f3, c_f4 = st.columns(2)
             q_start_date = c_f3.date_input("查詢起始日期", value=date(datetime.now().year, 1, 1), key='q_start')
@@ -445,8 +448,8 @@ def render_user_interface():
                 
                 if not df_view.empty:
                     left_html = f'<div class="dept-text">{sel_q_dept}</div>' if sel_q_dept==sel_q_unit else f'<div class="dept-text">{sel_q_dept}</div><div class="unit-text">{sel_q_unit}</div>'
-                    campus_str = ", ".join(sorted(df_view['校區'].unique()))
-                    build_str = ", ".join(sorted(df_view['建築物名稱'].unique())[:3])
+                    campus_str = ", ".join(df_view['校區'].unique().tolist())
+                    build_str = ", ".join(df_view['建築物名稱'].unique().tolist()[:3])
                     
                     fill_info_list = []
                     for _, row in df_view.iterrows():
