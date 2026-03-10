@@ -257,7 +257,8 @@ def export_general_docx(df_year, df_eq, drive_srv):
         section.left_margin = Cm(1.5); section.right_margin = Cm(1.5); section.top_margin = Cm(1.5); section.bottom_margin = Cm(1.5)
 
     df_gen = df_year[~df_year['備註'].astype(str).str.contains('批次申報', na=False)].copy()
-    df_merged = pd.merge(df_gen, df_eq[['設備名稱備註', '設備編號']], on='設備名稱備註', how='left')
+    # 🛠️ 關鍵修復：這裡也加上填報單位比對，以免抓錯編號
+    df_merged = pd.merge(df_gen, df_eq[['填報單位', '設備名稱備註', '設備編號']], on=['填報單位', '設備名稱備註'], how='left')
     df_merged['設備編號'] = df_merged['設備編號'].fillna('無編號')
     df_merged['佐證資料_clean'] = df_merged['佐證資料'].fillna('無').astype(str).str.strip()
 
@@ -276,7 +277,8 @@ def export_general_docx(df_year, df_eq, drive_srv):
         
         for name, group in sorted_groups:
             eq_id, eq_name, dept, fuel = name
-            yearly_vol = df_year[df_year['設備名稱備註'] == eq_name]['加油量'].sum()
+            # 🛠️ 關鍵修復：複合條件加總，避免跨單位同名加總
+            yearly_vol = df_year[(df_year['設備名稱備註'] == eq_name) & (df_year['填報單位'] == dept)]['加油量'].sum()
             p = doc.add_paragraph()
             p.add_run(f"填報單位：{dept} | 設備名稱：{eq_name} ({eq_id})\n").bold = True
             p.add_run(f"燃料：{fuel} | 年度總加油量：{yearly_vol:,.1f} 公升\n").bold = True
@@ -331,7 +333,8 @@ def export_general_docx(df_year, df_eq, drive_srv):
             p = doc.add_paragraph()
             p.add_run("⚠️ 此為共用加油單，包含以下設備：\n").bold = True
             for _, eq in eqs.iterrows():
-                yearly_vol = df_year[df_year['設備名稱備註'] == eq['設備名稱備註']]['加油量'].sum()
+                # 🛠️ 關鍵修復：複合條件加總
+                yearly_vol = df_year[(df_year['設備名稱備註'] == eq['設備名稱備註']) & (df_year['填報單位'] == eq['填報單位'])]['加油量'].sum()
                 p.add_run(f"填報單位：{eq['填報單位']} | 設備名稱：{eq['設備名稱備註']} ({eq['設備編號']}) | 年度總加油量：{yearly_vol:,.1f} 公升\n")
             
             images_to_print = []
@@ -586,8 +589,12 @@ def render_tab1_overview(df_clean, df_equip_full, all_years):
                         d_qty = row.get('設備數量', '1')
                         raw_fuel = row.get('原燃物料名稱', '-')
                         d_fuel = '汽油' if '汽油' in raw_fuel else ('柴油' if '柴油' in raw_fuel else raw_fuel)
-                        d_vol = df_year[df_year['設備名稱備註'] == d_name]['加油量'].sum()
-                        d_count = len(df_year[df_year['設備名稱備註'] == d_name])
+                        
+                        # 🛠️ 關鍵修復：這裡也加入雙重複合條件驗證
+                        mask_eq = (df_year['設備名稱備註'] == d_name) & (df_year['填報單位'] == d_unit)
+                        d_vol = df_year[mask_eq]['加油量'].sum()
+                        d_count = len(df_year[mask_eq])
+                        
                         status_html = '<span class="alert-status">⚠️ 尚未申報</span>' if d_count == 0 else ""
                         bg_col = MORANDI_COLORS.get(category, '#EBF5FB')
 
@@ -824,9 +831,12 @@ def render_tab3_missing(df_clean, df_equip_full, all_years):
         if st.button("🔍 開始篩選未申報單位", use_container_width=True):
             if not df_clean.empty:
                 mask = (df_clean['日期格式'].dt.date >= d_start) & (df_clean['日期格式'].dt.date <= d_end)
-                reported = set(df_clean[mask]['設備名稱備註'].unique())
+                
+                # 🛠️ 關鍵修復：複合字串比對，避免A單位報了剪枝機，B單位的剪枝機也被判定已申報
+                reported_keys = set(df_clean[mask]['填報單位'].astype(str) + "|||" + df_clean[mask]['設備名稱備註'].astype(str))
                 df_eq_copy = df_equip.copy()
-                df_eq_copy['已申報'] = df_eq_copy['設備名稱備註'].apply(lambda x: x in reported)
+                df_eq_copy['已申報'] = df_eq_copy.apply(lambda r: (str(r.get('填報單位', '')) + "|||" + str(r.get('設備名稱備註', ''))) in reported_keys, axis=1)
+                
                 unreported = df_eq_copy[~df_eq_copy['已申報']]
                 st.session_state['unreported_df'] = unreported
             else:
@@ -920,7 +930,6 @@ def render_tab4_edit(df_clean, df_records, all_years):
                 st.success("✅ 更新成功！資料已安全合併存檔。")
                 st.cache_data.clear()
                 
-                # 🛠️ 關鍵修復：清除舊有佐證快取檔案，並強制重整頁面
                 for key in ['doc_general', 'doc_batch']:
                     if key in st.session_state:
                         del st.session_state[key]
@@ -952,17 +961,13 @@ def render_tab5_export(df_clean, df_equip_full, all_years):
         else:
             c1, c2, c3 = st.columns(3)
             with c1:
-                # 🛠️ 關鍵修復：改用 outer merge 保證匯出時不會遺漏任何新增或名稱誤差的設備
-                df_stats = df_year.groupby(['設備名稱備註'], as_index=False).agg({
+                # 🛠️ 關鍵修復：必須同時使用「填報單位」與「設備名稱備註」作為唯一鍵來分組與合併
+                df_stats = df_year.groupby(['填報單位', '設備名稱備註'], as_index=False).agg({
                     '加油量': 'sum',
-                    '填報單位': 'first',
                     '原燃物料名稱': 'first'
                 })
-                df_export = pd.merge(df_equip, df_stats, on='設備名稱備註', how='outer', suffixes=('', '_rec'))
+                df_export = pd.merge(df_equip, df_stats, on=['填報單位', '設備名稱備註'], how='outer', suffixes=('', '_rec'))
                 
-                # 確保新出現的設備能自填報紀錄補齊「單位」與「油品類型」
-                if '填報單位_rec' in df_export.columns:
-                    df_export['填報單位'] = df_export['填報單位'].fillna(df_export['填報單位_rec'])
                 if '原燃物料名稱_rec' in df_export.columns:
                     df_export['原燃物料名稱'] = df_export['原燃物料名稱'].fillna(df_export['原燃物料名稱_rec'])
                     
@@ -1029,7 +1034,7 @@ def main():
     with admin_tabs[3]: render_tab4_edit(df_clean, df_records, all_years) 
     with admin_tabs[4]: render_tab5_export(df_clean, df_equip, all_years)
     
-    st.markdown('<div style="text-align: center; color: #BDC3C7; font-size: 0.9rem; margin-top: 50px;">管理員系統版本 V183 (Data Export Fix)</div>', unsafe_allow_html=True)
+    st.markdown('<div style="text-align: center; color: #BDC3C7; font-size: 0.9rem; margin-top: 50px;">管理員系統版本 V184 (Multi-Key Aggregation Fix)</div>', unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
