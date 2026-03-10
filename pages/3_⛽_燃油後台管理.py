@@ -919,6 +919,14 @@ def render_tab4_edit(df_clean, df_records, all_years):
                 
                 st.success("✅ 更新成功！資料已安全合併存檔。")
                 st.cache_data.clear()
+                
+                # 🛠️ 關鍵修復：清除舊有佐證快取檔案，並強制重整頁面
+                for key in ['doc_general', 'doc_batch']:
+                    if key in st.session_state:
+                        del st.session_state[key]
+                time.sleep(0.5)
+                st.rerun()
+                
             except Exception as e: st.error(f"更新失敗: {e}")
     else: st.info(f"{selected_admin_year} 年度尚無資料。")
 
@@ -944,10 +952,23 @@ def render_tab5_export(df_clean, df_equip_full, all_years):
         else:
             c1, c2, c3 = st.columns(3)
             with c1:
-                df_stats = df_year.groupby(['設備名稱備註'])['加油量'].sum().reset_index()
-                df_export = pd.merge(df_equip, df_stats, on='設備名稱備註', how='left')
+                # 🛠️ 關鍵修復：改用 outer merge 保證匯出時不會遺漏任何新增或名稱誤差的設備
+                df_stats = df_year.groupby(['設備名稱備註'], as_index=False).agg({
+                    '加油量': 'sum',
+                    '填報單位': 'first',
+                    '原燃物料名稱': 'first'
+                })
+                df_export = pd.merge(df_equip, df_stats, on='設備名稱備註', how='outer', suffixes=('', '_rec'))
+                
+                # 確保新出現的設備能自填報紀錄補齊「單位」與「油品類型」
+                if '填報單位_rec' in df_export.columns:
+                    df_export['填報單位'] = df_export['填報單位'].fillna(df_export['填報單位_rec'])
+                if '原燃物料名稱_rec' in df_export.columns:
+                    df_export['原燃物料名稱'] = df_export['原燃物料名稱'].fillna(df_export['原燃物料名稱_rec'])
+                    
                 df_export['加油量'] = df_export['加油量'].fillna(0)
                 df_export.rename(columns={'加油量': f'{selected_admin_year}年度總加油量'}, inplace=True)
+                
                 target_cols = ['填報單位', '設備名稱備註', '校內財產編號', '原燃物料名稱', '保管人', '設備所屬單位/部門', '設備詳細位置/樓層', '設備數量', '設備編號', f'{selected_admin_year}年度總加油量']
                 df_final_export = df_export[[c for c in target_cols if c in df_export.columns]]
                 csv_data = df_final_export.to_csv(index=False).encode('utf-8-sig')
@@ -1008,7 +1029,7 @@ def main():
     with admin_tabs[3]: render_tab4_edit(df_clean, df_records, all_years) 
     with admin_tabs[4]: render_tab5_export(df_clean, df_equip, all_years)
     
-    st.markdown('<div style="text-align: center; color: #BDC3C7; font-size: 0.9rem; margin-top: 50px;">管理員系統版本 V182 (Final UI Polish)</div>', unsafe_allow_html=True)
+    st.markdown('<div style="text-align: center; color: #BDC3C7; font-size: 0.9rem; margin-top: 50px;">管理員系統版本 V183 (Data Export Fix)</div>', unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
