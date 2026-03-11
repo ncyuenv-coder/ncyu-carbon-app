@@ -70,7 +70,7 @@ def process_and_compress_file(uploaded_file):
         return uploaded_file, uploaded_file.type
 
 # ==========================================
-# 1. CSS 樣式表 (與燃油系統統一字體與基本樣式)
+# 1. CSS 樣式表
 # ==========================================
 st.markdown("""
 <style>
@@ -136,8 +136,6 @@ with st.sidebar:
     st.header(f"👤 {name}")
     st.caption(f"帳號: {username}")
     st.success("☁️ 雲端連線正常")
-    if username == 'admin':
-        st.info("👑 提示：後台功能已移至「冷媒後台管理」分頁")
         
     # --- 線上人數統計雷達 ---
     @st.cache_resource
