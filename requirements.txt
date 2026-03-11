@@ -10,4 +10,4 @@ plotly
 openpyxl
 python-docx
 pymupdf
-Pillow==10.2.0
+Pillow
