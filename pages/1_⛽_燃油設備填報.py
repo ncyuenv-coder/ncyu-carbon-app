@@ -10,14 +10,56 @@ import plotly.express as px
 import plotly.graph_objects as go
 import time
 import re
+import random
+import io
+from PIL import Image
 
 # ==========================================
-# 0. 系統設定 (輕量前台版)
+# 0. 系統設定 (輕量前台版) & 共用防護機制
 # ==========================================
 st.set_page_config(page_title="燃油設備填報", page_icon="⛽", layout="wide")
 
 def get_taiwan_time():
     return datetime.utcnow() + timedelta(hours=8)
+
+# [新增機制 1] 寫入重試機制 (解決多人同時送出的 429 錯誤)
+def safe_append_rows(worksheet, rows, max_retries=5):
+    for attempt in range(max_retries):
+        try:
+            worksheet.append_rows(rows)
+            return True
+        except Exception as e:
+            if "429" in str(e) and attempt < max_retries - 1:
+                # 隨機等待 3 到 5 秒
+                wait_time = random.uniform(3.0, 5.0)
+                time.sleep(wait_time)
+            else:
+                raise e
+
+# [新增機制 2] 圖片無損壓縮處理 (於記憶體內處理，不產生暫存檔)
+def process_and_compress_file(uploaded_file):
+    file_ext = uploaded_file.name.split('.')[-1].lower()
+    # 僅針對圖片格式進行壓縮，PDF直接放行
+    if file_ext in ['jpg', 'jpeg', 'png']:
+        try:
+            img = Image.open(uploaded_file)
+            img_byte_arr = io.BytesIO()
+            if file_ext == 'png':
+                img.save(img_byte_arr, format='PNG', optimize=True)
+                mime_type = 'image/png'
+            else:
+                # 保留原畫質 100，但啟動底層優化演算法節省空間
+                img.save(img_byte_arr, format='JPEG', optimize=True, quality=100)
+                mime_type = 'image/jpeg'
+            img_byte_arr.seek(0)
+            return img_byte_arr, mime_type
+        except Exception as e:
+            # 若壓縮發生意外，退回原檔
+            uploaded_file.seek(0)
+            return uploaded_file, uploaded_file.type
+    else:
+        uploaded_file.seek(0)
+        return uploaded_file, uploaded_file.type
 
 # ==========================================
 # 1. CSS 樣式表
@@ -164,7 +206,6 @@ st.markdown("""
     div[data-testid="stExpander"] > details > summary p { font-size: 1.35rem !important; font-weight: 900 !important; color: #FFFFFF !important; }
     div[data-testid="stExpander"] > details > summary svg { color: #FFFFFF !important; fill: #FFFFFF !important; }
     div[data-testid="stExpander"] > details > summary:hover { background-color: #1A252F !important; }
-    /* 修正底色，採用明顯的淺灰藍色，與內部白色卡片做出視覺區隔 */
     div[data-testid="stExpanderDetails"] { padding: 20px; background-color: #E5E8E8 !important; border-top: 1px solid #BDC3C7; border-radius: 0 0 12px 12px; }
 </style>
 """, unsafe_allow_html=True)
@@ -231,7 +272,8 @@ try:
     if len(ws_record.get_all_values()) == 0: ws_record.append_row(["填報時間", "填報單位", "填報人", "填報人分機", "設備名稱備註", "校內財產編號", "原燃物料名稱", "油卡編號", "加油日期", "加油量", "與其他設備共用加油單", "備註", "佐證資料"])
 except Exception as e: st.error(f"燃油資料庫連線失敗: {e}"); st.stop()
 
-@st.cache_data(ttl=600)
+# [修改 1] 將 TTL 延長至 86400 秒 (一天)，減少 API 呼叫
+@st.cache_data(ttl=86400)
 def load_fuel_data():
     max_retries = 3; delay = 2; df_e = pd.DataFrame(); df_r = pd.DataFrame()
     for attempt in range(max_retries):
@@ -279,7 +321,6 @@ def render_user_interface():
         if not df_equip.empty:
             st.markdown("#### 步驟 1：請選擇填報年度、單位及設備")
             
-            # 動態取得年度清單
             if '設備檢視年度' in df_equip.columns:
                 equip_years = sorted(list(set([str(y).strip() for y in df_equip['設備檢視年度'].unique() if str(y).strip() not in ['', 'nan']])), reverse=True)
             else:
@@ -289,7 +330,6 @@ def render_user_interface():
             col_y, col_u, col_d = st.columns(3)
             selected_year_str = col_y.selectbox("📅 填報年度", equip_years, index=0, key="year_selector")
             
-            # 過濾當年度設備
             if '設備檢視年度' in df_equip.columns:
                 df_equip_yr = df_equip[df_equip['設備檢視年度'].astype(str) == selected_year_str].copy()
             else:
@@ -324,20 +364,16 @@ def render_user_interface():
                         
                         st.markdown("#### 步驟 2：批次填寫與上傳")
                         with st.form("batch_form", clear_on_submit=True):
-                            # 第一列：姓名、分機
                             col_p1, col_p2 = st.columns(2)
                             p_name = col_p1.text_input("👤 填報人姓名 (必填)")
                             p_ext = col_p2.text_input("📞 聯絡分機 (必填)")
                             
-                            # 單獨一列：電子郵件
                             default_email = str(filtered_equip.iloc[0].get('電子郵件', '')).strip() if '電子郵件' in filtered_equip.columns and not filtered_equip.empty else ''
                             if default_email == 'nan': default_email = ''
                             p_email = st.text_input("✉️ 電子郵件", value=default_email)
                             st.markdown("<div style='color: #566573; font-size: 0.95rem; margin-top: -10px; margin-bottom: 10px;'>電子郵件將用於通知申報使用，若貴單位有收件地址異動，請您直接修改。</div>", unsafe_allow_html=True)
                             
-                            # 新增分隔線
                             st.markdown("---")
-                            
                             batch_date = st.date_input("📅 加油月份 (日期統一選擇該月份最終日)", datetime.today())
                             
                             st.markdown("<div style='font-size: 1.15rem; font-weight: bold; color: #2C3E50; margin-top: 15px; margin-bottom: 10px;'>⛽ 請填入各設備該月份之加油總量(公升)，若該月份無使用請填0：</div>", unsafe_allow_html=True)
@@ -385,11 +421,13 @@ def render_user_interface():
                                         if is_proof_shared:
                                             file_link = "佐證如總務處事務組中油明細"
                                         else:
-                                            f_file.seek(0); file_ext = f_file.name.split('.')[-1]
+                                            # [修改 2] 導入無損壓縮機制
+                                            file_obj, mime_type = process_and_compress_file(f_file)
+                                            file_ext = f_file.name.split('.')[-1]
                                             fuel_rep = filtered_equip.iloc[0]['原燃物料名稱'] if not filtered_equip.empty else "混合油品"
                                             clean_name = f"{selected_dept}_{target_sub_cat}_{fuel_rep}_{total_vol}.{file_ext}"
                                             file_meta = {'name': clean_name, 'parents': [DRIVE_FOLDER_ID]}
-                                            media = MediaIoBaseUpload(f_file, mimetype=f_file.type, resumable=True)
+                                            media = MediaIoBaseUpload(file_obj, mimetype=mime_type, resumable=True)
                                             file = drive_service.files().create(body=file_meta, media_body=media, fields='webViewLink').execute()
                                             file_link = file.get('webViewLink')
                                         
@@ -399,7 +437,6 @@ def render_user_interface():
                                         rows_to_append = []
                                         current_time = get_taiwan_time().strftime("%Y-%m-%d %H:%M:%S")
                                         
-                                        # 加上 Email 異動備註
                                         note_val = st.session_state.get("batch_note", "")
                                         if p_email and str(p_email).strip() != default_email:
                                             note_val += f" [Email異動: {str(p_email).strip()}]"
@@ -407,7 +444,14 @@ def render_user_interface():
                                         for idx, vol in batch_inputs.items():
                                             row = filtered_equip.loc[idx]
                                             rows_to_append.append([current_time, selected_dept, p_name, p_ext, row['設備名稱備註'], str(row.get('校內財產編號','-')), row['原燃物料名稱'], fleet_id, str(batch_date), vol, "是", f"批次申報-{target_sub_cat} | {note_val}", file_link])
-                                        if rows_to_append: ws_record.append_rows(rows_to_append); st.success(f"✅ 批次申報成功！已寫入 {len(rows_to_append)} 筆紀錄。"); st.balloons(); st.session_state['reset_counter'] += 1
+                                        
+                                        if rows_to_append: 
+                                            # [修改 3] 使用排隊重試機制取代原有的直接寫入，並觸發清除快取
+                                            safe_append_rows(ws_record, rows_to_append)
+                                            st.success(f"✅ 批次申報成功！已寫入 {len(rows_to_append)} 筆紀錄。")
+                                            st.balloons()
+                                            st.session_state['reset_counter'] += 1
+                                            st.cache_data.clear() # 觸發更新
                                         else: st.warning("系統錯誤：無法產生寫入資料。")
                                     except Exception as e: st.error(f"失敗: {e}")
                 else:
@@ -436,12 +480,10 @@ def render_user_interface():
                                 if st.button("➖ 減少一列") and st.session_state['multi_row_count'] > 1: st.session_state['multi_row_count'] -= 1
 
                         with st.form("entry_form", clear_on_submit=True):
-                            # 第一列：姓名、分機
                             col_p1, col_p2 = st.columns(2)
                             p_name = col_p1.text_input("👤 填報人姓名 (必填)")
                             p_ext = col_p2.text_input("📞 聯絡分機 (必填)")
                             
-                            # 單獨一列：電子郵件
                             default_email = str(row.get('電子郵件', '')).strip() if '電子郵件' in row else ''
                             if default_email == 'nan': default_email = ''
                             p_email = st.text_input("✉️ 電子郵件", value=default_email)
@@ -450,7 +492,6 @@ def render_user_interface():
                             fuel_card_id = ""; data_entries = []; f_files = None; note_input = ""
                             
                             if report_mode == "用油量申報 (含單筆/多筆/油卡)":
-                                # 單獨一列：油卡編號
                                 fuel_card_id = st.text_input("💳 油卡編號 (選填)")
                                 
                                 for i in range(st.session_state['multi_row_count']):
@@ -504,17 +545,18 @@ def render_user_interface():
                                             shared_tag = "(共用)" if is_shared else ""
                                             for idx, f in enumerate(f_files):
                                                 try:
-                                                    f.seek(0); file_ext = f.name.split('.')[-1]; clean_name = ""
+                                                    # [修改 4] 導入無損壓縮機制
+                                                    file_obj, mime_type = process_and_compress_file(f)
+                                                    file_ext = f.name.split('.')[-1]; clean_name = ""
                                                     if len(f_files) == len(data_entries): c_date = data_entries[idx]['date']; c_vol = data_entries[idx]['vol']; clean_name = f"{selected_dept}_{selected_device}_{fuel_type}_{c_date}_{c_vol}{shared_tag}.{file_ext}"
                                                     elif len(f_files) == 1 and len(data_entries) > 1: clean_name = f"{selected_dept}_{selected_device}_{fuel_type}_{total_report_vol}{shared_tag}.{file_ext}"
                                                     else: clean_name = f"{selected_dept}_{selected_device}_{fuel_type}_{data_entries[0]['date']}_{idx+1}{shared_tag}.{file_ext}"
                                                     meta = {'name': clean_name, 'parents': [DRIVE_FOLDER_ID]}
-                                                    media = MediaIoBaseUpload(f, mimetype=f.type, resumable=True)
+                                                    media = MediaIoBaseUpload(file_obj, mimetype=mime_type, resumable=True)
                                                     file = drive_service.files().create(body=meta, media_body=media, fields='webViewLink').execute()
                                                     links.append(file.get('webViewLink'))
                                                 except: valid_logic=False; st.error("上傳失敗"); break
                                         if valid_logic:
-                                            # 加上 Email 異動備註
                                             if p_email and str(p_email).strip() != default_email:
                                                 note_input += f" [Email異動: {str(p_email).strip()}]"
                                                 
@@ -522,14 +564,24 @@ def render_user_interface():
                                             final_link = "\n".join(links) if links else "無"
                                             shared_str = "是" if is_shared else "-"; card_str = fuel_card_id if fuel_card_id else "-"
                                             for e in data_entries: rows.append([now_str, selected_dept, p_name, p_ext, selected_device, str(row.get('校內財產編號','-')), str(row.get('原燃物料名稱','-')), card_str, str(e['date']), e['vol'], shared_str, note_input, final_link])
-                                            if rows: ws_record.append_rows(rows); st.success("✅ 申報成功！"); st.balloons(); st.session_state['reset_counter'] += 1; st.cache_data.clear()
+                                            if rows: 
+                                                # [修改 5] 使用安全排隊機制寫入，並觸發清除快取
+                                                safe_append_rows(ws_record, rows)
+                                                st.success("✅ 申報成功！")
+                                                st.balloons()
+                                                st.session_state['reset_counter'] += 1
+                                                st.cache_data.clear() # 觸發更新
                                 elif report_mode == "無使用":
-                                    # 加上 Email 異動備註
                                     if p_email and str(p_email).strip() != default_email:
                                         note_input += f" [Email異動: {str(p_email).strip()}]"
                                         
                                     rows = [[get_taiwan_time().strftime("%Y-%m-%d %H:%M:%S"), selected_dept, p_name, p_ext, selected_device, str(row.get('校內財產編號','-')), str(row.get('原燃物料名稱','-')), "-", str(data_entries[0]['date']), 0.0, "-", note_input, "無"]]
-                                    ws_record.append_rows(rows); st.success("✅ 申報成功！"); st.balloons(); st.session_state['reset_counter'] += 1; st.cache_data.clear()
+                                    # [修改 6] 無使用申報也採用安全寫入機制
+                                    safe_append_rows(ws_record, rows)
+                                    st.success("✅ 申報成功！")
+                                    st.balloons()
+                                    st.session_state['reset_counter'] += 1
+                                    st.cache_data.clear() # 觸發更新
         else: st.warning("📭 目前資料庫尚無有效資料，請聯絡管理員。")
 
     # === Tab 2: 看板 ===
