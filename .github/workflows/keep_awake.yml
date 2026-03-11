@@ -2,13 +2,12 @@ name: Keep Streamlit App Awake
 
 on:
   schedule:
-    # 每 8 小時執行一次
     - cron: '0 */8 * * *'
-  workflow_dispatch: # 保留手動點擊執行的按鈕
+  workflow_dispatch:
 
 jobs:
   ping:
     runs-on: ubuntu-latest
     steps:
       - name: Wake up Streamlit
-        run: curl -L https://ncyu-carbon-app-mduue5hffp7uknsskmjet9.streamlit.app/
+        run: curl -sSf https://ncyu-carbon-app-mduue5hffp7uknsskmjet9.streamlit.app/_stcore/health || true
