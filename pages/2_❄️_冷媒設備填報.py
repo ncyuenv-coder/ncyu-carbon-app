@@ -11,104 +11,94 @@ import plotly.graph_objects as go
 import time
 import re
 import os
-import streamlit.components.v1 as components  # 引入前端組件以支援圖片下載
+import random
+import io
+import uuid
+from PIL import Image
+import streamlit.components.v1 as components
 
 # ==========================================
-# 0. 系統設定
+# 0. 系統設定 & 共用防護機制
 # ==========================================
 st.set_page_config(page_title="冷媒填報 - 嘉義大學", page_icon="❄️", layout="wide")
 
 def get_taiwan_time():
     return datetime.utcnow() + timedelta(hours=8)
 
-# 初始化 form_id 以確保清空功能
 if 'form_id' not in st.session_state:
     st.session_state['form_id'] = 0
 
+# [防護機制 1] 寫入重試機制
+def safe_append_rows(worksheet, rows, max_retries=5):
+    for attempt in range(max_retries):
+        try:
+            worksheet.append_rows(rows)
+            return True
+        except Exception as e:
+            if "429" in str(e) and attempt < max_retries - 1:
+                wait_time = random.uniform(3.0, 5.0)
+                time.sleep(wait_time)
+            else:
+                raise e
+
+# [防護機制 2] 圖片聰明壓縮處理
+def process_and_compress_file(uploaded_file):
+    file_ext = uploaded_file.name.split('.')[-1].lower()
+    if file_ext in ['jpg', 'jpeg', 'png']:
+        try:
+            img = Image.open(uploaded_file)
+            img_byte_arr = io.BytesIO()
+            if file_ext == 'png':
+                img.save(img_byte_arr, format='PNG', optimize=True)
+                mime_type = 'image/png'
+            else:
+                if img.mode in ("RGBA", "P"): 
+                    img = img.convert("RGB")
+                img.save(img_byte_arr, format='JPEG', optimize=True, quality=85)
+                mime_type = 'image/jpeg'
+            
+            img_byte_arr.seek(0)
+            uploaded_file.seek(0)
+            if len(img_byte_arr.getvalue()) > len(uploaded_file.getvalue()):
+                return uploaded_file, uploaded_file.type
+            return img_byte_arr, mime_type
+        except Exception as e:
+            uploaded_file.seek(0)
+            return uploaded_file, uploaded_file.type
+    else:
+        uploaded_file.seek(0)
+        return uploaded_file, uploaded_file.type
+
 # ==========================================
-# 1. CSS 樣式表 (定案版)
+# 1. CSS 樣式表 (與燃油系統統一字體與基本樣式)
 # ==========================================
 st.markdown("""
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;800;900&display=swap');
-
     /* --- 全域設定 --- */
-    :root {
-        color-scheme: light;
-        --orange-bg: #E67E22;     
-        --orange-dark: #D35400;
-        --text-main: #2C3E50;
-        --text-sub: #566573;
-        --morandi-red: #C0392B; 
-        --kpi-gas: #52BE80;
-        --kpi-diesel: #F4D03F;
-        --kpi-total: #5DADE2;
-        --kpi-co2: #AF7AC5;
-        --morandi-blue: #34495E;
-    }
-    
-    /* 安全地套用圓體，解決左上角 keyboard_double_arrow_right 變成文字的 Bug */
-    .stApp, p, h1, h2, h3, h4, h5, h6, label, input, button, select, textarea, div.stMarkdown, div.stText {
-        font-family: 'Nunito', 'cwTeXYen', 'TsukuBRdGothic-Regular', 'Microsoft JhengHei UI', sans-serif;
-    }
-    
-    /* 強制保護系統圖示字體，避免跑版 */
-    .material-symbols-rounded, .material-icons {
-        font-family: 'Material Symbols Rounded' !important;
-    }
-
+    :root { color-scheme: light; --orange-bg: #E67E22; --orange-dark: #D35400; --text-main: #2C3E50; --text-sub: #566573; --morandi-red: #C0392B; --kpi-gas: #52BE80; --kpi-diesel: #F4D03F; --kpi-total: #5DADE2; --kpi-co2: #AF7AC5; --morandi-blue: #34495E; --deep-gray: #333333; }
     [data-testid="stAppViewContainer"] { background-color: #EAEDED; color: var(--text-main); }
     [data-testid="stHeader"] { background-color: rgba(0,0,0,0); }
     [data-testid="stSidebar"] { background-color: #FFFFFF; border-right: 1px solid #BDC3C7; }
-    
-    div[data-baseweb="input"] > div, div[data-baseweb="base-input"] > input, textarea, input {
-        background-color: #FFFFFF !important; border-color: #BDC3C7 !important; color: #000000 !important; font-size: 1.15rem !important;
-    }
+    div[data-baseweb="input"] > div, div[data-baseweb="base-input"] > input, textarea, input { background-color: #FFFFFF !important; border-color: #BDC3C7 !important; color: #000000 !important; font-size: 1.15rem !important; }
     div[data-baseweb="select"] > div { border-color: #BDC3C7 !important; background-color: #FFFFFF !important; }
     ul[data-baseweb="menu"] { background-color: #FFFFFF !important; }
     
-    /* 針對所有預設輸入欄位標題，放大字體並加粗增加份量感 */
-    div[data-testid="stWidgetLabel"] p {
-        font-size: 1.2rem !important;
-        font-weight: 900 !important;
-        color: #2C3E50 !important;
-        letter-spacing: 0.5px !important;
-    }
-
-    div.stButton > button, button[kind="primary"], [data-testid="stFormSubmitButton"] > button {
-        background-color: var(--orange-bg) !important; 
-        color: #FFFFFF !important; border: 2px solid var(--orange-dark) !important; border-radius: 12px !important;
-        font-size: 1.3rem !important; font-weight: 800 !important; padding: 0.7rem 1.5rem !important;
-        box-shadow: 0 4px 6px rgba(230, 126, 34, 0.3) !important; width: 100%; 
-    }
+    div[data-testid="stWidgetLabel"] p { font-size: 1.2rem !important; font-weight: 900 !important; color: #2C3E50 !important; letter-spacing: 0.5px !important; }
+    div.stButton > button, button[kind="primary"], [data-testid="stFormSubmitButton"] > button { background-color: var(--orange-bg) !important; color: #FFFFFF !important; border: 2px solid var(--orange-dark) !important; border-radius: 12px !important; font-size: 1.3rem !important; font-weight: 800 !important; padding: 0.7rem 1.5rem !important; box-shadow: 0 4px 6px rgba(230, 126, 34, 0.3) !important; width: 100%; }
     div.stButton > button p { color: #FFFFFF !important; } 
-    div.stButton > button:hover, [data-testid="stFormSubmitButton"] > button:hover { 
-        background-color: var(--orange-dark) !important; transform: translateY(-2px) !important; color: #FFFFFF !important;
-    }
+    div.stButton > button:hover, [data-testid="stFormSubmitButton"] > button:hover { background-color: var(--orange-dark) !important; transform: translateY(-2px) !important; color: #FFFFFF !important; }
     button[data-baseweb="tab"] div p { font-size: 1.3rem !important; font-weight: 900 !important; color: var(--text-sub); }
     button[data-baseweb="tab"][aria-selected="true"] div p { color: #E67E22 !important; border-bottom: 3px solid #E67E22; }
-    div[data-testid="stCheckbox"] label p { font-size: 1.2rem !important; color: #1F618D !important; font-weight: 900 !important; }
-    .morandi-header {
-        background-color: #EBF5FB; color: #2E4053; padding: 15px; border-radius: 8px;
-        border-left: 8px solid #5499C7; font-size: 1.35rem; font-weight: 700;
-        margin-top: 25px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-    }
+    div[data-testid="stCheckbox"] label p { font-size: 1.05rem !important; color: #1F618D !important; font-weight: 800 !important; }
+    [data-testid="stFileUploaderDropzone"] { background-color: #D6EAF8 !important; border: 2px dashed #2E86C1 !important; padding: 20px; border-radius: 12px; }
+    [data-testid="stFileUploaderDropzone"] div, span, small { color: #154360 !important; font-weight: bold !important; }
+
+    /* --- 冷媒專屬樣式 --- */
+    .morandi-header { background-color: #EBF5FB; color: #2E4053; padding: 15px; border-radius: 8px; border-left: 8px solid #5499C7; font-size: 1.35rem; font-weight: 700; margin-top: 25px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
     .privacy-box { background-color: #F8F9F9; border: 1px solid #BDC3C7; padding: 15px; border-radius: 10px; font-size: 0.95rem; color: #566573; margin-bottom: 10px; }
     .privacy-title { font-weight: bold; color: #2C3E50; margin-bottom: 5px; font-size: 1.1rem; }
     .correction-note { color: #566573; font-size: 0.95rem; font-weight: bold; margin-top: 5px; margin-bottom: 20px; }
-    
-    .stRadio div[role="radiogroup"] label {
-        background-color: #D6EAF8 !important; border: 1px solid #AED6F1 !important;
-        border-radius: 8px !important; padding: 8px 15px !important; margin-right: 10px !important;
-    }
-    .stRadio div[role="radiogroup"] label p { font-size: 1.0rem !important; font-weight: 800 !important; color: #154360 !important; }
-    [data-testid="stFileUploaderDropzone"] { background-color: #D6EAF8 !important; border: 2px dashed #2E86C1 !important; padding: 20px; border-radius: 12px; }
-    [data-testid="stFileUploaderDropzone"] div, span, small { color: #154360 !important; font-weight: bold !important; }
-    
-    /* --- 資訊卡前端樣式同步 --- */
-    .horizontal-card {
-        display: flex; border: 1px solid #BDC3C7; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 8px rgba(0,0,0,0.08); background-color: #FFFFFF; min-height: 280px; max-width: 100%; margin-bottom: 15px; 
-    }
+    .horizontal-card { display: flex; border: 1px solid #BDC3C7; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 8px rgba(0,0,0,0.08); background-color: #FFFFFF; min-height: 280px; max-width: 100%; margin-bottom: 15px; }
     .card-left { flex: 3; background-color: #34495E; color: #FFFFFF; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 20px; text-align: center; border-right: 1px solid #2C3E50; }
     .dept-text { font-size: 1.6rem; font-weight: 700; margin-bottom: 8px; line-height: 1.4; }
     .unit-text { font-size: 1.3rem; font-weight: 500; opacity: 0.9; }
@@ -121,7 +111,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# 2. 身份驗證
+# 2. 身份驗證與線上人數雷達
 def clean_secrets(obj):
     if isinstance(obj, dict) or "AttrDict" in str(type(obj)): return {k: clean_secrets(v) for k, v in obj.items()}
     elif isinstance(obj, list): return [clean_secrets(i) for i in obj]
@@ -148,6 +138,27 @@ with st.sidebar:
     st.success("☁️ 雲端連線正常")
     if username == 'admin':
         st.info("👑 提示：後台功能已移至「冷媒後台管理」分頁")
+        
+    # --- 線上人數統計雷達 ---
+    @st.cache_resource
+    def get_active_users(): return {}
+    
+    active_users = get_active_users()
+    if 'session_id' not in st.session_state: st.session_state['session_id'] = str(uuid.uuid4())
+    current_time = time.time()
+    active_users[st.session_state['session_id']] = current_time
+    
+    timeout_seconds = 300
+    keys_to_delete = [sid for sid, ts in active_users.items() if current_time - ts > timeout_seconds]
+    for sid in keys_to_delete: del active_users[sid]
+        
+    online_count = len(active_users)
+    st.markdown("<br>", unsafe_allow_html=True)
+    if online_count >= 20: st.error(f"🔴 目前線上人數: {online_count} 人 (擁擠，建議稍候操作)")
+    elif online_count >= 10: st.warning(f"🟡 目前線上人數: {online_count} 人 (普通，可正常填報)")
+    else: st.success(f"🟢 目前線上人數: {online_count} 人 (順暢)")
+    # ------------------------------
+    
     st.markdown("---")
     authenticator.logout('登出系統', 'sidebar')
 
@@ -283,16 +294,15 @@ def load_static_data(source='local'):
                 r_types.append('其他')
                 gwp_map['其他'] = 0.0
             
-            # 使用 dict.fromkeys 來移除重複項同時保持原始讀取順序
             r_types_ordered = list(dict.fromkeys(r_types))
-            
             return unit_dict, build_dict, e_types, r_types_ordered, gwp_map
             
         except Exception as e:
             st.error(f"雲端更新失敗: {e}")
             return DATA_UNITS, DATA_BUILDINGS, DATA_TYPES, list(DATA_GWP.keys()), DATA_GWP
 
-@st.cache_data(ttl=60)
+# [快取機制] 延長至 86400 秒
+@st.cache_data(ttl=86400)
 def load_records_data():
     try:
         data = ws_records.get_all_values()
@@ -312,15 +322,9 @@ def load_records_data():
         else:
             return pd.DataFrame(columns=["填報時間","填報人","填報人分機","校區","所屬單位","填報單位名稱","建築物名稱","辦公室編號","維修日期","設備類型","設備品牌型號","冷媒種類","冷媒填充量","備註","佐證資料"])
     except Exception as e:
-        try:
-            df = pd.read_csv("冷媒設備盤查資料庫_標準化.xlsx - 冷媒填報紀錄.csv")
-            st.warning("⚠️ 雲端連線失敗，目前顯示為本地備份資料。")
-            return df
-        except:
-            st.error(f"⚠️ 無法讀取資料 (雲端與本地皆失效): {e}")
-            return pd.DataFrame()
+        st.error(f"⚠️ 無法讀取資料: {e}")
+        return pd.DataFrame()
 
-# 初始化 (Session State)
 if 'static_data_loaded' not in st.session_state:
     st.session_state['unit_dict'], st.session_state['build_dict'], st.session_state['e_types'], st.session_state['r_types'], st.session_state['gwp_map'] = load_static_data('local')
     st.session_state['static_data_loaded'] = True
@@ -372,16 +376,13 @@ def render_user_interface():
         e_model = c10.text_input("設備品牌型號", placeholder="例如：國際 CS-100FL+CU-100FLC", key=f"u_model_{fid}")
         sel_rtype = c11.selectbox("冷媒種類", r_types, index=None, placeholder="請選擇...", key=f"u_rtype_{fid}")
         
-        # 標題精細客製：粗體與莫蘭迪紅色 (公斤)
         st.markdown("<div style='font-size: 1.2rem; font-weight: 900; color: #2C3E50; margin-bottom: 5px; letter-spacing: 0.5px;'>冷媒填充量 <span style='color: #C0392B; font-weight: 900;'>(公斤)</span></div>", unsafe_allow_html=True)
         amount = st.number_input("冷媒填充量", min_value=0.0, step=0.1, format="%.2f", key=f"u_amt_{fid}", label_visibility="collapsed")
         
-        # 標題精細客製：粗體上傳提示
         st.markdown("<div style='font-size: 1.2rem; font-weight: 900; color: #2C3E50; margin-bottom: 5px; margin-top: 15px; letter-spacing: 0.5px;'>請上傳冷媒填充單據佐證資料</div>", unsafe_allow_html=True)
         f_file = st.file_uploader("上傳佐證 (必填)", type=['pdf', 'jpg', 'png'], label_visibility="collapsed", key=f"u_file_{fid}")
         
         st.markdown("---")
-        # 標題精細客製：放大粗體的備註
         st.markdown("<div style='font-size: 1.2rem; font-weight: 900; color: #2C3E50; margin-bottom: 5px; letter-spacing: 0.5px;'>備註</div>", unsafe_allow_html=True)
         note = st.text_input("備註", placeholder="備註 (選填)", key=f"u_note_{fid}", label_visibility="collapsed")
         
@@ -399,19 +400,24 @@ def render_user_interface():
             elif not f_file: st.error("⚠️ 請上傳佐證資料")
             else:
                 try:
-                    f_file.seek(0); f_ext = f_file.name.split('.')[-1]
+                    # [防護機制 2] 上傳前進行圖片瘦身
+                    file_obj, mime_type = process_and_compress_file(f_file)
+                    f_ext = f_file.name.split('.')[-1]
                     clean_name = f"{sel_loc_campus}_{sel_dept}_{sel_unit_name}_{r_date}_{sel_etype}_{sel_rtype}.{f_ext}"
                     meta = {'name': clean_name, 'parents': [REF_FOLDER_ID]}
-                    media = MediaIoBaseUpload(f_file, mimetype=f_file.type, resumable=True)
+                    media = MediaIoBaseUpload(file_obj, mimetype=mime_type, resumable=True)
                     file = drive_service.files().create(body=meta, media_body=media, fields='webViewLink').execute()
                     
                     row_data = [get_taiwan_time().strftime("%Y-%m-%d %H:%M:%S"), name, ext, sel_loc_campus, sel_dept, sel_unit_name, sel_build, office, str(r_date), sel_etype, e_model, sel_rtype, amount, note, file.get('webViewLink')]
-                    ws_records.append_row(row_data)
+                    
+                    # [防護機制 1] 使用排隊重試機制進行寫入
+                    safe_append_rows(ws_records, [row_data])
                     
                     st.success("✅ 冷媒填報成功！欄位已自動清空。")
                     st.balloons()
                     
                     st.session_state['form_id'] += 1
+                    # [防護機制 3] 觸發更新
                     st.cache_data.clear()
                     time.sleep(1)
                     st.rerun()
@@ -462,7 +468,6 @@ def render_user_interface():
                     for _, row in type_sums.iterrows():
                         weight_str += f"<div>• {row['冷媒種類']}：{row['冷媒填充量']:.2f} kg</div>"
 
-                    # 碳排放量計算轉換為「公噸」
                     total_emission = df_view['排放量(kgCO2e)'].sum()
                     total_emission_ton = total_emission / 1000.0
                     
@@ -481,7 +486,7 @@ def render_user_interface():
                     """
                     st.markdown("---")
                     
-                    # 取消滾動條，並將區塊高度大幅拉長至 650，確保完整呈現
+                    # 統一字體：移除原先的 Nunito 強制設定，回歸原生無襯線字體
                     html_snippet = f"""
                     <!DOCTYPE html>
                     <html>
@@ -489,8 +494,7 @@ def render_user_interface():
                         <meta charset="utf-8">
                         <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
                         <style>
-                            @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;800;900&display=swap');
-                            body {{ font-family: 'Nunito', 'cwTeXYen', 'TsukuBRdGothic-Regular', 'Microsoft JhengHei UI', sans-serif !important; padding: 10px; margin: 0; background-color: #EAEDED; }}
+                            body {{ font-family: sans-serif !important; padding: 10px; margin: 0; background-color: #EAEDED; }}
                             .horizontal-card {{ display: flex; border: 1px solid #BDC3C7; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 8px rgba(0,0,0,0.08); background-color: #FFFFFF; min-height: 280px; max-width: 100%; margin-bottom: 15px; }}
                             .card-left {{ flex: 3; background-color: #34495E; color: #FFFFFF; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 20px; text-align: center; border-right: 1px solid #2C3E50; }}
                             .dept-text {{ font-size: 1.6rem; font-weight: 700; margin-bottom: 8px; line-height: 1.4; }}
@@ -506,7 +510,7 @@ def render_user_interface():
                                 display: inline-block; padding: 10px 20px; font-size: 1.1rem; font-weight: bold; color: white;
                                 background-color: #5D6D7E; border: 2px solid #34495E; border-radius: 8px; cursor: pointer; text-align: center;
                                 box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: background-color 0.3s;
-                                font-family: 'Nunito', 'cwTeXYen', 'TsukuBRdGothic-Regular', 'Microsoft JhengHei UI', sans-serif !important;
+                                font-family: sans-serif !important;
                             }}
                             .download-btn:hover {{ background-color: #34495E; }}
                         </style>
@@ -529,7 +533,6 @@ def render_user_interface():
                     </body>
                     </html>
                     """
-                    # 關閉 scrolling 並設定足夠高度
                     components.html(html_snippet, height=650, scrolling=False)
                     
                     st.markdown("<br>", unsafe_allow_html=True)
