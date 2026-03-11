@@ -12,6 +12,7 @@ import time
 import re
 import random
 import io
+import uuid
 from PIL import Image
 
 # ==========================================
@@ -22,7 +23,7 @@ st.set_page_config(page_title="燃油設備填報", page_icon="⛽", layout="wid
 def get_taiwan_time():
     return datetime.utcnow() + timedelta(hours=8)
 
-# [新增機制 1] 寫入重試機制 (解決多人同時送出的 429 錯誤)
+# [防護機制 1] 寫入重試機制 (解決多人同時送出的 429 錯誤)
 def safe_append_rows(worksheet, rows, max_retries=5):
     for attempt in range(max_retries):
         try:
@@ -30,31 +31,39 @@ def safe_append_rows(worksheet, rows, max_retries=5):
             return True
         except Exception as e:
             if "429" in str(e) and attempt < max_retries - 1:
-                # 隨機等待 3 到 5 秒
                 wait_time = random.uniform(3.0, 5.0)
                 time.sleep(wait_time)
             else:
                 raise e
 
-# [新增機制 2] 圖片無損壓縮處理 (於記憶體內處理，不產生暫存檔)
+# [防護機制 2] 圖片聰明壓縮處理 (確保檔案絕對不會變大)
 def process_and_compress_file(uploaded_file):
     file_ext = uploaded_file.name.split('.')[-1].lower()
-    # 僅針對圖片格式進行壓縮，PDF直接放行
     if file_ext in ['jpg', 'jpeg', 'png']:
         try:
             img = Image.open(uploaded_file)
             img_byte_arr = io.BytesIO()
+            
             if file_ext == 'png':
                 img.save(img_byte_arr, format='PNG', optimize=True)
                 mime_type = 'image/png'
             else:
-                # 保留原畫質 100，但啟動底層優化演算法節省空間
-                img.save(img_byte_arr, format='JPEG', optimize=True, quality=100)
+                # 預防有些照片是 RGBA 格式導致轉存 JPEG 失敗
+                if img.mode in ("RGBA", "P"): 
+                    img = img.convert("RGB")
+                # 將 quality 設為 85 (視覺無損的黃金標準)
+                img.save(img_byte_arr, format='JPEG', optimize=True, quality=85)
                 mime_type = 'image/jpeg'
+            
+            # 關鍵防呆：比較大小！如果壓縮完居然比原本大，就直接回傳原始檔案
             img_byte_arr.seek(0)
+            uploaded_file.seek(0)
+            if len(img_byte_arr.getvalue()) > len(uploaded_file.getvalue()):
+                return uploaded_file, uploaded_file.type
+                
             return img_byte_arr, mime_type
+            
         except Exception as e:
-            # 若壓縮發生意外，退回原檔
             uploaded_file.seek(0)
             return uploaded_file, uploaded_file.type
     else:
@@ -67,123 +76,52 @@ def process_and_compress_file(uploaded_file):
 st.markdown("""
 <style>
     /* --- 全域設定 --- */
-    :root {
-        color-scheme: light;
-        --orange-bg: #E67E22;     
-        --orange-dark: #D35400;
-        --text-main: #2C3E50;
-        --text-sub: #566573;
-        --morandi-red: #C0392B; 
-        --kpi-gas: #52BE80;
-        --kpi-diesel: #F4D03F;
-        --kpi-total: #5DADE2;
-        --kpi-co2: #AF7AC5;
-        --morandi-blue: #34495E;
-        --deep-gray: #333333;
-    }
-
+    :root { color-scheme: light; --orange-bg: #E67E22; --orange-dark: #D35400; --text-main: #2C3E50; --text-sub: #566573; --morandi-red: #C0392B; --kpi-gas: #52BE80; --kpi-diesel: #F4D03F; --kpi-total: #5DADE2; --kpi-co2: #AF7AC5; --morandi-blue: #34495E; --deep-gray: #333333; }
     [data-testid="stAppViewContainer"] { background-color: #EAEDED; color: var(--text-main); }
     [data-testid="stHeader"] { background-color: rgba(0,0,0,0); }
     [data-testid="stSidebar"] { background-color: #FFFFFF; border-right: 1px solid #BDC3C7; }
-
-    /* 輸入元件優化 */
-    div[data-baseweb="input"] > div, div[data-baseweb="base-input"] > input, textarea, input {
-        background-color: #FFFFFF !important; border-color: #BDC3C7 !important; color: #000000 !important; font-size: 1.15rem !important;
-    }
+    div[data-baseweb="input"] > div, div[data-baseweb="base-input"] > input, textarea, input { background-color: #FFFFFF !important; border-color: #BDC3C7 !important; color: #000000 !important; font-size: 1.15rem !important; }
     div[data-baseweb="select"] > div { border-color: #BDC3C7 !important; background-color: #FFFFFF !important; }
     ul[data-baseweb="menu"] { background-color: #FFFFFF !important; }
-
-    /* 按鈕樣式 */
-    div.stButton > button, button[kind="primary"], [data-testid="stFormSubmitButton"] > button {
-        background-color: var(--orange-bg) !important; 
-        color: #FFFFFF !important; border: 2px solid var(--orange-dark) !important; border-radius: 12px !important;
-        font-size: 1.3rem !important; font-weight: 800 !important; padding: 0.7rem 1.5rem !important;
-        box-shadow: 0 4px 6px rgba(230, 126, 34, 0.3) !important; width: 100%; 
-    }
+    div.stButton > button, button[kind="primary"], [data-testid="stFormSubmitButton"] > button { background-color: var(--orange-bg) !important; color: #FFFFFF !important; border: 2px solid var(--orange-dark) !important; border-radius: 12px !important; font-size: 1.3rem !important; font-weight: 800 !important; padding: 0.7rem 1.5rem !important; box-shadow: 0 4px 6px rgba(230, 126, 34, 0.3) !important; width: 100%; }
     div.stButton > button p { color: #FFFFFF !important; } 
-    div.stButton > button:hover, [data-testid="stFormSubmitButton"] > button:hover { 
-        background-color: var(--orange-dark) !important; transform: translateY(-2px) !important; color: #FFFFFF !important;
-    }
-
-    /* Tab 分頁字體 */
+    div.stButton > button:hover, [data-testid="stFormSubmitButton"] > button:hover { background-color: var(--orange-dark) !important; transform: translateY(-2px) !important; color: #FFFFFF !important; }
     button[data-baseweb="tab"] div p { font-size: 1.3rem !important; font-weight: 900 !important; color: var(--text-sub); }
     button[data-baseweb="tab"][aria-selected="true"] div p { color: #E67E22 !important; border-bottom: 3px solid #E67E22; }
-
-    /* Checkbox & Upload */
     div[data-testid="stCheckbox"] label p { font-size: 1.05rem !important; color: #1F618D !important; font-weight: 800 !important; }
     [data-testid="stFileUploaderDropzone"] { background-color: #D6EAF8 !important; border: 2px dashed #2E86C1 !important; padding: 20px; border-radius: 12px; }
     [data-testid="stFileUploaderDropzone"] div, span, small { color: #154360 !important; font-weight: bold !important; }
-
-    /* 選項標籤設計 */
-    .stRadio div[role="radiogroup"] label {
-        background-color: #D6EAF8 !important; 
-        border: 1px solid #AED6F1 !important;
-        border-radius: 8px !important; 
-        padding: 8px 15px !important; 
-        margin-right: 10px !important;
-    }
-    .stRadio div[role="radiogroup"] label p { 
-        font-size: 1.1rem !important; 
-        font-weight: normal !important; 
-        color: #1A5276 !important; 
-    }
+    .stRadio div[role="radiogroup"] label { background-color: #D6EAF8 !important; border: 1px solid #AED6F1 !important; border-radius: 8px !important; padding: 8px 15px !important; margin-right: 10px !important; }
+    .stRadio div[role="radiogroup"] label p { font-size: 1.1rem !important; font-weight: normal !important; color: #1A5276 !important; }
     .stRadio div[role="radiogroup"] label[data-checked="true"] { background-color: #1A5276 !important; border-color: #1A5276 !important; }
     .stRadio div[role="radiogroup"] label[data-checked="true"] p { color: #FFFFFF !important; }
-
-    /* 表格字體放大 */
     [data-testid="stDataFrame"] { font-size: 1.25rem !important; }
     [data-testid="stDataFrame"] div { font-size: 1.25rem !important; }
-
-    /* --- 設備詳細卡片樣式 --- */
-    .dev-card-v148 {
-        background-color: #FFFFFF; border: 1px solid #BDC3C7; border-radius: 12px; overflow: hidden;
-        box-shadow: 0 3px 6px rgba(0,0,0,0.08); margin-bottom: 20px; display: flex; flex-direction: column;
-    }
-    .dev-header {
-        padding: 12px 15px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(0,0,0,0.1); 
-    }
+    .dev-card-v148 { background-color: #FFFFFF; border: 1px solid #BDC3C7; border-radius: 12px; overflow: hidden; box-shadow: 0 3px 6px rgba(0,0,0,0.08); margin-bottom: 20px; display: flex; flex-direction: column; }
+    .dev-header { padding: 12px 15px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(0,0,0,0.1); }
     .dev-header-left { display: flex; flex-direction: column; gap: 3px; }
     .dev-id { font-size: 1.15rem; font-weight: 800; color: #000000 !important; opacity: 0.8; } 
     .dev-name-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
     .dev-name { font-size: 1.25rem; font-weight: 900; color: #000000 !important; }
-    .qty-badge {
-        font-size: 0.85rem; background-color: rgba(255,255,255,0.9); padding: 2px 8px;
-        border-radius: 12px; color: #2C3E50; font-weight: bold; border: 1px solid rgba(0,0,0,0.1);
-    }
-    
+    .qty-badge { font-size: 0.85rem; background-color: rgba(255,255,255,0.9); padding: 2px 8px; border-radius: 12px; color: #2C3E50; font-weight: bold; border: 1px solid rgba(0,0,0,0.1); }
     .dev-header-right { text-align: right; display: flex; flex-direction: row; align-items: baseline; justify-content: flex-end; gap: 3px; }
     .dev-fuel-type { font-size: 1.0rem; font-weight: 800; color: #2C3E50; margin-right: 4px; } 
     .dev-vol { font-size: 1.8rem; color: #C0392B !important; font-weight: 900; line-height: 1.1; text-shadow: none !important; }
     .dev-unit { font-size: 0.95rem; color: var(--deep-gray); font-weight: bold; margin-left: 2px; }
-
-    .dev-body {
-        padding: 12px 10px; display: flex; flex-direction: row; align-items: center; justify-content: space-around;
-    }
+    .dev-body { padding: 12px 10px; display: flex; flex-direction: row; align-items: center; justify-content: space-around; }
     .dev-section { text-align: center; border-right: 1px solid #F2F3F4; padding: 0 5px; }
     .dev-section:last-child { border-right: none; }
     .dev-label { font-weight: 700; color: var(--text-sub) !important; font-size: 0.9rem; margin-bottom: 3px; }
     .dev-val { color: #333333 !important; font-weight: 800; font-size: 1.05rem; word-break: break-word; }
-    
-    .dev-footer {
-        padding: 10px 15px; background-color: #F8F9F9; border-top: 1px solid #E5E7E9;
-        display: flex; justify-content: space-between; align-items: center;
-    }
+    .dev-footer { padding: 10px 15px; background-color: #F8F9F9; border-top: 1px solid #E5E7E9; display: flex; justify-content: space-between; align-items: center; }
     .dev-count { font-weight: 700; color: #34495E; font-size: 0.95rem; }
     .alert-status { color: #C0392B; font-weight: 900; display: flex; align-items: center; gap: 5px; background-color: #FADBD8; padding: 4px 12px; border-radius: 12px; font-size: 0.9rem; }
-
-    /* 批次申報卡片 */
-    .batch-card-final {
-        background-color: #FFFFFF; border: 1px solid #BDC3C7; border-radius: 10px; overflow: hidden;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.1); height: 100%; display: flex; flex-direction: column;
-        border-left: 5px solid #E67E22; margin-bottom: 15px; 
-    }
+    .batch-card-final { background-color: #FFFFFF; border: 1px solid #BDC3C7; border-radius: 10px; overflow: hidden; box-shadow: 0 2px 5px rgba(0,0,0,0.1); height: 100%; display: flex; flex-direction: column; border-left: 5px solid #E67E22; margin-bottom: 15px; }
     .batch-header-final { padding: 10px 15px; font-weight: 800; color: #2C3E50; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(0,0,0,0.1); font-size: 1.1rem; background-color: #F4F6F6; }
     .batch-qty-badge { font-size: 0.9rem; background-color: rgba(255,255,255,0.7); padding: 2px 8px; border-radius: 12px; border: 1px solid rgba(0,0,0,0.1); color: #2C3E50; font-weight: bold; }
     .batch-body-final { background-color: #FFFFFF; padding: 12px; font-size: 0.95rem; color: #566573; line-height: 1.6; flex-grow: 1; }
     .batch-row { display: flex; justify-content: space-between; margin-bottom: 5px; }
     .batch-item { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-right: 5px; }
-
-    /* 看板 KPI */
     .kpi-card { padding: 20px; border-radius: 15px; text-align: center; background-color: #FFFFFF; box-shadow: 0 4px 10px rgba(0,0,0,0.1); border: 1px solid #BDC3C7; height: 100%; transition: transform 0.2s; }
     .kpi-card:hover { transform: translateY(-5px); }
     .kpi-gas { border-top: 8px solid var(--kpi-gas); } .kpi-diesel { border-top: 8px solid var(--kpi-diesel); }
@@ -192,15 +130,11 @@ st.markdown("""
     .kpi-value { font-size: 2.8rem; font-weight: 800; color: var(--text-main) !important; margin: 0; }
     .kpi-unit { font-size: 1rem; font-weight: normal; color: var(--text-sub) !important; margin-left: 5px; }
     .kpi-sub { font-size: 0.9rem; color: #C0392B !important; font-weight: 700; background-color: rgba(192, 57, 43, 0.1); padding: 2px 10px; border-radius: 20px; display: inline-block; margin-top: 5px;}
-
-    /* 其他 */
     .device-info-box { background-color: #FFFFFF; border: 2px solid #5DADE2; border-radius: 10px; padding: 20px; margin-bottom: 20px; }
     .alert-box { background-color: #FCF3CF; border: 2px solid #F1C40F; padding: 15px; border-radius: 10px; margin-bottom: 20px; color: #9A7D0A !important; font-weight: bold; text-align: center; }
     .privacy-box { background-color: #F8F9F9; border: 1px solid #BDC3C7; padding: 15px; border-radius: 10px; font-size: 0.9rem; color: #566573; margin-bottom: 10px; }
     .privacy-title { font-weight: bold; color: #2C3E50; margin-bottom: 5px; font-size: 1rem; }
     .dashboard-main-title { font-size: 1.8rem; font-weight: 900; text-align: center; color: #2C3E50; margin-bottom: 20px; background-color: #F8F9F9; padding: 10px; border-radius: 10px; border: 1px solid #BDC3C7; }
-
-    /* 展開面板 (Expander) 改版 */
     div[data-testid="stExpander"] { border: 1px solid #BDC3C7; border-radius: 12px; overflow: hidden; margin-bottom: 15px; box-shadow: 0 3px 6px rgba(0,0,0,0.08); }
     div[data-testid="stExpander"] > details > summary { background-color: #2C3E50 !important; padding: 12px 15px; }
     div[data-testid="stExpander"] > details > summary p { font-size: 1.35rem !important; font-weight: 900 !important; color: #FFFFFF !important; }
@@ -237,6 +171,36 @@ with st.sidebar:
     st.header(f"👤 {name}")
     st.caption(f"帳號: {username}")
     st.success("☁️ 雲端連線正常")
+    
+    # --- [防護機制 3] 線上人數統計雷達 ---
+    @st.cache_resource
+    def get_active_users():
+        return {}
+    
+    active_users = get_active_users()
+    
+    if 'session_id' not in st.session_state:
+        st.session_state['session_id'] = str(uuid.uuid4())
+    
+    current_time = time.time()
+    active_users[st.session_state['session_id']] = current_time
+    
+    timeout_seconds = 300
+    keys_to_delete = [sid for sid, ts in active_users.items() if current_time - ts > timeout_seconds]
+    for sid in keys_to_delete:
+        del active_users[sid]
+        
+    online_count = len(active_users)
+    
+    st.markdown("<br>", unsafe_allow_html=True)
+    if online_count >= 20:
+        st.error(f"🔴 目前線上人數: {online_count} 人 (擁擠，建議稍候操作)")
+    elif online_count >= 10:
+        st.warning(f"🟡 目前線上人數: {online_count} 人 (普通，可正常填報)")
+    else:
+        st.success(f"🟢 目前線上人數: {online_count} 人 (順暢)")
+    # ------------------------------
+    
     st.markdown("---")
     authenticator.logout('登出系統', 'sidebar')
 
@@ -272,7 +236,6 @@ try:
     if len(ws_record.get_all_values()) == 0: ws_record.append_row(["填報時間", "填報單位", "填報人", "填報人分機", "設備名稱備註", "校內財產編號", "原燃物料名稱", "油卡編號", "加油日期", "加油量", "與其他設備共用加油單", "備註", "佐證資料"])
 except Exception as e: st.error(f"燃油資料庫連線失敗: {e}"); st.stop()
 
-# [修改 1] 將 TTL 延長至 86400 秒 (一天)，減少 API 呼叫
 @st.cache_data(ttl=86400)
 def load_fuel_data():
     max_retries = 3; delay = 2; df_e = pd.DataFrame(); df_r = pd.DataFrame()
@@ -298,7 +261,7 @@ df_equip, df_records = load_fuel_data()
 if 'multi_row_count' not in st.session_state: st.session_state['multi_row_count'] = 1
 if 'reset_counter' not in st.session_state: st.session_state['reset_counter'] = 0
 
-# === 預備資料 (供 Tab 2 與 Tab 3 共用) ===
+# === 預備資料 ===
 available_years = []
 record_units = []
 if not df_records.empty:
@@ -344,7 +307,6 @@ def render_user_interface():
             privacy_html = """<div class="privacy-box"><div class="privacy-title">📜 個人資料蒐集、處理及利用告知聲明</div>1. <strong>蒐集機關</strong>：國立嘉義大學。<br>2. <strong>蒐集目的</strong>：進行本校公務車輛/機具之加油紀錄管理、校園溫室氣體（碳）盤查統計、稽核佐證資料蒐集及後續能源使用分析。<br>3. <strong>個資類別</strong>：填報人姓名、聯絡分機、電子郵件。<br>4. <strong>利用期間</strong>：姓名及聯絡資料保留至填報年度後第二年1月1日，期滿即進行「去識別化」刪除，其餘數據永久保存。<br>5. <strong>利用對象</strong>：本校教師、行政人員及碳盤查查驗人員。<br>6. <strong>您有權依個資法請求查詢、更正或刪除您的個資。如不提供，將無法完成填報。</strong><br></div>"""
             
             if selected_dept is not None:
-                # 批次申報
                 if selected_dept in VIP_UNITS:
                     st.info(f"💡 您選擇了 **{selected_dept}**，系統已自動切換為「油卡批次申報模式」。")
                     sub_categories = []
@@ -421,7 +383,6 @@ def render_user_interface():
                                         if is_proof_shared:
                                             file_link = "佐證如總務處事務組中油明細"
                                         else:
-                                            # [修改 2] 導入無損壓縮機制
                                             file_obj, mime_type = process_and_compress_file(f_file)
                                             file_ext = f_file.name.split('.')[-1]
                                             fuel_rep = filtered_equip.iloc[0]['原燃物料名稱'] if not filtered_equip.empty else "混合油品"
@@ -446,16 +407,14 @@ def render_user_interface():
                                             rows_to_append.append([current_time, selected_dept, p_name, p_ext, row['設備名稱備註'], str(row.get('校內財產編號','-')), row['原燃物料名稱'], fleet_id, str(batch_date), vol, "是", f"批次申報-{target_sub_cat} | {note_val}", file_link])
                                         
                                         if rows_to_append: 
-                                            # [修改 3] 使用排隊重試機制取代原有的直接寫入，並觸發清除快取
                                             safe_append_rows(ws_record, rows_to_append)
                                             st.success(f"✅ 批次申報成功！已寫入 {len(rows_to_append)} 筆紀錄。")
                                             st.balloons()
                                             st.session_state['reset_counter'] += 1
-                                            st.cache_data.clear() # 觸發更新
+                                            st.cache_data.clear()
                                         else: st.warning("系統錯誤：無法產生寫入資料。")
                                     except Exception as e: st.error(f"失敗: {e}")
                 else:
-                    # 一般單筆申報
                     filtered = df_equip_yr[df_equip_yr['填報單位'] == selected_dept]
                     devices = sorted([x for x in filtered['設備名稱備註'].unique()])
                     dynamic_key = f"vehicle_selector_{st.session_state['reset_counter']}"
@@ -545,7 +504,6 @@ def render_user_interface():
                                             shared_tag = "(共用)" if is_shared else ""
                                             for idx, f in enumerate(f_files):
                                                 try:
-                                                    # [修改 4] 導入無損壓縮機制
                                                     file_obj, mime_type = process_and_compress_file(f)
                                                     file_ext = f.name.split('.')[-1]; clean_name = ""
                                                     if len(f_files) == len(data_entries): c_date = data_entries[idx]['date']; c_vol = data_entries[idx]['vol']; clean_name = f"{selected_dept}_{selected_device}_{fuel_type}_{c_date}_{c_vol}{shared_tag}.{file_ext}"
@@ -565,23 +523,21 @@ def render_user_interface():
                                             shared_str = "是" if is_shared else "-"; card_str = fuel_card_id if fuel_card_id else "-"
                                             for e in data_entries: rows.append([now_str, selected_dept, p_name, p_ext, selected_device, str(row.get('校內財產編號','-')), str(row.get('原燃物料名稱','-')), card_str, str(e['date']), e['vol'], shared_str, note_input, final_link])
                                             if rows: 
-                                                # [修改 5] 使用安全排隊機制寫入，並觸發清除快取
                                                 safe_append_rows(ws_record, rows)
                                                 st.success("✅ 申報成功！")
                                                 st.balloons()
                                                 st.session_state['reset_counter'] += 1
-                                                st.cache_data.clear() # 觸發更新
+                                                st.cache_data.clear()
                                 elif report_mode == "無使用":
                                     if p_email and str(p_email).strip() != default_email:
                                         note_input += f" [Email異動: {str(p_email).strip()}]"
                                         
                                     rows = [[get_taiwan_time().strftime("%Y-%m-%d %H:%M:%S"), selected_dept, p_name, p_ext, selected_device, str(row.get('校內財產編號','-')), str(row.get('原燃物料名稱','-')), "-", str(data_entries[0]['date']), 0.0, "-", note_input, "無"]]
-                                    # [修改 6] 無使用申報也採用安全寫入機制
                                     safe_append_rows(ws_record, rows)
                                     st.success("✅ 申報成功！")
                                     st.balloons()
                                     st.session_state['reset_counter'] += 1
-                                    st.cache_data.clear() # 觸發更新
+                                    st.cache_data.clear()
         else: st.warning("📭 目前資料庫尚無有效資料，請聯絡管理員。")
 
     # === Tab 2: 看板 ===
@@ -679,13 +635,8 @@ def render_user_interface():
                             bar_data['Label'] = bar_data['CO2e'].apply(lambda x: f"{x:.4f} tCO<sub>2</sub>e ({(x/total_co2)*100:.1f}%)")
                             fig_bar = px.bar(bar_data, x='CO2e', y='設備名稱備註', orientation='h', text='Label', color='設備名稱備註', color_discrete_sequence=DASH_PALETTE)
                             fig_bar.update_layout(
-                                height=max(400, len(bar_data)*50), 
-                                showlegend=False, 
-                                xaxis_title="碳排放量 (tCO<sub>2</sub>e)", 
-                                yaxis_title="", 
-                                plot_bgcolor='rgba(0,0,0,0)',
-                                xaxis=dict(tickfont=dict(size=15, color='#566573'), title_font=dict(size=15, color='#566573')), 
-                                yaxis=dict(tickfont=dict(size=16, color='#566573'))
+                                height=max(400, len(bar_data)*50), showlegend=False, xaxis_title="碳排放量 (tCO<sub>2</sub>e)", yaxis_title="", 
+                                plot_bgcolor='rgba(0,0,0,0)', xaxis=dict(tickfont=dict(size=15, color='#566573'), title_font=dict(size=15, color='#566573')), yaxis=dict(tickfont=dict(size=16, color='#566573'))
                             )
                             fig_bar.update_traces(textposition='outside', textfont=dict(size=15, color='black'))
                             fig_bar.update_xaxes(showgrid=True, gridcolor='#EAEDED', range=[0, bar_data['CO2e'].max() * 1.3])
