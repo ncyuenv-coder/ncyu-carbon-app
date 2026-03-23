@@ -85,11 +85,23 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# 2. 身份驗證
+# 2. 身份驗證與初始化
 def clean_secrets(obj):
     if isinstance(obj, dict) or "AttrDict" in str(type(obj)): return {k: clean_secrets(v) for k, v in obj.items()}
     elif isinstance(obj, list): return [clean_secrets(i) for i in obj]
     return obj
+
+DATA_GWP = {
+    'HFC-1234yf (R-1234yf)': 0.0, 'HFC-125 (R-125)': 3170.0, 'HFC-134a (R-134a)': 1300.0,
+    'HFC-143a (R-143a)': 4800.0, 'HFC-245fa (R-245fa)': 858.0, 'R404a': 3942.8,
+    'R407c': 1624.21, 'R-407D': 1487.05, 'R408a': 2429.9, 'R410a': 1923.5,
+    'R-507A': 3985.0, 'R-508A': 11607.0, 'R-508B': 11698.0, 'HFC-23 (R-23)': 12400.0,
+    'HFC-32 (R-32)': 677.0, 'R-411A': 0.0, 'R-402A': 0.0, '其他': 0.0
+}
+
+# [精準導入 3] 狀態管理：集中宣告與初始化可能跨分頁使用的變數，防止 KeyError
+if 'doc_ref' not in st.session_state: st.session_state['doc_ref'] = None
+if 'gwp_map' not in st.session_state: st.session_state['gwp_map'] = DATA_GWP
 
 if st.session_state.get("authentication_status") is not True:
     st.warning("🔒 請先至首頁 (Hello) 登入系統")
@@ -118,6 +130,7 @@ with st.sidebar:
 # 3. 資料庫連線
 REF_SHEET_ID = "1p7GsW-nrjerXhnn3pNgZzu_CdIh1Yxsm-fLJDqQ6MqA"
 
+# [精準導入 2] 快取資源：確保 API 連線不重複建立
 @st.cache_resource
 def init_google_ref():
     oauth = st.secrets["gcp_oauth"]
@@ -135,14 +148,8 @@ except Exception as e:
     st.error(f"❌ 資料庫連線失敗: {e}")
     st.stop()
 
-DATA_GWP = {
-    'HFC-1234yf (R-1234yf)': 0.0, 'HFC-125 (R-125)': 3170.0, 'HFC-134a (R-134a)': 1300.0,
-    'HFC-143a (R-143a)': 4800.0, 'HFC-245fa (R-245fa)': 858.0, 'R404a': 3942.8,
-    'R407c': 1624.21, 'R-407D': 1487.05, 'R408a': 2429.9, 'R410a': 1923.5,
-    'R-507A': 3985.0, 'R-508A': 11607.0, 'R-508B': 11698.0, 'HFC-23 (R-23)': 12400.0,
-    'HFC-32 (R-32)': 677.0, 'R-411A': 0.0, 'R-402A': 0.0, '其他': 0.0
-}
-
+# [精準導入 2] 快取資料：為雲端靜態係數表加上快取
+@st.cache_data(ttl=86400)
 def load_static_data_cloud():
     try:
         ws_coef = sh_ref.worksheet("冷媒係數表")
@@ -161,7 +168,8 @@ def load_static_data_cloud():
     except:
         return DATA_GWP
 
-@st.cache_data(ttl=60)
+# [精準導入 2] 快取資料：調高 ttl 以減少不必要的重新拉取
+@st.cache_data(ttl=600)
 def load_records_data():
     try:
         data = ws_records.get_all_values()
@@ -294,6 +302,7 @@ MORANDI_PALETTE = ['#88B04B', '#92A8D1', '#F7CAC9', '#5D6D7E', '#7FB3D5', '#E598
 # ==========================================
 # 5. 分頁 Fragment 模組 (防止跳轉)
 # ==========================================
+# [精準導入 1] 局部重跑：確立 Tab 1 獨立為 Fragment
 @st.fragment
 def render_tab1_dashboard(df_clean_dash, all_years):
     st.markdown("<br>", unsafe_allow_html=True)
@@ -421,7 +430,6 @@ def render_tab1_dashboard(df_clean_dash, all_years):
             fig3b_l = px.pie(eq_count, values='count', names='設備類型', title='依填充次數統計', hole=0.4,
                              color_discrete_sequence=MORANDI_PALETTE)
             fig3b_l.update_layout(font=dict(size=18), legend=dict(font=dict(size=16)), uniformtext_minsize=16, uniformtext_mode='show')
-            # 修正 1：圓餅圖標籤字體設定為黑色
             fig3b_l.update_traces(textinfo='label+percent', textfont=dict(size=18, color='black'), textposition='outside',
                                   hovertemplate='<b>%{label}</b><br>填充次數: %{value} 次<br>佔比: %{percent:.1%}<extra></extra>')
             
@@ -429,7 +437,6 @@ def render_tab1_dashboard(df_clean_dash, all_years):
             fig3b_r = px.pie(eq_weight, values='冷媒填充量', names='設備類型', title='依填充重量統計', hole=0.4,
                              color_discrete_sequence=MORANDI_PALETTE)
             fig3b_r.update_layout(font=dict(size=18), legend=dict(font=dict(size=16)), uniformtext_minsize=16, uniformtext_mode='show')
-            # 修正 1：圓餅圖標籤字體設定為黑色
             fig3b_r.update_traces(textinfo='label+percent', textfont=dict(size=18, color='black'), textposition='outside',
                                   hovertemplate='<b>%{label}</b><br>填充重量: %{value:.2f} kg<br>佔比: %{percent:.1%}<extra></extra>')
             
@@ -442,7 +449,6 @@ def render_tab1_dashboard(df_clean_dash, all_years):
         
         st.markdown("<h3 style='color: #2C3E50;'>🌍 全校冷媒填充碳排放量(公噸二氧化碳當量)結構 (Carbon Emission Structure of Refrigerant Refill in tCO<sub>2</sub>e)</h3>", unsafe_allow_html=True)
         
-        # 修正 2：加入旭日圖切換按鈕，並套用自適應字體與 tCO2e 百分比標籤設計
         chart_type = st.radio("圖表切換", ["⭕ 旭日圖 (Sunburst Chart)", "🔲 矩形樹狀圖 (Treemap)"], horizontal=True, label_visibility="collapsed")
         
         if "旭日圖" in chart_type:
@@ -458,6 +464,7 @@ def render_tab1_dashboard(df_clean_dash, all_years):
     else:
         st.info("該年度無資料")
 
+# [精準導入 1] 局部重跑：確立 Tab 2 獨立為 Fragment
 @st.fragment
 def render_tab2_edit(df_clean, df_records):
     st.markdown("<br>", unsafe_allow_html=True)
@@ -465,6 +472,7 @@ def render_tab2_edit(df_clean, df_records):
     
     if st.button("🔄 更新背景資料庫 (從 Google Sheet 同步)", key="btn_update_db"):
         with st.spinner("正在從雲端下載最新資料..."):
+            load_static_data_cloud.clear() # [精準導入 2] 強制清除快取以取得最新資料
             st.session_state['gwp_map'] = load_static_data_cloud()
         st.success("✅ 資料庫已更新！")
 
@@ -502,6 +510,7 @@ def render_tab2_edit(df_clean, df_records):
     else:
         st.info("無資料可編輯")
 
+# [精準導入 1] 局部重跑：確立 Tab 3 獨立為 Fragment
 @st.fragment
 def render_tab3_export(df_clean_dash, all_years):
     st.markdown("<br>", unsafe_allow_html=True)
@@ -537,7 +546,7 @@ def render_tab3_export(df_clean_dash, all_years):
                 if st.button("⚡ 產生冷媒填充佐證 (Word)", use_container_width=True):
                     with st.spinner("正在下載圖片並合併 (自動進行 MD5 圖像去重)，可能需要幾分鐘..."):
                         st.session_state['doc_ref'] = export_ref_docx(df_year, drive_service)
-                if 'doc_ref' in st.session_state:
+                if 'doc_ref' in st.session_state and st.session_state['doc_ref'] is not None:
                     st.download_button(
                         "⬇️ 下載冷媒填充佐證", 
                         data=st.session_state['doc_ref'], 
@@ -548,17 +557,13 @@ def render_tab3_export(df_clean_dash, all_years):
     else:
         st.info(f"{sel_admin_year} 年度尚無資料。")
 
-
 # ==========================================
 # 6. 主程式 (管理員後台)
 # ==========================================
 def render_admin_dashboard():
     st.markdown('<div style="font-size: 2.4rem; font-weight: 900; color: #2C3E50; margin-bottom: 20px;">👑 冷媒管理後台 (Refrigerant Management Backend)</div>', unsafe_allow_html=True)
     
-    if 'gwp_map' not in st.session_state:
-        st.session_state['gwp_map'] = DATA_GWP
-        
-    gwp_map = st.session_state['gwp_map']
+    gwp_map = st.session_state.get('gwp_map', DATA_GWP)
     df_records = load_records_data()
 
     admin_tabs = st.tabs(["📊 全校冷媒填充儀表板", "📝 申報資料異動", "📁 年度冷媒填充統計及佐證下載"])
