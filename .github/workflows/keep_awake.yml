@@ -9,5 +9,7 @@ jobs:
   ping:
     runs-on: ubuntu-latest
     steps:
-      - name: Wake up Streamlit
-        run: curl -sSf https://ncyu-carbon-app-mduue5hffp7uknsskmjet9.streamlit.app/_stcore/health
+      - name: Wake up Streamlit App
+        run: |
+          curl -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36" \
+               -L -sSf https://ncyu-carbon-app-mduue5hffp7uknsskmjet9.streamlit.app/
