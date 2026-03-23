@@ -153,6 +153,11 @@ def clean_secrets(obj):
     elif isinstance(obj, list): return [clean_secrets(i) for i in obj]
     return obj
 
+# [精準導入 3] 狀態管理：集中宣告與初始化可能跨分頁使用的變數，防止 KeyError 崩潰
+if 'unreported_df' not in st.session_state: st.session_state['unreported_df'] = None
+if 'doc_general' not in st.session_state: st.session_state['doc_general'] = None
+if 'doc_batch' not in st.session_state: st.session_state['doc_batch'] = None
+
 if st.session_state.get("authentication_status") is not True:
     st.warning("🔒 請先至首頁 (Hello) 登入系統")
     st.stop()
@@ -186,6 +191,7 @@ MORANDI_COLORS = { "公務車輛(GV-1-)": "#B0C4DE", "乘坐式割草機(GV-2-)"
 DASH_PALETTE = ['#B0C4DE', '#F5CBA7', '#A9CCE3', '#E6B0AA', '#D7BDE2', '#A3E4D7', '#F9E79F', '#95A5A6', '#85C1E9', '#D2B4DE', '#F1948A', '#76D7C4']
 UNREPORTED_COLORS = ["#D5DBDB", "#FAD7A0", "#D2B4DE", "#AED6F1", "#A3E4D7", "#F5B7B1"]
 
+# [精準導入 2] 快取資源：確保 Google API 連線物件不會重複建立
 @st.cache_resource
 def init_google_fuel():
     oauth = st.secrets["gcp_oauth"]
@@ -199,6 +205,7 @@ except Exception as e:
     st.error(f"連線失敗: {e}")
     st.stop()
 
+# [精準導入 2] 快取資料：確保後台大表單數據取得快取，設定 ttl 適度保持新鮮度
 @st.cache_data(ttl=600)
 def load_fuel_data():
     gc_obj, _ = init_google_fuel()
@@ -480,6 +487,7 @@ def send_system_email(to_email, subject, body):
 # 5. 後台分頁 Fragment 模組 
 # ==========================================
 
+# [精準導入 1] 局部重跑：確立各 Tab 獨立為 Fragment，下拉選單切換不干擾全域
 @st.fragment
 def render_tab1_overview(df_clean, df_equip_full, all_years):
     st.markdown("<br>", unsafe_allow_html=True)
@@ -642,6 +650,7 @@ def render_tab1_overview(df_clean, df_equip_full, all_years):
             
     else: st.warning("尚無資料可供統計。")
 
+# [精準導入 1] 局部重跑：確立各 Tab 獨立為 Fragment
 @st.fragment
 def render_tab2_dashboard(df_clean, all_years):
     st.markdown("<br>", unsafe_allow_html=True)
@@ -752,6 +761,7 @@ def render_tab2_dashboard(df_clean, all_years):
         else: st.info("無數據")
     else: st.info("尚無該年度資料，無法顯示儀表板。")
 
+# [精準導入 1] 局部重跑：確立各 Tab 獨立為 Fragment
 @st.fragment
 def render_tab3_missing(df_clean, df_equip_full, all_years):
     st.markdown("<br>", unsafe_allow_html=True)
@@ -895,6 +905,7 @@ def render_tab3_missing(df_clean, df_equip_full, all_years):
             else: 
                 st.success("🎉 太棒了！該期間全數設備皆已完成申報。")
 
+# [精準導入 1] 局部重跑：確立各 Tab 獨立為 Fragment
 @st.fragment
 def render_tab4_edit(df_clean, df_records, all_years):
     st.markdown("<br>", unsafe_allow_html=True)
@@ -939,6 +950,7 @@ def render_tab4_edit(df_clean, df_records, all_years):
             except Exception as e: st.error(f"更新失敗: {e}")
     else: st.info(f"{selected_admin_year} 年度尚無資料。")
 
+# [精準導入 1] 局部重跑：確立各 Tab 獨立為 Fragment
 @st.fragment
 def render_tab5_export(df_clean, df_equip_full, all_years):
     st.markdown("<br>", unsafe_allow_html=True)
@@ -983,14 +995,14 @@ def render_tab5_export(df_clean, df_equip_full, all_years):
                 if st.button("⚡ 產生【一般申報】佐證", use_container_width=True):
                     with st.spinner("正在下載圖片並合併，可能需要幾分鐘..."):
                         st.session_state['doc_general'] = export_general_docx(df_year, df_equip, drive_service)
-                if 'doc_general' in st.session_state:
+                if 'doc_general' in st.session_state and st.session_state['doc_general'] is not None:
                     st.download_button("⬇️ 下載【一般申報】Word", data=st.session_state['doc_general'], file_name=f"{selected_admin_year}_一般申報佐證資料.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document", use_container_width=True)
 
             with c3:
                 if st.button("⚡ 產生【油卡批次】佐證", use_container_width=True):
                     with st.spinner("正在下載圖片並合併，可能需要幾分鐘..."):
                         st.session_state['doc_batch'] = export_batch_docx(df_year, drive_service)
-                if 'doc_batch' in st.session_state:
+                if 'doc_batch' in st.session_state and st.session_state['doc_batch'] is not None:
                     st.download_button("⬇️ 下載【油卡批次】Word", data=st.session_state['doc_batch'], file_name=f"{selected_admin_year}_油卡批次申報佐證資料.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document", use_container_width=True)
     else: st.info(f"{selected_admin_year} 年度尚無資料。")
 
