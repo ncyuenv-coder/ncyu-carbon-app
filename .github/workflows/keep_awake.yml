@@ -2,13 +2,14 @@ name: Keep Streamlit App Awake
 
 on:
   schedule:
-    - cron: '0 */6 * * *'
-  workflow_dispatch:
+    # 使用 Cron 語法，設定為每 6 小時的第 0 分鐘執行一次
+    - cron: "0 */6 * * *" 
+  workflow_dispatch: # 允許您在 GitHub 網頁上手動點擊執行
 
 jobs:
-  ping:
+  ping-site:
     runs-on: ubuntu-latest
     steps:
-      - name: Simple Ping to Wake Up
+      - name: 呼叫 Streamlit 網站
         run: |
-          curl -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" -sL -w "HTTP Status: %{http_code}\n" https://ncyu-carbon-app-mduue5hffp7uknsskmjet9.streamlit.app/ -o /dev/null
+          curl -s -o /dev/null -w "HTTP Status: %{http_code}\n" https://ncyu-carbon-app-mduue5hffp7uknsskmjet9.streamlit.app/
