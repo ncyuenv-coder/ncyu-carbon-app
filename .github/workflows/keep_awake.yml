@@ -9,7 +9,6 @@ jobs:
   ping:
     runs-on: ubuntu-latest
     steps:
-      - name: Wake up Streamlit App
+      - name: Simple Ping to Wake Up
         run: |
-          curl -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36" \
-               -L -sSf https://ncyu-carbon-app-mduue5hffp7uknsskmjet9.streamlit.app/
+          curl -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" -sL -w "HTTP Status: %{http_code}\n" https://ncyu-carbon-app-mduue5hffp7uknsskmjet9.streamlit.app/ -o /dev/null
