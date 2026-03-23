@@ -25,9 +25,6 @@ st.set_page_config(page_title="冷媒填報 - 嘉義大學", page_icon="❄️",
 def get_taiwan_time():
     return datetime.utcnow() + timedelta(hours=8)
 
-if 'form_id' not in st.session_state:
-    st.session_state['form_id'] = 0
-
 # [防護機制 1] 寫入重試機制
 def safe_append_rows(worksheet, rows, max_retries=5):
     for attempt in range(max_retries):
@@ -117,6 +114,10 @@ def clean_secrets(obj):
     elif isinstance(obj, list): return [clean_secrets(i) for i in obj]
     return obj
 
+# [精準導入 3] 狀態管理初始化，集中於此
+if 'form_id' not in st.session_state:
+    st.session_state['form_id'] = 0
+
 if st.session_state.get("authentication_status") is not True:
     st.warning("🔒 請先至首頁 (Hello) 登入系統")
     st.stop()
@@ -138,6 +139,7 @@ with st.sidebar:
     st.success("☁️ 雲端連線正常")
         
     # --- 線上人數統計雷達 ---
+    # [精準導入 2] 使用 @st.cache_resource 確保變數跨 Session 共用
     @st.cache_resource
     def get_active_users(): return {}
     
@@ -164,6 +166,7 @@ with st.sidebar:
 REF_SHEET_ID = "1p7GsW-nrjerXhnn3pNgZzu_CdIh1Yxsm-fLJDqQ6MqA"
 REF_FOLDER_ID = "1o0S56OyStDjvC5tgBWiUNqNjrpXuCQMI"
 
+# [精準導入 2] 快取資源：確保資料庫連線物件不會因重跑而重複建立
 @st.cache_resource
 def init_google_ref():
     oauth = st.secrets["gcp_oauth"]
@@ -244,6 +247,8 @@ DATA_GWP = {
     '其他': 0.0
 }
 
+# [精準導入 2] 快取資料：為靜態資料讀取加上快取，避免重複讀取雲端表單
+@st.cache_data(ttl=86400)
 def load_static_data(source='local'):
     if source == 'local':
         return DATA_UNITS, DATA_BUILDINGS, DATA_TYPES, list(DATA_GWP.keys()), DATA_GWP
@@ -299,7 +304,7 @@ def load_static_data(source='local'):
             st.error(f"雲端更新失敗: {e}")
             return DATA_UNITS, DATA_BUILDINGS, DATA_TYPES, list(DATA_GWP.keys()), DATA_GWP
 
-# [快取機制] 延長至 86400 秒
+# [精準導入 2] 快取機制: 延長至 86400 秒
 @st.cache_data(ttl=86400)
 def load_records_data():
     try:
@@ -323,6 +328,7 @@ def load_records_data():
         st.error(f"⚠️ 無法讀取資料: {e}")
         return pd.DataFrame()
 
+# [精準導入 3] 靜態資料寫入 Session State 統一管理
 if 'static_data_loaded' not in st.session_state:
     st.session_state['unit_dict'], st.session_state['build_dict'], st.session_state['e_types'], st.session_state['r_types'], st.session_state['gwp_map'] = load_static_data('local')
     st.session_state['static_data_loaded'] = True
@@ -336,6 +342,209 @@ gwp_map = st.session_state['gwp_map']
 df_records = load_records_data()
 
 # ==========================================
+# [精準導入 1] 建立局部重跑 (Fragment) 函數區塊
+# ==========================================
+
+@st.fragment
+def render_form_fragment(unit_dict, build_dict, e_types, r_types):
+    fid = st.session_state['form_id']
+    
+    st.markdown('<div class="morandi-header">填報單位基本資訊區</div>', unsafe_allow_html=True)
+    
+    c1, c2 = st.columns(2)
+    unit_depts = list(unit_dict.keys())
+    sel_dept = c1.selectbox("所屬單位", unit_depts, index=None, placeholder="請選擇單位...", key=f"u_dept_{fid}")
+    unit_names = list(unit_dict.get(sel_dept, [])) if sel_dept else []
+    sel_unit_name = c2.selectbox("填報單位名稱", unit_names, index=None, placeholder="請先選擇所屬單位...", key=f"u_unit_{fid}")
+    
+    c3, c4 = st.columns(2)
+    name = c3.text_input("填報人", key=f"u_name_{fid}")
+    ext = c4.text_input("填報人分機", key=f"u_ext_{fid}")
+    
+    st.markdown('<div class="morandi-header">冷媒設備所在位置資訊區</div>', unsafe_allow_html=True)
+    loc_campuses = list(build_dict.keys())
+    sel_loc_campus = st.selectbox("填報單位所在校區", loc_campuses, index=None, placeholder="請選擇校區...", key=f"u_campus_{fid}")
+    c6, c7 = st.columns(2)
+    buildings = list(build_dict.get(sel_loc_campus, [])) if sel_loc_campus else []
+    sel_build = c6.selectbox("建築物名稱", buildings, index=None, placeholder="請先選擇校區...", key=f"u_build_{fid}")
+    office = c7.text_input("辦公室編號", placeholder="例如：202辦公室、306研究室", key=f"u_office_{fid}")
+    
+    st.markdown('<div class="morandi-header">冷媒設備填充資訊區</div>', unsafe_allow_html=True)
+    c8, c9 = st.columns(2)
+    r_date = c8.date_input("維修日期 (統一填寫發票日期)", datetime.today(), key=f"u_date_{fid}")
+    sel_etype = c9.selectbox("設備類型", e_types, index=None, placeholder="請選擇...", key=f"u_etype_{fid}")
+    
+    c10, c11 = st.columns(2)
+    e_model = c10.text_input("設備品牌型號", placeholder="例如：國際 CS-100FL+CU-100FLC", key=f"u_model_{fid}")
+    sel_rtype = c11.selectbox("冷媒種類", r_types, index=None, placeholder="請選擇...", key=f"u_rtype_{fid}")
+    
+    st.markdown("<div style='font-size: 1.2rem; font-weight: 900; color: #2C3E50; margin-bottom: 5px; letter-spacing: 0.5px;'>冷媒填充量 <span style='color: #C0392B; font-weight: 900;'>(公斤)</span></div>", unsafe_allow_html=True)
+    amount = st.number_input("冷媒填充量", min_value=0.0, step=0.1, format="%.2f", key=f"u_amt_{fid}", label_visibility="collapsed")
+    
+    st.markdown("<div style='font-size: 1.2rem; font-weight: 900; color: #2C3E50; margin-bottom: 5px; margin-top: 15px; letter-spacing: 0.5px;'>請上傳冷媒填充單據佐證資料</div>", unsafe_allow_html=True)
+    f_file = st.file_uploader("上傳佐證 (必填)", type=['pdf', 'jpg', 'png'], label_visibility="collapsed", key=f"u_file_{fid}")
+    
+    st.markdown("---")
+    st.markdown("<div style='font-size: 1.2rem; font-weight: 900; color: #2C3E50; margin-bottom: 5px; letter-spacing: 0.5px;'>備註</div>", unsafe_allow_html=True)
+    note = st.text_input("備註", placeholder="備註 (選填)", key=f"u_note_{fid}", label_visibility="collapsed")
+    
+    st.markdown('<div class="correction-note">如有資料誤繕情形，請重新登錄1次資訊，並於備註欄填寫：「前筆資料誤繕，請刪除。」，管理單位將協助刪除誤打資訊</div>', unsafe_allow_html=True)
+    
+    st.markdown("""<div class="privacy-box"><div class="privacy-title">📜 個人資料蒐集、處理及利用告知聲明</div>1. 蒐集機關：國立嘉義大學。<br>2. 蒐集目的：進行本校冷媒設備之冷媒填充紀錄管理、校園溫室氣體（碳）盤查統計、稽核佐證資料蒐集及後續能源使用分析。<br>3. 個資類別：填報人姓名。<br>4. 利用期間：姓名保留至填報年度後第二年1月1日，期滿即進行「去識別化」刪除，其餘數據永久保存。<br>5. 利用對象：本校教師、行政人員及碳盤查查驗人員。<br>6. 您有權依個資法請求查詢、更正或刪除您的個資。如不提供，將無法完成填報。</div>""", unsafe_allow_html=True)
+    agree = st.checkbox("我已閱讀並同意個資聲明，且確認所填資料無誤。", key=f"u_agree_{fid}")
+    
+    if st.button("🚀 確認送出", type="primary", use_container_width=True):
+        if not agree: st.error("❌ 請勾選同意聲明")
+        elif not sel_dept or not sel_unit_name: st.warning("⚠️ 請完整選擇單位資訊")
+        elif not name or not ext: st.warning("⚠️ 請填寫填報人與分機")
+        elif not sel_loc_campus or not sel_build: st.warning("⚠️ 請完整選擇位置資訊")
+        elif not sel_etype or not sel_rtype: st.warning("⚠️ 請選擇設備類型與冷媒種類")
+        elif not f_file: st.error("⚠️ 請上傳佐證資料")
+        else:
+            try:
+                # [防護機制 2] 上傳前進行圖片瘦身
+                file_obj, mime_type = process_and_compress_file(f_file)
+                f_ext = f_file.name.split('.')[-1]
+                clean_name = f"{sel_loc_campus}_{sel_dept}_{sel_unit_name}_{r_date}_{sel_etype}_{sel_rtype}.{f_ext}"
+                meta = {'name': clean_name, 'parents': [REF_FOLDER_ID]}
+                media = MediaIoBaseUpload(file_obj, mimetype=mime_type, resumable=True)
+                file = drive_service.files().create(body=meta, media_body=media, fields='webViewLink').execute()
+                
+                row_data = [get_taiwan_time().strftime("%Y-%m-%d %H:%M:%S"), name, ext, sel_loc_campus, sel_dept, sel_unit_name, sel_build, office, str(r_date), sel_etype, e_model, sel_rtype, amount, note, file.get('webViewLink')]
+                
+                # [防護機制 1] 使用排隊重試機制進行寫入
+                safe_append_rows(ws_records, [row_data])
+                
+                st.success("✅ 冷媒填報成功！欄位已自動清空。")
+                st.balloons()
+                
+                st.session_state['form_id'] += 1
+                # [防護機制 3] 觸發更新
+                st.cache_data.clear()
+                time.sleep(1)
+                st.rerun() # 送出成功後進行全域重跑以更新 Tab 2 的數據
+                
+            except Exception as e: st.error(f"上傳或寫入失敗: {e}")
+
+@st.fragment
+def render_dashboard_fragment(df_records, gwp_map):
+    st.markdown('<div class="morandi-header">📋 申報動態查詢</div>', unsafe_allow_html=True)
+    col_r1, col_r2 = st.columns([4, 1])
+    with col_r2:
+        if st.button("🔄 刷新數據", use_container_width=True, key="refresh_tab2"):
+            st.cache_data.clear()
+            st.rerun()
+
+    if df_records.empty:
+        st.info("目前尚無填報紀錄。")
+    else:
+        df_records['冷媒填充量'] = pd.to_numeric(df_records['冷媒填充量'], errors='coerce').fillna(0)
+        df_records['維修日期'] = pd.to_datetime(df_records['維修日期'], errors='coerce')
+        df_records['排放量(kgCO2e)'] = df_records.apply(lambda r: r['冷媒填充量'] * gwp_map.get(str(r['冷媒種類']).strip(), 0), axis=1)
+
+        st.markdown("##### 🔍 查詢條件設定")
+        c_f1, c_f2 = st.columns(2)
+        sel_q_dept = c_f1.selectbox("所屬單位 (必選)", df_records['所屬單位'].dropna().unique().tolist(), index=None, key='q_dept')
+        sel_q_unit = c_f2.selectbox("填報單位名稱 (必選)", df_records[df_records['所屬單位']==sel_q_dept]['填報單位名稱'].dropna().unique().tolist() if sel_q_dept else [], index=None, key='q_unit')
+        
+        c_f3, c_f4 = st.columns(2)
+        q_start_date = c_f3.date_input("查詢起始日期", value=date(datetime.now().year, 1, 1), key='q_start')
+        q_end_date = c_f4.date_input("查詢結束日期", value=datetime.now().date(), key='q_end')
+
+        if sel_q_dept and sel_q_unit and q_start_date and q_end_date:
+            mask = (df_records['所屬單位']==sel_q_dept) & (df_records['填報單位名稱']==sel_q_unit) & (df_records['維修日期']>=pd.Timestamp(q_start_date)) & (df_records['維修日期']<=pd.Timestamp(q_end_date))
+            df_view = df_records[mask]
+            
+            if not df_view.empty:
+                left_html = f'<div class="dept-text">{sel_q_dept}</div>' if sel_q_dept==sel_q_unit else f'<div class="dept-text">{sel_q_dept}</div><div class="unit-text">{sel_q_unit}</div>'
+                campus_str = ", ".join(df_view['校區'].unique().tolist())
+                build_str = ", ".join(df_view['建築物名稱'].unique().tolist()[:3])
+                
+                fill_info_list = []
+                for _, row in df_view.iterrows():
+                    fill_info_list.append(f"<div>• {row['設備類型']}-{row['冷媒種類']}：{row['冷媒填充量']:.2f} kg</div>")
+                fill_info_str = "".join(fill_info_list)
+
+                total_kg = df_view['冷媒填充量'].sum()
+                type_sums = df_view.groupby('冷媒種類')['冷媒填充量'].sum().reset_index()
+                weight_str = f"<div style='font-weight: 900; margin-bottom: 5px; font-size: 1.05rem;'>總計：{total_kg:.2f} kg</div>"
+                for _, row in type_sums.iterrows():
+                    weight_str += f"<div>• {row['冷媒種類']}：{row['冷媒填充量']:.2f} kg</div>"
+
+                total_emission = df_view['排放量(kgCO2e)'].sum()
+                total_emission_ton = total_emission / 1000.0
+                
+                card_html_content = f"""
+                <div class="horizontal-card" id="capture-card">
+                    <div class="card-left">{left_html}</div>
+                    <div class="card-right">
+                        <div class="info-row"><span class="info-icon">📅</span><span class="info-label">查詢區間</span><span class="info-value">{q_start_date} ~ {q_end_date}</span></div>
+                        <div class="info-row"><span class="info-icon">🏫</span><span class="info-label">所在校區</span><span class="info-value">{campus_str}</span></div>
+                        <div class="info-row"><span class="info-icon">🏢</span><span class="info-label">建築物</span><span class="info-value">{build_str}</span></div>
+                        <div class="info-row"><span class="info-icon">❄️</span><span class="info-label">冷媒填充資訊</span><span class="info-value">{fill_info_str}</span></div>
+                        <div class="info-row"><span class="info-icon">⚖️</span><span class="info-label">重量統計</span><span class="info-value">{weight_str}</span></div>
+                        <div class="info-row"><span class="info-icon">🌍</span><span class="info-label">碳排放量</span><span class="info-value" style="color:#D35400;font-size:1.8rem;font-weight:900;">{total_emission_ton:,.4f} <span style="font-size:1.1rem;">公噸CO<sub>2</sub>e</span></span></div>
+                    </div>
+                </div>
+                """
+                st.markdown("---")
+                
+                # 統一字體：移除原先的 Nunito 強制設定，回歸原生無襯線字體
+                html_snippet = f"""
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <meta charset="utf-8">
+                    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+                    <style>
+                        body {{ font-family: sans-serif !important; padding: 10px; margin: 0; background-color: #EAEDED; }}
+                        .horizontal-card {{ display: flex; border: 1px solid #BDC3C7; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 8px rgba(0,0,0,0.08); background-color: #FFFFFF; min-height: 280px; max-width: 100%; margin-bottom: 15px; }}
+                        .card-left {{ flex: 3; background-color: #34495E; color: #FFFFFF; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 20px; text-align: center; border-right: 1px solid #2C3E50; }}
+                        .dept-text {{ font-size: 1.6rem; font-weight: 700; margin-bottom: 8px; line-height: 1.4; }}
+                        .unit-text {{ font-size: 1.3rem; font-weight: 500; opacity: 0.9; }}
+                        .card-right {{ flex: 7; padding: 20px 30px; display: flex; flex-direction: column; justify-content: center; }}
+                        .info-row {{ display: flex; align-items: flex-start; padding: 10px 0; font-size: 1.05rem; color: #566573; border-bottom: 1px dashed #F2F3F4; }}
+                        .info-row:last-child {{ border-bottom: none; }}
+                        .info-icon {{ margin-right: 12px; font-size: 1.2rem; width: 30px; text-align: center; }}
+                        .info-label {{ font-weight: 700; margin-right: 10px; min-width: 160px; color: #2E4053; }}
+                        .info-value {{ font-weight: 500; color: #17202A; flex: 1; line-height: 1.6; }}
+                        .download-btn-container {{ text-align: right; padding-right: 5px; }}
+                        .download-btn {{
+                            display: inline-block; padding: 10px 20px; font-size: 1.1rem; font-weight: bold; color: white;
+                            background-color: #5D6D7E; border: 2px solid #34495E; border-radius: 8px; cursor: pointer; text-align: center;
+                            box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: background-color 0.3s;
+                            font-family: sans-serif !important;
+                        }}
+                        .download-btn:hover {{ background-color: #34495E; }}
+                    </style>
+                </head>
+                <body>
+                    {card_html_content}
+                    <div class="download-btn-container">
+                        <button class="download-btn" onclick="downloadImage()">🖼️ 下載為圖片 (PNG)</button>
+                    </div>
+                    <script>
+                        function downloadImage() {{
+                            html2canvas(document.getElementById('capture-card'), {{ scale: 2, backgroundColor: null }}).then(canvas => {{
+                                let a = document.createElement('a');
+                                a.href = canvas.toDataURL('image/png');
+                                a.download = '{sel_q_unit}_冷媒資訊卡.png';
+                                a.click();
+                            }});
+                        }}
+                    </script>
+                </body>
+                </html>
+                """
+                components.html(html_snippet, height=650, scrolling=False)
+                
+                st.markdown("<br>", unsafe_allow_html=True)
+                st.subheader("📋 單位申報明細")
+                st.dataframe(df_view[["維修日期", "建築物名稱", "設備類型", "冷媒種類", "冷媒填充量", "排放量(kgCO2e)", "佐證資料"]], use_container_width=True)
+            else: st.warning("查無資料")
+        else: st.info("請選擇單位進行查詢")
+
+# ==========================================
 # 5. 主程式 (前台填報與看板)
 # ==========================================
 def render_user_interface():
@@ -343,201 +552,12 @@ def render_user_interface():
     tabs = st.tabs(["📝 新增填報", "📋 申報動態查詢"])
 
     with tabs[0]:
-        fid = st.session_state['form_id']
-        
-        st.markdown('<div class="morandi-header">填報單位基本資訊區</div>', unsafe_allow_html=True)
-        
-        c1, c2 = st.columns(2)
-        unit_depts = list(unit_dict.keys())
-        sel_dept = c1.selectbox("所屬單位", unit_depts, index=None, placeholder="請選擇單位...", key=f"u_dept_{fid}")
-        unit_names = list(unit_dict.get(sel_dept, [])) if sel_dept else []
-        sel_unit_name = c2.selectbox("填報單位名稱", unit_names, index=None, placeholder="請先選擇所屬單位...", key=f"u_unit_{fid}")
-        
-        c3, c4 = st.columns(2)
-        name = c3.text_input("填報人", key=f"u_name_{fid}")
-        ext = c4.text_input("填報人分機", key=f"u_ext_{fid}")
-        
-        st.markdown('<div class="morandi-header">冷媒設備所在位置資訊區</div>', unsafe_allow_html=True)
-        loc_campuses = list(build_dict.keys())
-        sel_loc_campus = st.selectbox("填報單位所在校區", loc_campuses, index=None, placeholder="請選擇校區...", key=f"u_campus_{fid}")
-        c6, c7 = st.columns(2)
-        buildings = list(build_dict.get(sel_loc_campus, [])) if sel_loc_campus else []
-        sel_build = c6.selectbox("建築物名稱", buildings, index=None, placeholder="請先選擇校區...", key=f"u_build_{fid}")
-        office = c7.text_input("辦公室編號", placeholder="例如：202辦公室、306研究室", key=f"u_office_{fid}")
-        
-        st.markdown('<div class="morandi-header">冷媒設備填充資訊區</div>', unsafe_allow_html=True)
-        c8, c9 = st.columns(2)
-        r_date = c8.date_input("維修日期 (統一填寫發票日期)", datetime.today(), key=f"u_date_{fid}")
-        sel_etype = c9.selectbox("設備類型", e_types, index=None, placeholder="請選擇...", key=f"u_etype_{fid}")
-        
-        c10, c11 = st.columns(2)
-        e_model = c10.text_input("設備品牌型號", placeholder="例如：國際 CS-100FL+CU-100FLC", key=f"u_model_{fid}")
-        sel_rtype = c11.selectbox("冷媒種類", r_types, index=None, placeholder="請選擇...", key=f"u_rtype_{fid}")
-        
-        st.markdown("<div style='font-size: 1.2rem; font-weight: 900; color: #2C3E50; margin-bottom: 5px; letter-spacing: 0.5px;'>冷媒填充量 <span style='color: #C0392B; font-weight: 900;'>(公斤)</span></div>", unsafe_allow_html=True)
-        amount = st.number_input("冷媒填充量", min_value=0.0, step=0.1, format="%.2f", key=f"u_amt_{fid}", label_visibility="collapsed")
-        
-        st.markdown("<div style='font-size: 1.2rem; font-weight: 900; color: #2C3E50; margin-bottom: 5px; margin-top: 15px; letter-spacing: 0.5px;'>請上傳冷媒填充單據佐證資料</div>", unsafe_allow_html=True)
-        f_file = st.file_uploader("上傳佐證 (必填)", type=['pdf', 'jpg', 'png'], label_visibility="collapsed", key=f"u_file_{fid}")
-        
-        st.markdown("---")
-        st.markdown("<div style='font-size: 1.2rem; font-weight: 900; color: #2C3E50; margin-bottom: 5px; letter-spacing: 0.5px;'>備註</div>", unsafe_allow_html=True)
-        note = st.text_input("備註", placeholder="備註 (選填)", key=f"u_note_{fid}", label_visibility="collapsed")
-        
-        st.markdown('<div class="correction-note">如有資料誤繕情形，請重新登錄1次資訊，並於備註欄填寫：「前筆資料誤繕，請刪除。」，管理單位將協助刪除誤打資訊</div>', unsafe_allow_html=True)
-        
-        st.markdown("""<div class="privacy-box"><div class="privacy-title">📜 個人資料蒐集、處理及利用告知聲明</div>1. 蒐集機關：國立嘉義大學。<br>2. 蒐集目的：進行本校冷媒設備之冷媒填充紀錄管理、校園溫室氣體（碳）盤查統計、稽核佐證資料蒐集及後續能源使用分析。<br>3. 個資類別：填報人姓名。<br>4. 利用期間：姓名保留至填報年度後第二年1月1日，期滿即進行「去識別化」刪除，其餘數據永久保存。<br>5. 利用對象：本校教師、行政人員及碳盤查查驗人員。<br>6. 您有權依個資法請求查詢、更正或刪除您的個資。如不提供，將無法完成填報。</div>""", unsafe_allow_html=True)
-        agree = st.checkbox("我已閱讀並同意個資聲明，且確認所填資料無誤。", key=f"u_agree_{fid}")
-        
-        if st.button("🚀 確認送出", type="primary", use_container_width=True):
-            if not agree: st.error("❌ 請勾選同意聲明")
-            elif not sel_dept or not sel_unit_name: st.warning("⚠️ 請完整選擇單位資訊")
-            elif not name or not ext: st.warning("⚠️ 請填寫填報人與分機")
-            elif not sel_loc_campus or not sel_build: st.warning("⚠️ 請完整選擇位置資訊")
-            elif not sel_etype or not sel_rtype: st.warning("⚠️ 請選擇設備類型與冷媒種類")
-            elif not f_file: st.error("⚠️ 請上傳佐證資料")
-            else:
-                try:
-                    # [防護機制 2] 上傳前進行圖片瘦身
-                    file_obj, mime_type = process_and_compress_file(f_file)
-                    f_ext = f_file.name.split('.')[-1]
-                    clean_name = f"{sel_loc_campus}_{sel_dept}_{sel_unit_name}_{r_date}_{sel_etype}_{sel_rtype}.{f_ext}"
-                    meta = {'name': clean_name, 'parents': [REF_FOLDER_ID]}
-                    media = MediaIoBaseUpload(file_obj, mimetype=mime_type, resumable=True)
-                    file = drive_service.files().create(body=meta, media_body=media, fields='webViewLink').execute()
-                    
-                    row_data = [get_taiwan_time().strftime("%Y-%m-%d %H:%M:%S"), name, ext, sel_loc_campus, sel_dept, sel_unit_name, sel_build, office, str(r_date), sel_etype, e_model, sel_rtype, amount, note, file.get('webViewLink')]
-                    
-                    # [防護機制 1] 使用排隊重試機制進行寫入
-                    safe_append_rows(ws_records, [row_data])
-                    
-                    st.success("✅ 冷媒填報成功！欄位已自動清空。")
-                    st.balloons()
-                    
-                    st.session_state['form_id'] += 1
-                    # [防護機制 3] 觸發更新
-                    st.cache_data.clear()
-                    time.sleep(1)
-                    st.rerun()
-                    
-                except Exception as e: st.error(f"上傳或寫入失敗: {e}")
+        # [精準導入 1] 呼叫填報表單 Fragment
+        render_form_fragment(unit_dict, build_dict, e_types, r_types)
 
     with tabs[1]:
-        st.markdown('<div class="morandi-header">📋 申報動態查詢</div>', unsafe_allow_html=True)
-        col_r1, col_r2 = st.columns([4, 1])
-        with col_r2:
-            if st.button("🔄 刷新數據", use_container_width=True, key="refresh_tab2"):
-                st.cache_data.clear()
-                st.rerun()
-
-        if df_records.empty:
-            st.info("目前尚無填報紀錄。")
-        else:
-            df_records['冷媒填充量'] = pd.to_numeric(df_records['冷媒填充量'], errors='coerce').fillna(0)
-            df_records['維修日期'] = pd.to_datetime(df_records['維修日期'], errors='coerce')
-            df_records['排放量(kgCO2e)'] = df_records.apply(lambda r: r['冷媒填充量'] * gwp_map.get(str(r['冷媒種類']).strip(), 0), axis=1)
-
-            st.markdown("##### 🔍 查詢條件設定")
-            c_f1, c_f2 = st.columns(2)
-            sel_q_dept = c_f1.selectbox("所屬單位 (必選)", df_records['所屬單位'].dropna().unique().tolist(), index=None, key='q_dept')
-            sel_q_unit = c_f2.selectbox("填報單位名稱 (必選)", df_records[df_records['所屬單位']==sel_q_dept]['填報單位名稱'].dropna().unique().tolist() if sel_q_dept else [], index=None, key='q_unit')
-            
-            c_f3, c_f4 = st.columns(2)
-            q_start_date = c_f3.date_input("查詢起始日期", value=date(datetime.now().year, 1, 1), key='q_start')
-            q_end_date = c_f4.date_input("查詢結束日期", value=datetime.now().date(), key='q_end')
-
-            if sel_q_dept and sel_q_unit and q_start_date and q_end_date:
-                mask = (df_records['所屬單位']==sel_q_dept) & (df_records['填報單位名稱']==sel_q_unit) & (df_records['維修日期']>=pd.Timestamp(q_start_date)) & (df_records['維修日期']<=pd.Timestamp(q_end_date))
-                df_view = df_records[mask]
-                
-                if not df_view.empty:
-                    left_html = f'<div class="dept-text">{sel_q_dept}</div>' if sel_q_dept==sel_q_unit else f'<div class="dept-text">{sel_q_dept}</div><div class="unit-text">{sel_q_unit}</div>'
-                    campus_str = ", ".join(df_view['校區'].unique().tolist())
-                    build_str = ", ".join(df_view['建築物名稱'].unique().tolist()[:3])
-                    
-                    fill_info_list = []
-                    for _, row in df_view.iterrows():
-                        fill_info_list.append(f"<div>• {row['設備類型']}-{row['冷媒種類']}：{row['冷媒填充量']:.2f} kg</div>")
-                    fill_info_str = "".join(fill_info_list)
-
-                    total_kg = df_view['冷媒填充量'].sum()
-                    type_sums = df_view.groupby('冷媒種類')['冷媒填充量'].sum().reset_index()
-                    weight_str = f"<div style='font-weight: 900; margin-bottom: 5px; font-size: 1.05rem;'>總計：{total_kg:.2f} kg</div>"
-                    for _, row in type_sums.iterrows():
-                        weight_str += f"<div>• {row['冷媒種類']}：{row['冷媒填充量']:.2f} kg</div>"
-
-                    total_emission = df_view['排放量(kgCO2e)'].sum()
-                    total_emission_ton = total_emission / 1000.0
-                    
-                    card_html_content = f"""
-                    <div class="horizontal-card" id="capture-card">
-                        <div class="card-left">{left_html}</div>
-                        <div class="card-right">
-                            <div class="info-row"><span class="info-icon">📅</span><span class="info-label">查詢區間</span><span class="info-value">{q_start_date} ~ {q_end_date}</span></div>
-                            <div class="info-row"><span class="info-icon">🏫</span><span class="info-label">所在校區</span><span class="info-value">{campus_str}</span></div>
-                            <div class="info-row"><span class="info-icon">🏢</span><span class="info-label">建築物</span><span class="info-value">{build_str}</span></div>
-                            <div class="info-row"><span class="info-icon">❄️</span><span class="info-label">冷媒填充資訊</span><span class="info-value">{fill_info_str}</span></div>
-                            <div class="info-row"><span class="info-icon">⚖️</span><span class="info-label">重量統計</span><span class="info-value">{weight_str}</span></div>
-                            <div class="info-row"><span class="info-icon">🌍</span><span class="info-label">碳排放量</span><span class="info-value" style="color:#D35400;font-size:1.8rem;font-weight:900;">{total_emission_ton:,.4f} <span style="font-size:1.1rem;">公噸CO<sub>2</sub>e</span></span></div>
-                        </div>
-                    </div>
-                    """
-                    st.markdown("---")
-                    
-                    # 統一字體：移除原先的 Nunito 強制設定，回歸原生無襯線字體
-                    html_snippet = f"""
-                    <!DOCTYPE html>
-                    <html>
-                    <head>
-                        <meta charset="utf-8">
-                        <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-                        <style>
-                            body {{ font-family: sans-serif !important; padding: 10px; margin: 0; background-color: #EAEDED; }}
-                            .horizontal-card {{ display: flex; border: 1px solid #BDC3C7; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 8px rgba(0,0,0,0.08); background-color: #FFFFFF; min-height: 280px; max-width: 100%; margin-bottom: 15px; }}
-                            .card-left {{ flex: 3; background-color: #34495E; color: #FFFFFF; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 20px; text-align: center; border-right: 1px solid #2C3E50; }}
-                            .dept-text {{ font-size: 1.6rem; font-weight: 700; margin-bottom: 8px; line-height: 1.4; }}
-                            .unit-text {{ font-size: 1.3rem; font-weight: 500; opacity: 0.9; }}
-                            .card-right {{ flex: 7; padding: 20px 30px; display: flex; flex-direction: column; justify-content: center; }}
-                            .info-row {{ display: flex; align-items: flex-start; padding: 10px 0; font-size: 1.05rem; color: #566573; border-bottom: 1px dashed #F2F3F4; }}
-                            .info-row:last-child {{ border-bottom: none; }}
-                            .info-icon {{ margin-right: 12px; font-size: 1.2rem; width: 30px; text-align: center; }}
-                            .info-label {{ font-weight: 700; margin-right: 10px; min-width: 160px; color: #2E4053; }}
-                            .info-value {{ font-weight: 500; color: #17202A; flex: 1; line-height: 1.6; }}
-                            .download-btn-container {{ text-align: right; padding-right: 5px; }}
-                            .download-btn {{
-                                display: inline-block; padding: 10px 20px; font-size: 1.1rem; font-weight: bold; color: white;
-                                background-color: #5D6D7E; border: 2px solid #34495E; border-radius: 8px; cursor: pointer; text-align: center;
-                                box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: background-color 0.3s;
-                                font-family: sans-serif !important;
-                            }}
-                            .download-btn:hover {{ background-color: #34495E; }}
-                        </style>
-                    </head>
-                    <body>
-                        {card_html_content}
-                        <div class="download-btn-container">
-                            <button class="download-btn" onclick="downloadImage()">🖼️ 下載為圖片 (PNG)</button>
-                        </div>
-                        <script>
-                            function downloadImage() {{
-                                html2canvas(document.getElementById('capture-card'), {{ scale: 2, backgroundColor: null }}).then(canvas => {{
-                                    let a = document.createElement('a');
-                                    a.href = canvas.toDataURL('image/png');
-                                    a.download = '{sel_q_unit}_冷媒資訊卡.png';
-                                    a.click();
-                                }});
-                            }}
-                        </script>
-                    </body>
-                    </html>
-                    """
-                    components.html(html_snippet, height=650, scrolling=False)
-                    
-                    st.markdown("<br>", unsafe_allow_html=True)
-                    st.subheader("📋 單位申報明細")
-                    st.dataframe(df_view[["維修日期", "建築物名稱", "設備類型", "冷媒種類", "冷媒填充量", "排放量(kgCO2e)", "佐證資料"]], use_container_width=True)
-                else: st.warning("查無資料")
-            else: st.info("請選擇單位進行查詢")
+        # [精準導入 1] 呼叫查詢看版 Fragment
+        render_dashboard_fragment(df_records, gwp_map)
 
 if __name__ == "__main__":
     render_user_interface()
