@@ -295,28 +295,32 @@ def load_fuel_data():
 
 df_equip, df_records = load_fuel_data()
 
-# === 預備資料 (包含 2026 年限制) ===
-available_years = []
+# === 預備資料 (年份分流設定) ===
+available_years_dash = []
+available_years_details = []
 record_units = []
 if not df_records.empty:
     df_records['加油量'] = pd.to_numeric(df_records['加油量'], errors='coerce').fillna(0)
     df_records['日期格式'] = pd.to_datetime(df_records['加油日期'], errors='coerce')
     raw_years = sorted(df_records['日期格式'].dt.year.dropna().astype(int).unique(), reverse=True)
-    # [修改 1] 限制下拉選單僅顯示 2026 年及以後
-    available_years = [y for y in raw_years if y >= 2026]
-    if not available_years: available_years = [max(2026, datetime.now().year)]
+    
+    # [修改 1] 看板開放 2025 年起；明細維持 2026 年起
+    available_years_dash = [y for y in raw_years if y >= 2025]
+    if not available_years_dash: available_years_dash = [max(2025, datetime.now().year)]
+    
+    available_years_details = [y for y in raw_years if y >= 2026]
+    if not available_years_details: available_years_details = [max(2026, datetime.now().year)]
+    
     record_units = sorted([str(x) for x in df_records['填報單位'].unique() if str(x) != 'nan'])
 else:
-    available_years = [max(2026, datetime.now().year)]
+    available_years_dash = [max(2025, datetime.now().year)]
+    available_years_details = [max(2026, datetime.now().year)]
 
 # ==========================================
 # [突破權限牆 + 多頁 PDF截圖] 圖片智慧快取機制
 # ==========================================
 @st.cache_data(ttl=86400, show_spinner=False, max_entries=100)
 def get_cached_file_from_drive(url):
-    """
-    回傳: (images_list, is_landscape, file_bytes, filename, is_pdf)
-    """
     try:
         _, d_svc = init_google_fuel()
         match = re.search(r'/d/([a-zA-Z0-9_-]+)', url)
@@ -348,7 +352,6 @@ def get_cached_file_from_drive(url):
             if is_pdf and HAS_FITZ:
                 doc = fitz.open("pdf", file_bytes)
                 images = []
-                # 擷取 PDF 的每一頁
                 for page_num in range(len(doc)):
                     page = doc.load_page(page_num)
                     pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))
@@ -581,19 +584,24 @@ def render_details_fragment(df_records, record_units, available_years):
                         st.markdown("---")
                         grouped = df_final_3.groupby('設備名稱備註')
                         
-                        for equip_name, group in grouped:
-                            fuel_type = group['原燃物料名稱'].iloc[0] if not group.empty else "未知"
-                            total_vol = group['加油量'].sum()
-                            
-                            col_info, col_img = st.columns([4, 6], gap="large")
-                            
-                            # ==============================
-                            # 左側：資訊卡渲染 (淺黃色底 + 收納Email異動)
-                            # ==============================
-                            with col_info:
-                                info_html = f"""<div style="background-color: #FFFDE7; border: 1px solid #FAD7A1; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.05); margin-bottom: 20px;"><div style="background-color: #FDEBD0; padding: 15px 20px; border-bottom: 3px solid #F5B041; display: flex; justify-content: space-between; align-items: center;"><div style="font-size: 1.2rem; font-weight: 900; color: #D35400;">🚜 {equip_name}</div><div style="text-align: right;"><div style="font-size: 0.95rem; font-weight: bold; color: #E67E22;">⛽ {fuel_type}</div><div style="font-size: 1.15rem; font-weight: 900; color: #C0392B;">共 {total_vol:.1f} 公升</div></div></div><div style="padding: 10px 20px;">"""
+                        # [修改 2] 將欄位分割拉到最高層級，左側一律放卡片，右側一律放圖片 (實現無縫接續不留白)
+                        col_info, col_img = st.columns([4, 6], gap="large")
+                        
+                        # 全域連結追蹤集合 (用於右側依序顯示)
+                        global_rendered_links = set()
+                        
+                        # ==============================
+                        # 左側：集中渲染所有資訊卡
+                        # ==============================
+                        with col_info:
+                            for equip_name, group in grouped:
+                                fuel_type = group['原燃物料名稱'].iloc[0] if not group.empty else "未知"
+                                total_vol = group['加油量'].sum()
                                 
-                                email_changes = set() # 負責收集所有 Email 異動
+                                # [修改 3] 莫蘭迪深色標題 (#4A5568) 與 米色內容區 (#FAF5E8)
+                                info_html = f"""<div style="background-color: #FAF5E8; border: 1px solid #D5D8DC; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.05); margin-bottom: 20px;"><div style="background-color: #4A5568; padding: 15px 20px; border-bottom: 3px solid #2D3748; display: flex; justify-content: space-between; align-items: center;"><div style="font-size: 1.2rem; font-weight: 900; color: #FFFFFF;">🚜 {equip_name}</div><div style="text-align: right;"><div style="font-size: 0.95rem; font-weight: bold; color: #CBD5E1;">⛽ {fuel_type}</div><div style="font-size: 1.15rem; font-weight: 900; color: #F1C40F;">共 {total_vol:.1f} 公升</div></div></div><div style="padding: 10px 20px;">"""
+                                
+                                email_changes = set()
                                 rows_html = ""
                                 
                                 for _, row in group.iterrows():
@@ -602,7 +610,6 @@ def render_details_fragment(df_records, record_units, available_years):
                                     shared = row.get('與其他設備共用加油單', '否')
                                     note = str(row.get('備註', '')).strip()
                                     
-                                    # 擷取 Email 異動字眼並從原始備註移除
                                     email_match = re.search(r'\[Email異動:\s*.*?\]', note)
                                     if email_match:
                                         email_changes.add(email_match.group(0))
@@ -610,7 +617,7 @@ def render_details_fragment(df_records, record_units, available_years):
                                         if note.endswith('|'): note = note[:-1].strip()
                                         if note.startswith('|'): note = note[1:].strip()
                                     
-                                    rows_html += f"<div style='border-bottom: 1px dashed #F5CBA7; padding: 10px 0;'><div style='display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;'><div style='font-size: 1.05rem; color: #34495E; font-weight: bold;'>📅 {date_str}</div><div style='font-size: 1.05rem; color: #2C3E50; font-weight: bold;'>💧 {vol:.1f} 公升</div></div>"
+                                    rows_html += f"<div style='border-bottom: 1px dashed #D5D8DC; padding: 10px 0;'><div style='display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;'><div style='font-size: 1.05rem; color: #34495E; font-weight: bold;'>📅 {date_str}</div><div style='font-size: 1.05rem; color: #1A5276; font-weight: bold;'>💧 {vol:.1f} 公升</div></div>"
                                     
                                     note_parts = []
                                     if shared == '是': note_parts.append("🔄 共用")
@@ -618,40 +625,45 @@ def render_details_fragment(df_records, record_units, available_years):
                                     
                                     if note_parts:
                                         combined_note = " | ".join(note_parts)
-                                        rows_html += f"<div style='font-size: 0.9rem; color: #873600; background-color: #FAE5D3; padding: 6px 10px; margin-top: 5px; border-radius: 6px; border-left: 3px solid #E67E22;'><span style='font-weight: bold;'>📝 說明：</span>{combined_note}</div>"
+                                        # [修改 4] 備註區為淺綠色 (#E8F8F5)
+                                        rows_html += f"<div style='font-size: 0.9rem; color: #145A32; background-color: #E8F8F5; padding: 6px 10px; margin-top: 5px; border-radius: 6px; border-left: 3px solid #48C9B0;'><span style='font-weight: bold;'>📝 說明：</span>{combined_note}</div>"
                                         
                                     rows_html += "</div>"
                                 
-                                # 若有 Email 異動，統整顯示於卡片底部 (只顯示一次)
                                 if email_changes:
                                     for ec in email_changes:
-                                        rows_html += f"<div style='font-size: 0.9rem; color: #512E5F; background-color: #E8DAEF; padding: 6px 10px; margin-top: 10px; border-radius: 6px; font-weight: bold;'>ℹ️ {ec}</div>"
+                                        # Email 異動同為淺綠色
+                                        rows_html += f"<div style='font-size: 0.9rem; color: #145A32; background-color: #E8F8F5; padding: 6px 10px; margin-top: 10px; border-radius: 6px; font-weight: bold; border: 1px solid #A3E4D7;'>ℹ️ {ec}</div>"
                                 
                                 info_html += rows_html + "</div></div>"
                                 st.markdown(info_html, unsafe_allow_html=True)
                             
-                            # ==============================
-                            # 右側：圖片與多頁 PDF 動態排版 (移除全域去重，依序完整呈現)
-                            # ==============================
-                            if total_vol > 0:
-                                with col_img:
+                        # ==============================
+                        # 右側：集中渲染所有截圖，依序向下排列 (全域去重)
+                        # ==============================
+                        with col_img:
+                            has_rendered_any_image = False
+                            for equip_name, group in grouped:
+                                total_vol = group['加油量'].sum()
+                                if total_vol > 0:
                                     raw_links = []
                                     for links_str in group['佐證資料'].dropna():
                                         if links_str and str(links_str).strip() not in ["無", "佐證如總務處事務組中油明細", "-"]:
                                             raw_links.extend([l.strip() for l in re.split(r'[\n,]', str(links_str)) if l.strip()])
                                             
-                                    # 僅針對單一設備內的連結去重複 (保留順序)
-                                    links_to_render = list(dict.fromkeys(raw_links))
+                                    links_to_render = []
+                                    for l in raw_links:
+                                        if l not in global_rendered_links:
+                                            links_to_render.append(l)
+                                            global_rendered_links.add(l)
                                     
-                                    if not links_to_render:
-                                        st.info("📁 此設備本月無上傳佐證圖片，或已註明與其他單位/設備共用。")
-                                    else:
-                                        with st.spinner("🚀 正在安全載入佐證資料..."):
+                                    if links_to_render:
+                                        has_rendered_any_image = True
+                                        with st.spinner(f"🚀 正在安全載入 {equip_name} 之佐證資料..."):
                                             images_data = []
                                             for url in links_to_render:
                                                 images_list, is_landscape, file_bytes, filename, is_pdf = get_cached_file_from_drive(url)
                                                 
-                                                # 無論是單張圖片還是 PDF 的多張截圖，統一拆解放入 images_data 列隊中
                                                 if images_list:
                                                     for i, img in enumerate(images_list):
                                                         page_suffix = f" (第 {i+1} 頁)" if is_pdf and len(images_list) > 1 else ""
@@ -684,14 +696,11 @@ def render_details_fragment(df_records, record_units, available_years):
                                                     st.error("⚠️ 無法讀取該檔案，請確認雲端連結是否正確。")
                                                     idx += 1
                                                 elif item['img'] is None:
-                                                    # 開啟失敗(非圖片且非支援的PDF)才給下載按鈕
                                                     st.markdown(f"📄 **附檔：{item['filename']}** (不支援預覽)")
                                                     st.download_button(label="📥 點擊下載", data=item['bytes'], file_name=item['filename'], key=unique_key)
                                                     idx += 1
                                                 else:
-                                                    # 成功轉為圖片(一般圖片或 PDF 截圖)，直接渲染，不顯示下載按鈕
                                                     caption_text = f"📄 {item['filename']}{item['page_suffix']}"
-                                                    
                                                     if item['is_landscape']:
                                                         st.image(item['img'], use_container_width=True, caption=caption_text)
                                                         idx += 1
@@ -708,6 +717,11 @@ def render_details_fragment(df_records, record_units, available_years):
                                                             
                                                 if idx < len(images_data):
                                                     st.markdown("<hr style='margin: 15px 0; border: 1px dashed #BDC3C7;'>", unsafe_allow_html=True)
+                            
+                            # 如果整個月份所有設備都沒有可用圖片，才顯示提示
+                            if not has_rendered_any_image:
+                                st.info("📁 本月該單位無上傳佐證圖片，或各設備皆為無使用/免上傳油單。")
+                                
                         st.markdown("<br><br>", unsafe_allow_html=True)
                     else:
                         st.warning(f"⚠️ {query_dept_3} 在 {query_year_3} 年 {query_month_3} 月尚無填報紀錄。")
@@ -990,11 +1004,13 @@ def render_user_interface():
 
     # --- Tab 2: 看板 ---
     with tabs[1]:
-        render_dashboard_fragment(df_records, df_equip, record_units, available_years)
+        # 精準傳入 2025年起 的年份清單
+        render_dashboard_fragment(df_records, df_equip, record_units, available_years_dash)
 
     # --- Tab 3: 單位申報明細 ---
     with tabs[2]:
-        render_details_fragment(df_records, record_units, available_years)
+        # 精準傳入 2026年起 的年份清單
+        render_details_fragment(df_records, record_units, available_years_details)
 
 if __name__ == "__main__":
     render_user_interface()
