@@ -596,8 +596,8 @@ def render_details_fragment(df_records, record_units, available_years):
                                     fuel_type = group['原燃物料名稱'].iloc[0] if not group.empty else "未知"
                                     total_vol = group['加油量'].sum()
                                     
-                                    # 莫蘭迪深色標題(#4A5568) 與 米白內容區(#FDFAF0)，無縫接續 (margin-bottom: 8px)
-                                    info_html = f"""<div style="background-color: #FDFAF0; border: 1px solid #D5D8DC; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 5px rgba(0,0,0,0.05); margin-bottom: 8px;"><div style="background-color: #4A5568; padding: 15px 20px; border-bottom: 3px solid #2D3748; display: flex; justify-content: space-between; align-items: center;"><div style="font-size: 1.2rem; font-weight: 900; color: #FFFFFF;">🚜 {equip_name}</div><div style="text-align: right;"><div style="font-size: 0.95rem; font-weight: bold; color: #CBD5E1;">⛽ {fuel_type}</div><div style="font-size: 1.35rem; font-weight: 900; color: #F1C40F;">共 {total_vol:.1f} 公升</div></div></div><div style="padding: 10px 20px;">"""
+                                    # [修改1] 莫蘭迪深色標題(#4A5568) 與 灰白內容區(#F8F9F9)，無縫接續 (margin-bottom: 8px)
+                                    info_html = f"""<div style="background-color: #F8F9F9; border: 1px solid #D5D8DC; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 5px rgba(0,0,0,0.05); margin-bottom: 8px;"><div style="background-color: #4A5568; padding: 15px 20px; border-bottom: 3px solid #2D3748; display: flex; justify-content: space-between; align-items: center;"><div style="font-size: 1.2rem; font-weight: 900; color: #FFFFFF;">🚜 {equip_name}</div><div style="text-align: right;"><div style="font-size: 0.95rem; font-weight: bold; color: #CBD5E1;">⛽ {fuel_type}</div><div style="font-size: 1.35rem; font-weight: 900; color: #F1C40F;">共 {total_vol:.1f} 公升</div></div></div><div style="padding: 10px 20px;">"""
                                     
                                     email_changes = set()
                                     rows_html = ""
@@ -615,7 +615,6 @@ def render_details_fragment(df_records, record_units, available_years):
                                             if note.endswith('|'): note = note[:-1].strip()
                                             if note.startswith('|'): note = note[1:].strip()
                                         
-                                        # 大字體顯示公升數 (1.25rem)
                                         rows_html += f"<div style='border-bottom: 1px dashed #D5D8DC; padding: 10px 0;'><div style='display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;'><div style='font-size: 1.05rem; color: #34495E; font-weight: bold;'>📅 {date_str}</div><div style='font-size: 1.25rem; color: #1A5276; font-weight: 900;'>💧 {vol:.1f} 公升</div></div>"
                                         
                                         note_parts = []
@@ -624,7 +623,6 @@ def render_details_fragment(df_records, record_units, available_years):
                                         
                                         if note_parts:
                                             combined_note = " | ".join(note_parts)
-                                            # 淺綠色備註
                                             rows_html += f"<div style='font-size: 0.9rem; color: #145A32; background-color: #E8F8F5; padding: 6px 10px; margin-top: 5px; border-radius: 6px; border-left: 3px solid #48C9B0;'><span style='font-weight: bold;'>📝 說明：</span>{combined_note}</div>"
                                             
                                         rows_html += "</div>"
@@ -637,20 +635,54 @@ def render_details_fragment(df_records, record_units, available_years):
                                     st.markdown(info_html, unsafe_allow_html=True)
                             
                             with col_img:
-                                raw_links = []
-                                for links_str in df_final_3['佐證資料'].dropna():
-                                    if links_str and str(links_str).strip() not in ["無", "-"]:
-                                        if "佐證如總務處事務組中油明細" in str(links_str):
-                                            df_z = df_records[(df_records['填報單位'] == '總務處事務組') & 
-                                                              (df_records['日期格式'].dt.year == query_year_3) &
-                                                              (df_records['日期格式'].dt.month == query_month_3)]
-                                            for z_link in df_z['佐證資料'].dropna():
-                                                if z_link and str(z_link).strip() not in ["無", "佐證如總務處事務組中油明細", "-"]:
-                                                    raw_links.extend([l.strip() for l in re.split(r'[\n,]', str(z_link)) if l.strip()])
-                                        else:
-                                            raw_links.extend([l.strip() for l in re.split(r'[\n,]', str(links_str)) if l.strip()])
+                                # [修改2] 統一抓取 VIP 單位於該月的唯一/首選代表性檔案，不再聚合全部檔案導致多份重複
+                                target_link = None
                                 
-                                unique_links = list(dict.fromkeys(raw_links))
+                                # 優先尋找備註包含 "具車牌的汽油公務車" 的油單檔案
+                                for _, row in df_final_3.iterrows():
+                                    note = str(row.get('備註', ''))
+                                    links_str = str(row.get('佐證資料', ''))
+                                    if links_str and links_str not in ["無", "佐證如總務處事務組中油明細", "-"]:
+                                        if "具車牌的汽油公務車" in note:
+                                            valid_links = [l.strip() for l in re.split(r'[\n,]', links_str) if l.strip()]
+                                            if valid_links:
+                                                target_link = valid_links[0]
+                                                break
+                                
+                                # 若當月該單位無該類別，去撈總務處事務組的資料 (針對民雄等單位)
+                                if not target_link:
+                                    df_z = df_records[(df_records['填報單位'] == '總務處事務組') & 
+                                                      (df_records['日期格式'].dt.year == query_year_3) &
+                                                      (df_records['日期格式'].dt.month == query_month_3)]
+                                    for _, row in df_z.iterrows():
+                                        note = str(row.get('備註', ''))
+                                        links_str = str(row.get('佐證資料', ''))
+                                        if links_str and links_str not in ["無", "佐證如總務處事務組中油明細", "-"]:
+                                            if "具車牌的汽油公務車" in note:
+                                                valid_links = [l.strip() for l in re.split(r'[\n,]', links_str) if l.strip()]
+                                                if valid_links:
+                                                    target_link = valid_links[0]
+                                                    break
+                                    
+                                    # Fallback: 真的沒有的話，抓總務處事務組當月隨便第一份有效檔案
+                                    if not target_link:
+                                        for links_str in df_z['佐證資料'].dropna():
+                                            if links_str and str(links_str).strip() not in ["無", "佐證如總務處事務組中油明細", "-"]:
+                                                valid = [l.strip() for l in re.split(r'[\n,]', str(links_str)) if l.strip()]
+                                                if valid:
+                                                    target_link = valid[0]
+                                                    break
+                                
+                                # Ultimate Fallback: 抓該單位當月隨便第一份有效檔案
+                                if not target_link:
+                                    for links_str in df_final_3['佐證資料'].dropna():
+                                        if links_str and str(links_str).strip() not in ["無", "佐證如總務處事務組中油明細", "-"]:
+                                            valid = [l.strip() for l in re.split(r'[\n,]', str(links_str)) if l.strip()]
+                                            if valid:
+                                                target_link = valid[0]
+                                                break
+
+                                unique_links = [target_link] if target_link else []
                                 
                                 if not unique_links:
                                     st.info("📁 該單位本月無上傳佐證圖片，或總務處尚未上傳統一明細。")
@@ -704,8 +736,8 @@ def render_details_fragment(df_records, record_units, available_years):
                                 total_vol = group['加油量'].sum()
                                 
                                 with col_info:
-                                    # 獨立區塊 (margin-bottom: 20px)
-                                    info_html = f"""<div style="background-color: #FDFAF0; border: 1px solid #D5D8DC; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.05); margin-bottom: 20px;"><div style="background-color: #4A5568; padding: 15px 20px; border-bottom: 3px solid #2D3748; display: flex; justify-content: space-between; align-items: center;"><div style="font-size: 1.2rem; font-weight: 900; color: #FFFFFF;">🚜 {equip_name}</div><div style="text-align: right;"><div style="font-size: 0.95rem; font-weight: bold; color: #CBD5E1;">⛽ {fuel_type}</div><div style="font-size: 1.35rem; font-weight: 900; color: #F1C40F;">共 {total_vol:.1f} 公升</div></div></div><div style="padding: 10px 20px;">"""
+                                    # [修改1] 灰白底色 (#F8F9F9)
+                                    info_html = f"""<div style="background-color: #F8F9F9; border: 1px solid #D5D8DC; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.05); margin-bottom: 20px;"><div style="background-color: #4A5568; padding: 15px 20px; border-bottom: 3px solid #2D3748; display: flex; justify-content: space-between; align-items: center;"><div style="font-size: 1.2rem; font-weight: 900; color: #FFFFFF;">🚜 {equip_name}</div><div style="text-align: right;"><div style="font-size: 0.95rem; font-weight: bold; color: #CBD5E1;">⛽ {fuel_type}</div><div style="font-size: 1.35rem; font-weight: 900; color: #F1C40F;">共 {total_vol:.1f} 公升</div></div></div><div style="padding: 10px 20px;">"""
                                     
                                     email_changes = set()
                                     rows_html = ""
@@ -793,7 +825,6 @@ def render_details_fragment(df_records, record_units, available_years):
                                                     if idx < len(images_data):
                                                         st.markdown("<hr style='margin: 15px 0; border: 1px dashed #BDC3C7;'>", unsafe_allow_html=True)
                                 
-                                # 每一個設備群組底部加入視覺分隔線
                                 st.markdown("<hr style='border: 1px solid #BDC3C7; margin: 30px 0;'>", unsafe_allow_html=True)
 
                         st.markdown("<br><br>", unsafe_allow_html=True)
