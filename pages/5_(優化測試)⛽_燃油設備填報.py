@@ -16,6 +16,13 @@ import uuid
 from PIL import Image
 from functools import wraps
 
+# [新增 PDF 截圖套件防護]
+try:
+    import fitz  # PyMuPDF
+    HAS_FITZ = True
+except ImportError:
+    HAS_FITZ = False
+
 # ==========================================
 # 0. 系統設定 (輕量前台版) & 共用防護機制
 # ==========================================
@@ -59,7 +66,7 @@ def get_all_values_with_retry(worksheet):
 
 @with_retry(max_retries=3, base_delay=2.0)
 def upload_file_to_drive_with_retry(drive_svc, file_meta, file_obj, mime_type):
-    file_obj.seek(0) # 確保重試時指標回到起點
+    file_obj.seek(0)
     media = MediaIoBaseUpload(file_obj, mimetype=mime_type, resumable=True)
     return drive_svc.files().create(body=file_meta, media_body=media, fields='webViewLink').execute()
 
@@ -222,6 +229,8 @@ with st.sidebar:
         st.success(f"🟢 目前線上人數: {online_count} 人 (順暢)")
     
     st.markdown("---")
+    if not HAS_FITZ:
+        st.warning("⚠️ 系統未偵測到 `PyMuPDF` 套件，PDF 截圖預覽功能將停用 (仍可下載附件)。\n請管理者執行 `pip install PyMuPDF`。")
     authenticator.logout('登出系統', 'sidebar')
 
 # ==========================================
@@ -298,20 +307,32 @@ if not df_records.empty:
 
 
 # ==========================================
-# [圖片智慧快取機制]
+# [突破權限牆 + PDF截圖] 圖片智慧快取機制
 # ==========================================
 @st.cache_data(ttl=86400, show_spinner=False, max_entries=100)
-def get_cached_image_from_drive(url):
+def get_cached_file_from_drive(url):
+    """
+    回傳: (img_obj, is_landscape, file_bytes, filename, is_pdf)
+    """
     try:
-        # 在快取函數內調用資源，避開 drive_svc 不可 Hash 的問題
         _, d_svc = init_google_fuel()
-        
         match = re.search(r'/d/([a-zA-Z0-9_-]+)', url)
         if not match:
             match = re.search(r'id=([a-zA-Z0-9_-]+)', url)
-        if not match: return None, False
+        if not match: return None, False, None, None, False
 
         file_id = match.group(1)
+        
+        # 取得檔名(若失敗則給預設)
+        try:
+            meta = d_svc.files().get(fileId=file_id, fields="name").execute()
+            filename = meta.get('name', f'佐證資料_{file_id}')
+        except:
+            filename = f"佐證資料_{file_id}.pdf"
+            
+        is_pdf = filename.lower().endswith('.pdf')
+
+        # 下載檔案串流
         request = d_svc.files().get_media(fileId=file_id)
         fh = io.BytesIO()
         downloader = MediaIoBaseDownload(fh, request)
@@ -320,12 +341,28 @@ def get_cached_image_from_drive(url):
             status, done = downloader.next_chunk()
         
         fh.seek(0)
-        img = Image.open(fh)
-        is_landscape = img.width > img.height
-        return img, is_landscape
+        file_bytes = fh.read()
+        
+        # 嘗試以 PDF 截圖或一般圖片開啟
+        try:
+            if is_pdf and HAS_FITZ:
+                doc = fitz.open("pdf", file_bytes)
+                page = doc.load_page(0) # 第一頁
+                pix = page.get_pixmap(matrix=fitz.Matrix(2, 2)) # 提高解析度
+                img_data = pix.tobytes("png")
+                img = Image.open(io.BytesIO(img_data))
+                is_landscape = img.width > img.height
+                return img, is_landscape, file_bytes, filename, True
+            else:
+                img = Image.open(io.BytesIO(file_bytes))
+                is_landscape = img.width > img.height
+                return img, is_landscape, file_bytes, filename, False
+        except:
+            # 開啟失敗(代表是無法預覽的檔案 或 沒裝 fitz 的 PDF)
+            return None, False, file_bytes, filename, is_pdf
+            
     except Exception as e:
-        return None, False
-
+        return None, False, None, None, False
 
 # ==========================================
 # [儀表板] 局部渲染區塊
@@ -514,7 +551,7 @@ def render_dashboard_fragment(df_records, df_equip, record_units, available_year
 
 
 # ==========================================
-# [明細與佐證] 局部渲染區塊 (已解決跑版問題與加入智慧快取)
+# [明細與佐證] 局部渲染區塊 (視覺優化與 PDF 截圖)
 # ==========================================
 @st.fragment
 def render_details_fragment(df_records, record_units, available_years):
@@ -548,68 +585,103 @@ def render_details_fragment(df_records, record_units, available_years):
                             col_info, col_img = st.columns([4, 6], gap="large")
                             
                             # ==============================
-                            # 左側：資訊卡渲染 (已扁平化字串，解決 Markdown 跑版問題)
+                            # 左側：資訊卡渲染 (莫蘭迪色系 + 換行折疊排版)
                             # ==============================
                             with col_info:
-                                info_html = f"""<div style="background-color: #FFFFFF; border: 1px solid #BDC3C7; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.05); margin-bottom: 20px;"><div style="background-color: #F8F9F9; padding: 15px 20px; border-bottom: 3px solid #E67E22; display: flex; justify-content: space-between; align-items: center;"><div style="font-size: 1.2rem; font-weight: 900; color: #2C3E50;">🚜 {equip_name}</div><div style="text-align: right;"><div style="font-size: 0.95rem; font-weight: bold; color: #7F8C8D;">⛽ {fuel_type}</div><div style="font-size: 1.15rem; font-weight: 900; color: #C0392B;">共 {total_vol:.1f} 公升</div></div></div><div style="padding: 10px 20px;">"""
+                                info_html = f"""<div style="background-color: #FFFFFF; border: 1px solid #BDC3C7; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.05); margin-bottom: 20px;"><div style="background-color: #E2E8F0; padding: 15px 20px; border-bottom: 3px solid #94A3B8; display: flex; justify-content: space-between; align-items: center;"><div style="font-size: 1.2rem; font-weight: 900; color: #1E293B;">🚜 {equip_name}</div><div style="text-align: right;"><div style="font-size: 0.95rem; font-weight: bold; color: #475569;">⛽ {fuel_type}</div><div style="font-size: 1.15rem; font-weight: 900; color: #C0392B;">共 {total_vol:.1f} 公升</div></div></div><div style="padding: 10px 20px;">"""
                                 
                                 for _, row in group.iterrows():
                                     date_str = pd.to_datetime(row['加油日期']).strftime('%Y-%m-%d')
                                     vol = row['加油量']
                                     shared = row.get('與其他設備共用加油單', '否')
-                                    note = row.get('備註', '')
+                                    note = str(row.get('備註', '')).strip()
                                     
-                                    shared_badge = ""
-                                    if shared == '是':
-                                        shared_badge = f"<span style='background-color: #FDEBD0; color: #D35400; padding: 2px 8px; border-radius: 10px; font-size: 0.85rem; font-weight: bold; margin-left: 8px;'>🔄 共用 ({note})</span>"
+                                    info_html += f"<div style='border-bottom: 1px dashed #EAEDED; padding: 10px 0;'><div style='display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;'><div style='font-size: 1.05rem; color: #334155; font-weight: bold;'>📅 {date_str}</div><div style='font-size: 1.05rem; color: #0F172A; font-weight: bold;'>💧 {vol:.1f} 公升</div></div>"
+                                    
+                                    note_parts = []
+                                    if shared == '是': note_parts.append("🔄 共用")
+                                    if note and note != 'nan': note_parts.append(note)
+                                    
+                                    if note_parts:
+                                        combined_note = " | ".join(note_parts)
+                                        info_html += f"<div style='font-size: 0.9rem; color: #64748B; background-color: #F8FAFC; padding: 6px 10px; margin-top: 5px; border-radius: 6px; border-left: 3px solid #CBD5E1;'><span style='font-weight: bold;'>📝 說明：</span>{combined_note}</div>"
                                         
-                                    info_html += f"<div style='display: flex; justify-content: space-between; align-items: center; border-bottom: 1px dashed #EAEDED; padding: 10px 0;'><div style='font-size: 1.05rem; color: #34495E; font-weight: bold;'>📅 {date_str}</div><div style='font-size: 1.05rem; color: #2C3E50; font-weight: bold;'>💧 {vol:.1f} 公升 {shared_badge}</div></div>"
+                                    info_html += "</div>"
                                 
                                 info_html += "</div></div>"
                                 st.markdown(info_html, unsafe_allow_html=True)
                             
                             # ==============================
-                            # 右側：圖片動態排版演算法 (使用 Cache 加速)
+                            # 右側：圖片與附件處理 (用油量>0才渲染，且去重、直接預覽PDF)
                             # ==============================
-                            with col_img:
-                                all_links = []
-                                for links_str in group['佐證資料'].dropna():
-                                    if links_str and str(links_str).strip() not in ["無", "佐證如總務處事務組中油明細", "-"]:
-                                        parsed_links = [l.strip() for l in re.split(r'[\n,]', str(links_str)) if l.strip()]
-                                        all_links.extend(parsed_links)
-                                
-                                if not all_links:
-                                    st.info("📁 此設備本月無上傳佐證圖片，或已註明與其他單位/設備共用。")
-                                else:
-                                    with st.spinner("🚀 正在從智慧快取池載入佐證圖片..."):
-                                        images_data = []
-                                        for url in all_links:
-                                            # 調用 Cache 函數
-                                            img_obj, is_landscape = get_cached_image_from_drive(url)
-                                            images_data.append({"url": url, "img": img_obj, "is_landscape": is_landscape})
-                                        
-                                        idx = 0
-                                        while idx < len(images_data):
-                                            item = images_data[idx]
+                            if total_vol > 0:
+                                with col_img:
+                                    raw_links = []
+                                    for links_str in group['佐證資料'].dropna():
+                                        if links_str and str(links_str).strip() not in ["無", "佐證如總務處事務組中油明細", "-"]:
+                                            raw_links.extend([l.strip() for l in re.split(r'[\n,]', str(links_str)) if l.strip()])
                                             
-                                            if item['img'] is None:
-                                                st.markdown(f"📄 **佐證附件：** [點擊此處查看或下載]({item['url']})")
-                                                idx += 1
-                                            elif item['is_landscape']:
-                                                st.image(item['img'], use_container_width=True)
-                                                idx += 1
-                                            else:
-                                                c1, c2 = st.columns(2)
-                                                c1.image(item['img'], use_container_width=True)
-                                                idx += 1
+                                    all_links = list(dict.fromkeys(raw_links)) # 去重複化
+                                    
+                                    if not all_links:
+                                        st.info("📁 此設備本月無上傳佐證圖片，或已註明與其他單位/設備共用。")
+                                    else:
+                                        with st.spinner("🚀 正在安全載入圖片與預覽檔案..."):
+                                            images_data = []
+                                            for url in all_links:
+                                                img_obj, is_landscape, file_bytes, filename, is_pdf = get_cached_file_from_drive(url)
+                                                images_data.append({
+                                                    "url": url, 
+                                                    "img": img_obj, 
+                                                    "is_landscape": is_landscape,
+                                                    "bytes": file_bytes,
+                                                    "filename": filename,
+                                                    "is_pdf": is_pdf
+                                                })
+                                            
+                                            idx = 0
+                                            while idx < len(images_data):
+                                                item = images_data[idx]
+                                                unique_key = f"dl_btn_{equip_name}_{idx}"
                                                 
-                                                if idx < len(images_data) and images_data[idx]['img'] is not None and not images_data[idx]['is_landscape']:
-                                                    c2.image(images_data[idx]['img'], use_container_width=True)
+                                                if item['bytes'] is None:
+                                                    st.error("⚠️ 無法讀取該檔案，請確認雲端連結是否正確。")
                                                     idx += 1
+                                                elif item['img'] is None:
+                                                    # 無法截圖的 PDF (例如無 fitz) 或是其他無法預覽的檔案
+                                                    st.markdown(f"📄 **附檔：{item['filename']}** (不支援預覽)")
+                                                    st.download_button(label="📥 點擊下載", data=item['bytes'], file_name=item['filename'], key=unique_key)
+                                                    idx += 1
+                                                else:
+                                                    # 可以顯示圖片 (一般圖或 PDF截圖)
+                                                    caption_text = f"📄 {item['filename']} (PDF 第一頁預覽)" if item['is_pdf'] else None
                                                     
-                                            if idx < len(images_data):
-                                                st.markdown("<hr style='margin: 15px 0; border: 1px dashed #BDC3C7;'>", unsafe_allow_html=True)
-                                                
+                                                    if item['is_landscape']:
+                                                        st.image(item['img'], use_container_width=True, caption=caption_text)
+                                                        if item['is_pdf']:
+                                                            st.download_button(label="📥 下載完整 PDF", data=item['bytes'], file_name=item['filename'], key=f"dl_pdf_{unique_key}")
+                                                        idx += 1
+                                                    else:
+                                                        c1, c2 = st.columns(2)
+                                                        c1.image(item['img'], use_container_width=True, caption=caption_text)
+                                                        if item['is_pdf']:
+                                                            c1.download_button(label="📥 下載完整 PDF", data=item['bytes'], file_name=item['filename'], key=f"dl_pdf1_{unique_key}")
+                                                        idx += 1
+                                                        
+                                                        if idx < len(images_data) and images_data[idx]['img'] is not None and not images_data[idx]['is_landscape']:
+                                                            next_item = images_data[idx]
+                                                            next_caption = f"📄 {next_item['filename']} (PDF預覽)" if next_item['is_pdf'] else None
+                                                            c2.image(next_item['img'], use_container_width=True, caption=next_caption)
+                                                            if next_item['is_pdf']:
+                                                                c2.download_button(label="📥 下載完整 PDF", data=next_item['bytes'], file_name=next_item['filename'], key=f"dl_pdf2_{unique_key}")
+                                                            idx += 1
+                                                            
+                                                if idx < len(images_data):
+                                                    st.markdown("<hr style='margin: 15px 0; border: 1px dashed #BDC3C7;'>", unsafe_allow_html=True)
+                            else:
+                                # 當月用油量為0，右側保持空白不渲染
+                                pass
+                                
                         st.markdown("<br><br>", unsafe_allow_html=True)
                     else:
                         st.warning(f"⚠️ {query_dept_3} 在 {query_year_3} 年 {query_month_3} 月尚無填報紀錄。")
@@ -739,7 +811,6 @@ def render_user_interface():
                                             clean_name = f"{selected_dept}_{target_sub_cat}_{fuel_rep}_{total_vol}.{file_ext}"
                                             file_meta = {'name': clean_name, 'parents': [DRIVE_FOLDER_ID]}
                                             
-                                            # 使用重試裝甲保護上傳機制
                                             file = upload_file_to_drive_with_retry(drive_service, file_meta, file_obj, mime_type)
                                             file_link = file.get('webViewLink')
                                         
@@ -862,7 +933,6 @@ def render_user_interface():
                                                     else: clean_name = f"{selected_dept}_{selected_device}_{fuel_type}_{data_entries[0]['date']}_{idx+1}{shared_tag}.{file_ext}"
                                                     meta = {'name': clean_name, 'parents': [DRIVE_FOLDER_ID]}
                                                     
-                                                    # 使用重試裝甲保護上傳機制
                                                     file = upload_file_to_drive_with_retry(drive_service, meta, file_obj, mime_type)
                                                     links.append(file.get('webViewLink'))
                                                 except: valid_logic=False; st.error("上傳失敗"); break
