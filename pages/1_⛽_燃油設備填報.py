@@ -4,7 +4,7 @@ from datetime import datetime, date, timedelta
 import gspread
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
-from googleapiclient.http import MediaIoBaseUpload
+from googleapiclient.http import MediaIoBaseUpload, MediaIoBaseDownload
 import streamlit_authenticator as stauth
 import plotly.express as px
 import plotly.graph_objects as go
@@ -14,6 +14,14 @@ import random
 import io
 import uuid
 from PIL import Image
+from functools import wraps
+
+# [PDF 截圖套件防護]
+try:
+    import fitz  # PyMuPDF
+    HAS_FITZ = True
+except ImportError:
+    HAS_FITZ = False
 
 # ==========================================
 # 0. 系統設定 (輕量前台版) & 共用防護機制
@@ -23,20 +31,46 @@ st.set_page_config(page_title="燃油設備填報", page_icon="⛽", layout="wid
 def get_taiwan_time():
     return datetime.utcnow() + timedelta(hours=8)
 
-# [防護機制 1] 寫入重試機制 (解決多人同時送出的 429 錯誤)
-def safe_append_rows(worksheet, rows, max_retries=5):
-    for attempt in range(max_retries):
-        try:
-            worksheet.append_rows(rows)
-            return True
-        except Exception as e:
-            if "429" in str(e) and attempt < max_retries - 1:
-                wait_time = random.uniform(3.0, 5.0)
-                time.sleep(wait_time)
-            else:
-                raise e
+# [防護機制 1] 智慧重試裝甲 (指數退避機制)
+def with_retry(max_retries=5, base_delay=2.0, backoff_factor=2.0):
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            delay = base_delay
+            for attempt in range(max_retries):
+                try:
+                    return func(*args, **kwargs)
+                except Exception as e:
+                    err_str = str(e).lower()
+                    if "429" in err_str or "quota" in err_str or "rate limit" in err_str:
+                        if attempt < max_retries - 1:
+                            time.sleep(delay + random.uniform(0.1, 1.0))
+                            delay *= backoff_factor
+                            continue
+                    raise e
+        return wrapper
+    return decorator
 
-# [防護機制 2] 圖片聰明壓縮處理 (確保檔案絕對不會變大)
+# [防護機制 1.1] 封裝重試 API 動作
+@with_retry(max_retries=5, base_delay=3.0)
+def append_rows_with_retry(worksheet, rows):
+    worksheet.append_rows(rows)
+
+@with_retry(max_retries=3, base_delay=2.0)
+def get_all_records_with_retry(worksheet):
+    return worksheet.get_all_records()
+
+@with_retry(max_retries=3, base_delay=2.0)
+def get_all_values_with_retry(worksheet):
+    return worksheet.get_all_values()
+
+@with_retry(max_retries=3, base_delay=2.0)
+def upload_file_to_drive_with_retry(drive_svc, file_meta, file_obj, mime_type):
+    file_obj.seek(0)
+    media = MediaIoBaseUpload(file_obj, mimetype=mime_type, resumable=True)
+    return drive_svc.files().create(body=file_meta, media_body=media, fields='webViewLink').execute()
+
+# [防護機制 2] 圖片聰明壓縮處理
 def process_and_compress_file(uploaded_file):
     file_ext = uploaded_file.name.split('.')[-1].lower()
     if file_ext in ['jpg', 'jpeg', 'png']:
@@ -92,8 +126,6 @@ st.markdown("""
     .stRadio div[role="radiogroup"] label p { font-size: 1.1rem !important; font-weight: normal !important; color: #1A5276 !important; }
     .stRadio div[role="radiogroup"] label[data-checked="true"] { background-color: #1A5276 !important; border-color: #1A5276 !important; }
     .stRadio div[role="radiogroup"] label[data-checked="true"] p { color: #FFFFFF !important; }
-    [data-testid="stDataFrame"] { font-size: 1.25rem !important; }
-    [data-testid="stDataFrame"] div { font-size: 1.25rem !important; }
     .dev-card-v148 { background-color: #FFFFFF; border: 1px solid #BDC3C7; border-radius: 12px; overflow: hidden; box-shadow: 0 3px 6px rgba(0,0,0,0.08); margin-bottom: 20px; display: flex; flex-direction: column; }
     .dev-header { padding: 12px 15px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(0,0,0,0.1); }
     .dev-header-left { display: flex; flex-direction: column; gap: 3px; }
@@ -169,8 +201,6 @@ with st.sidebar:
     st.caption(f"帳號: {username}")
     st.success("☁️ 雲端連線正常")
     
-    # --- [防護機制 3] 線上人數統計雷達 ---
-    # [精準導入 2] 快取資源：使用 @st.cache_resource 確保變數跨 Session 共用
     @st.cache_resource
     def get_active_users():
         return {}
@@ -197,9 +227,10 @@ with st.sidebar:
         st.warning(f"🟡 目前線上人數: {online_count} 人 (普通，可正常填報)")
     else:
         st.success(f"🟢 目前線上人數: {online_count} 人 (順暢)")
-    # ------------------------------
     
     st.markdown("---")
+    if not HAS_FITZ:
+        st.warning("⚠️ 系統未偵測到 `PyMuPDF` 套件，PDF 截圖預覽功能將停用 (仍可下載附件)。\n請管理者執行 `pip install PyMuPDF`。")
     authenticator.logout('登出系統', 'sidebar')
 
 # ==========================================
@@ -214,7 +245,6 @@ DEVICE_CODE_MAP = {"GV-1": "公務車輛(GV-1-)", "GV-2": "乘坐式割草機(GV
 MORANDI_COLORS = { "公務車輛(GV-1-)": "#B0C4DE", "乘坐式割草機(GV-2-)": "#F5CBA7", "乘坐式農用機具(GV-3-)": "#D7BDE2", "鍋爐(GS-1-)": "#E6B0AA", "發電機(GS-2-)": "#A9CCE3", "肩背或手持式割草機、吹葉機(GS-3-)": "#A3E4D7", "肩背或手持式農用機具(GS-4-)": "#F9E79F" }
 DASH_PALETTE = ['#B0C4DE', '#F5CBA7', '#A9CCE3', '#E6B0AA', '#D7BDE2', '#A3E4D7', '#F9E79F', '#95A5A6', '#85C1E9', '#D2B4DE', '#F1948A', '#76D7C4']
 
-# [精準導入 2] 快取資源：確保資料庫連線物件不會因重跑而重複建立
 @st.cache_resource
 def init_google_fuel():
     oauth = st.secrets["gcp_oauth"]
@@ -235,42 +265,113 @@ try:
     if len(ws_record.get_all_values()) == 0: ws_record.append_row(["填報時間", "填報單位", "填報人", "填報人分機", "設備名稱備註", "校內財產編號", "原燃物料名稱", "油卡編號", "加油日期", "加油量", "與其他設備共用加油單", "備註", "佐證資料"])
 except Exception as e: st.error(f"燃油資料庫連線失敗: {e}"); st.stop()
 
-# [精準導入 2] 快取資料：讀取資料庫數據並設定 ttl 保持新鮮度
 @st.cache_data(ttl=86400)
 def load_fuel_data():
-    max_retries = 3; delay = 2; df_e = pd.DataFrame(); df_r = pd.DataFrame()
-    for attempt in range(max_retries):
-        try: df_e = pd.DataFrame(ws_equip.get_all_records()).astype(str); break
-        except Exception as e:
-            if "429" in str(e) and attempt < max_retries - 1: time.sleep(delay); delay *= 2
-            else: raise e
-    if '設備編號' in df_e.columns: df_e['統計類別'] = df_e['設備編號'].apply(lambda c: next((v for k, v in DEVICE_CODE_MAP.items() if str(c).startswith(k)), "其他/未分類"))
-    else: df_e['統計類別'] = "未設定I欄"
-    df_e['設備數量_num'] = pd.to_numeric(df_e['設備數量'], errors='coerce').fillna(1)
+    df_e = pd.DataFrame()
+    df_r = pd.DataFrame()
     
-    for attempt in range(max_retries):
-        try: data = ws_record.get_all_values(); df_r = pd.DataFrame(data[1:], columns=data[0]) if len(data) > 1 else pd.DataFrame(columns=data[0]); break
-        except Exception as e:
-            if "429" in str(e) and attempt < max_retries - 1: time.sleep(delay); delay *= 2
-            else: raise e
+    try:
+        records = get_all_records_with_retry(ws_equip)
+        df_e = pd.DataFrame(records).astype(str)
+    except Exception as e:
+        st.error(f"載入設備清單發生錯誤: {e}")
+
+    if '設備編號' in df_e.columns: 
+        df_e['統計類別'] = df_e['設備編號'].apply(lambda c: next((v for k, v in DEVICE_CODE_MAP.items() if str(c).startswith(k)), "其他/未分類"))
+    else: 
+        df_e['統計類別'] = "未設定I欄"
+    df_e['設備數量_num'] = pd.to_numeric(df_e.get('設備數量', 1), errors='coerce').fillna(1)
+    
+    try:
+        data = get_all_values_with_retry(ws_record)
+        if data and len(data) > 1:
+            df_r = pd.DataFrame(data[1:], columns=data[0])
+        elif data:
+            df_r = pd.DataFrame(columns=data[0])
+    except Exception as e:
+        st.error(f"載入填報紀錄發生錯誤: {e}")
+        
     return df_e, df_r
 
 df_equip, df_records = load_fuel_data()
 
-# === 預備資料 ===
-available_years = []
+# === 預備資料 (年份分流設定) ===
+available_years_dash = []
+available_years_details = []
 record_units = []
 if not df_records.empty:
     df_records['加油量'] = pd.to_numeric(df_records['加油量'], errors='coerce').fillna(0)
     df_records['日期格式'] = pd.to_datetime(df_records['加油日期'], errors='coerce')
-    available_years = sorted(df_records['日期格式'].dt.year.dropna().astype(int).unique(), reverse=True)
-    if not available_years: available_years = [datetime.now().year]
+    raw_years = sorted(df_records['日期格式'].dt.year.dropna().astype(int).unique(), reverse=True)
+    
+    available_years_dash = [y for y in raw_years if y >= 2025]
+    if not available_years_dash: available_years_dash = [max(2025, datetime.now().year)]
+    
+    available_years_details = [y for y in raw_years if y >= 2026]
+    if not available_years_details: available_years_details = [max(2026, datetime.now().year)]
+    
     record_units = sorted([str(x) for x in df_records['填報單位'].unique() if str(x) != 'nan'])
+else:
+    available_years_dash = [max(2025, datetime.now().year)]
+    available_years_details = [max(2026, datetime.now().year)]
 
 # ==========================================
-# [精準導入 1] 建立局部重跑 (Fragment) 函數區塊
+# [圖片智慧快取機制]
 # ==========================================
+@st.cache_data(ttl=86400, show_spinner=False, max_entries=100)
+def get_cached_file_from_drive(url):
+    try:
+        _, d_svc = init_google_fuel()
+        match = re.search(r'/d/([a-zA-Z0-9_-]+)', url)
+        if not match:
+            match = re.search(r'id=([a-zA-Z0-9_-]+)', url)
+        if not match: return None, False, None, None, False
 
+        file_id = match.group(1)
+        
+        try:
+            meta = d_svc.files().get(fileId=file_id, fields="name").execute()
+            filename = meta.get('name', f'佐證資料_{file_id}')
+        except:
+            filename = f"佐證資料_{file_id}.pdf"
+            
+        is_pdf = filename.lower().endswith('.pdf')
+
+        request = d_svc.files().get_media(fileId=file_id)
+        fh = io.BytesIO()
+        downloader = MediaIoBaseDownload(fh, request)
+        done = False
+        while done is False:
+            status, done = downloader.next_chunk()
+        
+        fh.seek(0)
+        file_bytes = fh.read()
+        
+        try:
+            if is_pdf and HAS_FITZ:
+                doc = fitz.open("pdf", file_bytes)
+                images = []
+                for page_num in range(len(doc)):
+                    page = doc.load_page(page_num)
+                    pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))
+                    img_data = pix.tobytes("png")
+                    img = Image.open(io.BytesIO(img_data))
+                    images.append(img)
+                is_landscape = images[0].width > images[0].height if images else False
+                return images, is_landscape, file_bytes, filename, True
+            else:
+                img = Image.open(io.BytesIO(file_bytes))
+                is_landscape = img.width > img.height
+                return [img], is_landscape, file_bytes, filename, False
+        except:
+            return None, False, file_bytes, filename, is_pdf
+            
+    except Exception as e:
+        return None, False, None, None, False
+
+# ==========================================
+# [儀表板] 局部渲染區塊
+# ==========================================
 @st.fragment
 def render_dashboard_fragment(df_records, df_equip, record_units, available_years):
     st.markdown("### 📊 動態查詢看板")
@@ -350,7 +451,7 @@ def render_dashboard_fragment(df_records, df_equip, record_units, available_year
                 st.plotly_chart(fig, use_container_width=True)
                 
                 st.markdown("---")
-                st.subheader("🌍 單位油料使用碳排放量(公噸二氧化碳當量)結構", anchor=False)
+                st.subheader("🌍 單位油料使用碳排放量結構", anchor=False)
                 df_final['CO2e'] = df_final.apply(lambda r: r['加油量']*0.0022 if '汽油' in str(r['原燃物料名稱']) else r['加油量']*0.0027, axis=1)
                 treemap_data = df_final.groupby(['設備名稱備註'])['CO2e'].sum().reset_index()
                 
@@ -453,32 +554,291 @@ def render_dashboard_fragment(df_records, df_equip, record_units, available_year
             else: st.warning(f"⚠️ {query_dept} 在 {query_year} 年度尚無填報紀錄。")
     else: st.info("尚無該年度資料，無法顯示儀表板。")
 
+
+# ==========================================
+# [明細與佐證] 局部渲染區塊 
+# ==========================================
 @st.fragment
 def render_details_fragment(df_records, record_units, available_years):
-    st.markdown("### 📋 單位申報明細")
-    st.info("請選擇「單位」與「年份」，以檢視該年度的逐筆填報明細資料。")
+    st.markdown("### 📋 單位申報明細與佐證資料")
+    st.info("請依序選擇「單位」、「年份」與「月份」，以檢視該月各設備的用油統計與加油單影像。")
+    
     if not df_records.empty:
-        c_dept_3, c_year_3 = st.columns([2, 1])
+        c_dept_3, c_year_3, c_month_3 = st.columns([2, 1, 1])
         query_dept_3 = c_dept_3.selectbox("🏢 選擇查詢單位", record_units, index=None, placeholder="請選擇...", key="t3_dept")
-        query_year_3 = c_year_3.selectbox("📅 選擇統計年度", available_years, index=0, key="t3_year")
-
+        query_year_3 = c_year_3.selectbox("📅 選擇年份", available_years, index=0, key="t3_year")
+        
         if query_dept_3 and query_year_3:
             df_dept_3 = df_records[df_records['填報單位'] == query_dept_3].copy()
-            df_final_3 = df_dept_3[df_dept_3['日期格式'].dt.year == query_year_3].copy()
+            df_year_3 = df_dept_3[df_dept_3['日期格式'].dt.year == query_year_3].copy()
+            available_months = sorted(df_year_3['日期格式'].dt.month.dropna().astype(int).unique())
+            
+            if available_months:
+                query_month_3 = c_month_3.selectbox("📆 選擇月份", available_months, key="t3_month")
+                
+                if query_month_3:
+                    df_final_3 = df_year_3[df_year_3['日期格式'].dt.month == query_month_3].copy()
+                    
+                    if not df_final_3.empty:
+                        st.markdown("---")
+                        grouped = df_final_3.groupby('設備名稱備註')
+                        
+                        is_vip = query_dept_3 in VIP_UNITS
+                        
+                        if is_vip:
+                            # ==============================
+                            # 模式 1: VIP 批次申報單位 (無縫接續 + 統一右側顯示檔案)
+                            # ==============================
+                            col_info, col_img = st.columns([4, 6], gap="large")
+                            
+                            with col_info:
+                                for equip_name, group in grouped:
+                                    fuel_type = group['原燃物料名稱'].iloc[0] if not group.empty else "未知"
+                                    total_vol = group['加油量'].sum()
+                                    
+                                    # [修改1] 莫蘭迪深色標題(#4A5568) 與 灰白內容區(#F8F9F9)，無縫接續 (margin-bottom: 8px)
+                                    info_html = f"""<div style="background-color: #F8F9F9; border: 1px solid #D5D8DC; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 5px rgba(0,0,0,0.05); margin-bottom: 8px;"><div style="background-color: #4A5568; padding: 15px 20px; border-bottom: 3px solid #2D3748; display: flex; justify-content: space-between; align-items: center;"><div style="font-size: 1.2rem; font-weight: 900; color: #FFFFFF;">🚜 {equip_name}</div><div style="text-align: right;"><div style="font-size: 0.95rem; font-weight: bold; color: #CBD5E1;">⛽ {fuel_type}</div><div style="font-size: 1.35rem; font-weight: 900; color: #F1C40F;">共 {total_vol:.1f} 公升</div></div></div><div style="padding: 10px 20px;">"""
+                                    
+                                    email_changes = set()
+                                    rows_html = ""
+                                    
+                                    for _, row in group.iterrows():
+                                        date_str = pd.to_datetime(row['加油日期']).strftime('%Y-%m-%d')
+                                        vol = row['加油量']
+                                        shared = row.get('與其他設備共用加油單', '否')
+                                        note = str(row.get('備註', '')).strip()
+                                        
+                                        email_match = re.search(r'\[Email異動:\s*.*?\]', note)
+                                        if email_match:
+                                            email_changes.add(email_match.group(0))
+                                            note = note.replace(email_match.group(0), '').strip()
+                                            if note.endswith('|'): note = note[:-1].strip()
+                                            if note.startswith('|'): note = note[1:].strip()
+                                        
+                                        rows_html += f"<div style='border-bottom: 1px dashed #D5D8DC; padding: 10px 0;'><div style='display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;'><div style='font-size: 1.05rem; color: #34495E; font-weight: bold;'>📅 {date_str}</div><div style='font-size: 1.25rem; color: #1A5276; font-weight: 900;'>💧 {vol:.1f} 公升</div></div>"
+                                        
+                                        note_parts = []
+                                        if shared == '是': note_parts.append("🔄 共用")
+                                        if note and note != 'nan': note_parts.append(note)
+                                        
+                                        if note_parts:
+                                            combined_note = " | ".join(note_parts)
+                                            rows_html += f"<div style='font-size: 0.9rem; color: #145A32; background-color: #E8F8F5; padding: 6px 10px; margin-top: 5px; border-radius: 6px; border-left: 3px solid #48C9B0;'><span style='font-weight: bold;'>📝 說明：</span>{combined_note}</div>"
+                                            
+                                        rows_html += "</div>"
+                                    
+                                    if email_changes:
+                                        for ec in email_changes:
+                                            rows_html += f"<div style='font-size: 0.9rem; color: #145A32; background-color: #E8F8F5; padding: 6px 10px; margin-top: 10px; border-radius: 6px; font-weight: bold; border: 1px solid #A3E4D7;'>ℹ️ {ec}</div>"
+                                    
+                                    info_html += rows_html + "</div></div>"
+                                    st.markdown(info_html, unsafe_allow_html=True)
+                            
+                            with col_img:
+                                # [修改2] 統一抓取 VIP 單位於該月的唯一/首選代表性檔案，不再聚合全部檔案導致多份重複
+                                target_link = None
+                                
+                                # 優先尋找備註包含 "具車牌的汽油公務車" 的油單檔案
+                                for _, row in df_final_3.iterrows():
+                                    note = str(row.get('備註', ''))
+                                    links_str = str(row.get('佐證資料', ''))
+                                    if links_str and links_str not in ["無", "佐證如總務處事務組中油明細", "-"]:
+                                        if "具車牌的汽油公務車" in note:
+                                            valid_links = [l.strip() for l in re.split(r'[\n,]', links_str) if l.strip()]
+                                            if valid_links:
+                                                target_link = valid_links[0]
+                                                break
+                                
+                                # 若當月該單位無該類別，去撈總務處事務組的資料 (針對民雄等單位)
+                                if not target_link:
+                                    df_z = df_records[(df_records['填報單位'] == '總務處事務組') & 
+                                                      (df_records['日期格式'].dt.year == query_year_3) &
+                                                      (df_records['日期格式'].dt.month == query_month_3)]
+                                    for _, row in df_z.iterrows():
+                                        note = str(row.get('備註', ''))
+                                        links_str = str(row.get('佐證資料', ''))
+                                        if links_str and links_str not in ["無", "佐證如總務處事務組中油明細", "-"]:
+                                            if "具車牌的汽油公務車" in note:
+                                                valid_links = [l.strip() for l in re.split(r'[\n,]', links_str) if l.strip()]
+                                                if valid_links:
+                                                    target_link = valid_links[0]
+                                                    break
+                                    
+                                    # Fallback: 真的沒有的話，抓總務處事務組當月隨便第一份有效檔案
+                                    if not target_link:
+                                        for links_str in df_z['佐證資料'].dropna():
+                                            if links_str and str(links_str).strip() not in ["無", "佐證如總務處事務組中油明細", "-"]:
+                                                valid = [l.strip() for l in re.split(r'[\n,]', str(links_str)) if l.strip()]
+                                                if valid:
+                                                    target_link = valid[0]
+                                                    break
+                                
+                                # Ultimate Fallback: 抓該單位當月隨便第一份有效檔案
+                                if not target_link:
+                                    for links_str in df_final_3['佐證資料'].dropna():
+                                        if links_str and str(links_str).strip() not in ["無", "佐證如總務處事務組中油明細", "-"]:
+                                            valid = [l.strip() for l in re.split(r'[\n,]', str(links_str)) if l.strip()]
+                                            if valid:
+                                                target_link = valid[0]
+                                                break
 
-            if not df_final_3.empty:
-                df_display = df_final_3[["加油日期", "設備名稱備註", "原燃物料名稱", "油卡編號", "加油量", "填報人", "備註"]].sort_values(by='加油日期', ascending=False).rename(columns={'加油量': '加油量(公升)'})
-                st.dataframe(df_display.style.format({"加油量(公升)": "{:,.2f}"}), use_container_width=True)
+                                unique_links = [target_link] if target_link else []
+                                
+                                if not unique_links:
+                                    st.info("📁 該單位本月無上傳佐證圖片，或總務處尚未上傳統一明細。")
+                                else:
+                                    with st.spinner("🚀 正在載入該月統一佐證資料..."):
+                                        images_data = []
+                                        for url in unique_links:
+                                            images_list, is_landscape, file_bytes, filename, is_pdf = get_cached_file_from_drive(url)
+                                            if images_list:
+                                                for i, img in enumerate(images_list):
+                                                    page_suffix = f" (第 {i+1} 頁)" if is_pdf and len(images_list) > 1 else ""
+                                                    images_data.append({ "url": url, "img": img, "is_landscape": is_landscape, "bytes": file_bytes, "filename": filename, "is_pdf": is_pdf, "page_suffix": page_suffix })
+                                            else:
+                                                images_data.append({ "url": url, "img": None, "is_landscape": False, "bytes": file_bytes, "filename": filename, "is_pdf": is_pdf, "page_suffix": "" })
+                                        
+                                        idx = 0
+                                        while idx < len(images_data):
+                                            item = images_data[idx]
+                                            unique_key = f"dl_vip_{idx}_{uuid.uuid4().hex[:6]}"
+                                            
+                                            if item['bytes'] is None:
+                                                st.error("⚠️ 無法讀取該檔案，請確認雲端連結是否正確。")
+                                                idx += 1
+                                            elif item['img'] is None:
+                                                st.markdown(f"📄 **附檔：{item['filename']}** (不支援預覽)")
+                                                st.download_button(label="📥 點擊下載", data=item['bytes'], file_name=item['filename'], key=unique_key)
+                                                idx += 1
+                                            else:
+                                                caption_text = f"📄 {item['filename']}{item['page_suffix']}"
+                                                if item['is_landscape']:
+                                                    st.image(item['img'], use_container_width=True, caption=caption_text)
+                                                    idx += 1
+                                                else:
+                                                    c1, c2 = st.columns(2)
+                                                    c1.image(item['img'], use_container_width=True, caption=caption_text)
+                                                    idx += 1
+                                                    if idx < len(images_data) and images_data[idx]['img'] is not None and not images_data[idx]['is_landscape']:
+                                                        next_item = images_data[idx]
+                                                        c2.image(next_item['img'], use_container_width=True, caption=f"📄 {next_item['filename']}{next_item['page_suffix']}")
+                                                        idx += 1
+                                            if idx < len(images_data):
+                                                st.markdown("<hr style='margin: 15px 0; border: 1px dashed #BDC3C7;'>", unsafe_allow_html=True)
+                                                
+                        else:
+                            # ==============================
+                            # 模式 2: 一般申報單位 (群組隔離，圖片跟隨設備，加分隔線)
+                            # ==============================
+                            for equip_name, group in grouped:
+                                col_info, col_img = st.columns([4, 6], gap="large")
+                                fuel_type = group['原燃物料名稱'].iloc[0] if not group.empty else "未知"
+                                total_vol = group['加油量'].sum()
+                                
+                                with col_info:
+                                    # [修改1] 灰白底色 (#F8F9F9)
+                                    info_html = f"""<div style="background-color: #F8F9F9; border: 1px solid #D5D8DC; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.05); margin-bottom: 20px;"><div style="background-color: #4A5568; padding: 15px 20px; border-bottom: 3px solid #2D3748; display: flex; justify-content: space-between; align-items: center;"><div style="font-size: 1.2rem; font-weight: 900; color: #FFFFFF;">🚜 {equip_name}</div><div style="text-align: right;"><div style="font-size: 0.95rem; font-weight: bold; color: #CBD5E1;">⛽ {fuel_type}</div><div style="font-size: 1.35rem; font-weight: 900; color: #F1C40F;">共 {total_vol:.1f} 公升</div></div></div><div style="padding: 10px 20px;">"""
+                                    
+                                    email_changes = set()
+                                    rows_html = ""
+                                    
+                                    for _, row in group.iterrows():
+                                        date_str = pd.to_datetime(row['加油日期']).strftime('%Y-%m-%d')
+                                        vol = row['加油量']
+                                        shared = row.get('與其他設備共用加油單', '否')
+                                        note = str(row.get('備註', '')).strip()
+                                        
+                                        email_match = re.search(r'\[Email異動:\s*.*?\]', note)
+                                        if email_match:
+                                            email_changes.add(email_match.group(0))
+                                            note = note.replace(email_match.group(0), '').strip()
+                                            if note.endswith('|'): note = note[:-1].strip()
+                                            if note.startswith('|'): note = note[1:].strip()
+                                        
+                                        rows_html += f"<div style='border-bottom: 1px dashed #D5D8DC; padding: 10px 0;'><div style='display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;'><div style='font-size: 1.05rem; color: #34495E; font-weight: bold;'>📅 {date_str}</div><div style='font-size: 1.25rem; color: #1A5276; font-weight: 900;'>💧 {vol:.1f} 公升</div></div>"
+                                        
+                                        note_parts = []
+                                        if shared == '是': note_parts.append("🔄 共用")
+                                        if note and note != 'nan': note_parts.append(note)
+                                        
+                                        if note_parts:
+                                            combined_note = " | ".join(note_parts)
+                                            rows_html += f"<div style='font-size: 0.9rem; color: #145A32; background-color: #E8F8F5; padding: 6px 10px; margin-top: 5px; border-radius: 6px; border-left: 3px solid #48C9B0;'><span style='font-weight: bold;'>📝 說明：</span>{combined_note}</div>"
+                                            
+                                        rows_html += "</div>"
+                                    
+                                    if email_changes:
+                                        for ec in email_changes:
+                                            rows_html += f"<div style='font-size: 0.9rem; color: #145A32; background-color: #E8F8F5; padding: 6px 10px; margin-top: 10px; border-radius: 6px; font-weight: bold; border: 1px solid #A3E4D7;'>ℹ️ {ec}</div>"
+                                    
+                                    info_html += rows_html + "</div></div>"
+                                    st.markdown(info_html, unsafe_allow_html=True)
+                                
+                                with col_img:
+                                    if total_vol > 0:
+                                        raw_links = []
+                                        for links_str in group['佐證資料'].dropna():
+                                            if links_str and str(links_str).strip() not in ["無", "-"]:
+                                                raw_links.extend([l.strip() for l in re.split(r'[\n,]', str(links_str)) if l.strip()])
+                                                
+                                        unique_links = list(dict.fromkeys(raw_links))
+                                        
+                                        if not unique_links:
+                                            st.info("📁 此設備本月無上傳佐證圖片，或已註明與其他單位/設備共用。")
+                                        else:
+                                            with st.spinner(f"🚀 正在載入 {equip_name} 之佐證資料..."):
+                                                images_data = []
+                                                for url in unique_links:
+                                                    images_list, is_landscape, file_bytes, filename, is_pdf = get_cached_file_from_drive(url)
+                                                    if images_list:
+                                                        for i, img in enumerate(images_list):
+                                                            page_suffix = f" (第 {i+1} 頁)" if is_pdf and len(images_list) > 1 else ""
+                                                            images_data.append({ "url": url, "img": img, "is_landscape": is_landscape, "bytes": file_bytes, "filename": filename, "is_pdf": is_pdf, "page_suffix": page_suffix })
+                                                    else:
+                                                        images_data.append({ "url": url, "img": None, "is_landscape": False, "bytes": file_bytes, "filename": filename, "is_pdf": is_pdf, "page_suffix": "" })
+                                                
+                                                idx = 0
+                                                while idx < len(images_data):
+                                                    item = images_data[idx]
+                                                    unique_key = f"dl_btn_{equip_name}_{idx}_{uuid.uuid4().hex[:6]}"
+                                                    
+                                                    if item['bytes'] is None:
+                                                        st.error("⚠️ 無法讀取該檔案，請確認雲端連結是否正確。")
+                                                        idx += 1
+                                                    elif item['img'] is None:
+                                                        st.markdown(f"📄 **附檔：{item['filename']}** (不支援預覽)")
+                                                        st.download_button(label="📥 點擊下載", data=item['bytes'], file_name=item['filename'], key=unique_key)
+                                                        idx += 1
+                                                    else:
+                                                        caption_text = f"📄 {item['filename']}{item['page_suffix']}"
+                                                        if item['is_landscape']:
+                                                            st.image(item['img'], use_container_width=True, caption=caption_text)
+                                                            idx += 1
+                                                        else:
+                                                            c1, c2 = st.columns(2)
+                                                            c1.image(item['img'], use_container_width=True, caption=caption_text)
+                                                            idx += 1
+                                                            if idx < len(images_data) and images_data[idx]['img'] is not None and not images_data[idx]['is_landscape']:
+                                                                next_item = images_data[idx]
+                                                                c2.image(next_item['img'], use_container_width=True, caption=f"📄 {next_item['filename']}{next_item['page_suffix']}")
+                                                                idx += 1
+                                                    if idx < len(images_data):
+                                                        st.markdown("<hr style='margin: 15px 0; border: 1px dashed #BDC3C7;'>", unsafe_allow_html=True)
+                                
+                                st.markdown("<hr style='border: 1px solid #BDC3C7; margin: 30px 0;'>", unsafe_allow_html=True)
+
+                        st.markdown("<br><br>", unsafe_allow_html=True)
+                    else:
+                        st.warning(f"⚠️ {query_dept_3} 在 {query_year_3} 年 {query_month_3} 月尚無填報紀錄。")
             else:
-                st.warning(f"⚠️ {query_dept_3} 在 {query_year_3} 年度尚無填報明細紀錄。")
+                st.warning(f"⚠️ {query_dept_3} 在 {query_year_3} 年度尚無任何月份的填報紀錄。")
     else:
-        st.info("尚無該年度資料，無法顯示明細。")
+        st.info("尚無資料，無法顯示明細。")
 
 # ==========================================
 # 4. 主程式 (前台填報與看板)
 # ==========================================
 def render_user_interface():
-    # [精準導入 3] 善用狀態管理：集中初始化 session_state 變數，確保跨域不報錯或歸零
     if 'multi_row_count' not in st.session_state: st.session_state['multi_row_count'] = 1
     if 'reset_counter' not in st.session_state: st.session_state['reset_counter'] = 0
 
@@ -595,8 +955,8 @@ def render_user_interface():
                                             fuel_rep = filtered_equip.iloc[0]['原燃物料名稱'] if not filtered_equip.empty else "混合油品"
                                             clean_name = f"{selected_dept}_{target_sub_cat}_{fuel_rep}_{total_vol}.{file_ext}"
                                             file_meta = {'name': clean_name, 'parents': [DRIVE_FOLDER_ID]}
-                                            media = MediaIoBaseUpload(file_obj, mimetype=mime_type, resumable=True)
-                                            file = drive_service.files().create(body=file_meta, media_body=media, fields='webViewLink').execute()
+                                            
+                                            file = upload_file_to_drive_with_retry(drive_service, file_meta, file_obj, mime_type)
                                             file_link = file.get('webViewLink')
                                         
                                         fleet_id = "-"; 
@@ -614,7 +974,7 @@ def render_user_interface():
                                             rows_to_append.append([current_time, selected_dept, p_name, p_ext, row['設備名稱備註'], str(row.get('校內財產編號','-')), row['原燃物料名稱'], fleet_id, str(batch_date), vol, "是", f"批次申報-{target_sub_cat} | {note_val}", file_link])
                                         
                                         if rows_to_append: 
-                                            safe_append_rows(ws_record, rows_to_append)
+                                            append_rows_with_retry(ws_record, rows_to_append)
                                             st.success(f"✅ 批次申報成功！已寫入 {len(rows_to_append)} 筆紀錄。")
                                             st.balloons()
                                             st.session_state['reset_counter'] += 1
@@ -717,8 +1077,8 @@ def render_user_interface():
                                                     elif len(f_files) == 1 and len(data_entries) > 1: clean_name = f"{selected_dept}_{selected_device}_{fuel_type}_{total_report_vol}{shared_tag}.{file_ext}"
                                                     else: clean_name = f"{selected_dept}_{selected_device}_{fuel_type}_{data_entries[0]['date']}_{idx+1}{shared_tag}.{file_ext}"
                                                     meta = {'name': clean_name, 'parents': [DRIVE_FOLDER_ID]}
-                                                    media = MediaIoBaseUpload(file_obj, mimetype=mime_type, resumable=True)
-                                                    file = drive_service.files().create(body=meta, media_body=media, fields='webViewLink').execute()
+                                                    
+                                                    file = upload_file_to_drive_with_retry(drive_service, meta, file_obj, mime_type)
                                                     links.append(file.get('webViewLink'))
                                                 except: valid_logic=False; st.error("上傳失敗"); break
                                         if valid_logic:
@@ -730,7 +1090,7 @@ def render_user_interface():
                                             shared_str = "是" if is_shared else "-"; card_str = fuel_card_id if fuel_card_id else "-"
                                             for e in data_entries: rows.append([now_str, selected_dept, p_name, p_ext, selected_device, str(row.get('校內財產編號','-')), str(row.get('原燃物料名稱','-')), card_str, str(e['date']), e['vol'], shared_str, note_input, final_link])
                                             if rows: 
-                                                safe_append_rows(ws_record, rows)
+                                                append_rows_with_retry(ws_record, rows)
                                                 st.success("✅ 申報成功！")
                                                 st.balloons()
                                                 st.session_state['reset_counter'] += 1
@@ -740,7 +1100,7 @@ def render_user_interface():
                                         note_input += f" [Email異動: {str(p_email).strip()}]"
                                         
                                     rows = [[get_taiwan_time().strftime("%Y-%m-%d %H:%M:%S"), selected_dept, p_name, p_ext, selected_device, str(row.get('校內財產編號','-')), str(row.get('原燃物料名稱','-')), "-", str(data_entries[0]['date']), 0.0, "-", note_input, "無"]]
-                                    safe_append_rows(ws_record, rows)
+                                    append_rows_with_retry(ws_record, rows)
                                     st.success("✅ 申報成功！")
                                     st.balloons()
                                     st.session_state['reset_counter'] += 1
@@ -749,13 +1109,13 @@ def render_user_interface():
 
     # --- Tab 2: 看板 ---
     with tabs[1]:
-        # [精準導入 1] 呼叫局部重跑區塊
-        render_dashboard_fragment(df_records, df_equip, record_units, available_years)
+        # 精準傳入 2025年起 的年份清單
+        render_dashboard_fragment(df_records, df_equip, record_units, available_years_dash)
 
     # --- Tab 3: 單位申報明細 ---
     with tabs[2]:
-        # [精準導入 1] 呼叫局部重跑區塊
-        render_details_fragment(df_records, record_units, available_years)
+        # 精準傳入 2026年起 的年份清單
+        render_details_fragment(df_records, record_units, available_years_details)
 
 if __name__ == "__main__":
     render_user_interface()
