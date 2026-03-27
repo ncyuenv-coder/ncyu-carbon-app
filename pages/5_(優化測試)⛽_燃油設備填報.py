@@ -14,6 +14,7 @@ import random
 import io
 import uuid
 from PIL import Image
+from functools import wraps
 
 # ==========================================
 # 0. 系統設定 (輕量前台版) & 共用防護機制
@@ -23,18 +24,44 @@ st.set_page_config(page_title="燃油設備填報", page_icon="⛽", layout="wid
 def get_taiwan_time():
     return datetime.utcnow() + timedelta(hours=8)
 
-# [防護機制 1] 寫入重試機制
-def safe_append_rows(worksheet, rows, max_retries=5):
-    for attempt in range(max_retries):
-        try:
-            worksheet.append_rows(rows)
-            return True
-        except Exception as e:
-            if "429" in str(e) and attempt < max_retries - 1:
-                wait_time = random.uniform(3.0, 5.0)
-                time.sleep(wait_time)
-            else:
-                raise e
+# [防護機制 1] 智慧重試裝甲 (指數退避機制)
+def with_retry(max_retries=5, base_delay=2.0, backoff_factor=2.0):
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            delay = base_delay
+            for attempt in range(max_retries):
+                try:
+                    return func(*args, **kwargs)
+                except Exception as e:
+                    err_str = str(e).lower()
+                    if "429" in err_str or "quota" in err_str or "rate limit" in err_str:
+                        if attempt < max_retries - 1:
+                            time.sleep(delay + random.uniform(0.1, 1.0))
+                            delay *= backoff_factor
+                            continue
+                    raise e
+        return wrapper
+    return decorator
+
+# [防護機制 1.1] 封裝重試 API 動作
+@with_retry(max_retries=5, base_delay=3.0)
+def append_rows_with_retry(worksheet, rows):
+    worksheet.append_rows(rows)
+
+@with_retry(max_retries=3, base_delay=2.0)
+def get_all_records_with_retry(worksheet):
+    return worksheet.get_all_records()
+
+@with_retry(max_retries=3, base_delay=2.0)
+def get_all_values_with_retry(worksheet):
+    return worksheet.get_all_values()
+
+@with_retry(max_retries=3, base_delay=2.0)
+def upload_file_to_drive_with_retry(drive_svc, file_meta, file_obj, mime_type):
+    file_obj.seek(0) # 確保重試時指標回到起點
+    media = MediaIoBaseUpload(file_obj, mimetype=mime_type, resumable=True)
+    return drive_svc.files().create(body=file_meta, media_body=media, fields='webViewLink').execute()
 
 # [防護機制 2] 圖片聰明壓縮處理
 def process_and_compress_file(uploaded_file):
@@ -66,31 +93,6 @@ def process_and_compress_file(uploaded_file):
     else:
         uploaded_file.seek(0)
         return uploaded_file, uploaded_file.type
-
-# [新增防護與功能] 從 Google Drive 讀取圖片並判斷長寬比
-def get_image_info_from_drive(url, drive_service):
-    try:
-        # 解析 Google Drive 連結取得 File ID
-        match = re.search(r'/d/([a-zA-Z0-9_-]+)', url)
-        if not match:
-            match = re.search(r'id=([a-zA-Z0-9_-]+)', url)
-        if not match: return None, False
-
-        file_id = match.group(1)
-        request = drive_service.files().get_media(fileId=file_id)
-        fh = io.BytesIO()
-        downloader = MediaIoBaseDownload(fh, request)
-        done = False
-        while done is False:
-            status, done = downloader.next_chunk()
-        
-        fh.seek(0)
-        img = Image.open(fh)
-        is_landscape = img.width > img.height # 判斷是否為橫向
-        return img, is_landscape
-    except Exception as e:
-        # 若為 PDF 或無效檔案則回傳 None
-        return None, False
 
 # ==========================================
 # 1. CSS 樣式表
@@ -256,21 +258,30 @@ except Exception as e: st.error(f"燃油資料庫連線失敗: {e}"); st.stop()
 
 @st.cache_data(ttl=86400)
 def load_fuel_data():
-    max_retries = 3; delay = 2; df_e = pd.DataFrame(); df_r = pd.DataFrame()
-    for attempt in range(max_retries):
-        try: df_e = pd.DataFrame(ws_equip.get_all_records()).astype(str); break
-        except Exception as e:
-            if "429" in str(e) and attempt < max_retries - 1: time.sleep(delay); delay *= 2
-            else: raise e
-    if '設備編號' in df_e.columns: df_e['統計類別'] = df_e['設備編號'].apply(lambda c: next((v for k, v in DEVICE_CODE_MAP.items() if str(c).startswith(k)), "其他/未分類"))
-    else: df_e['統計類別'] = "未設定I欄"
-    df_e['設備數量_num'] = pd.to_numeric(df_e['設備數量'], errors='coerce').fillna(1)
+    df_e = pd.DataFrame()
+    df_r = pd.DataFrame()
     
-    for attempt in range(max_retries):
-        try: data = ws_record.get_all_values(); df_r = pd.DataFrame(data[1:], columns=data[0]) if len(data) > 1 else pd.DataFrame(columns=data[0]); break
-        except Exception as e:
-            if "429" in str(e) and attempt < max_retries - 1: time.sleep(delay); delay *= 2
-            else: raise e
+    try:
+        records = get_all_records_with_retry(ws_equip)
+        df_e = pd.DataFrame(records).astype(str)
+    except Exception as e:
+        st.error(f"載入設備清單發生錯誤: {e}")
+
+    if '設備編號' in df_e.columns: 
+        df_e['統計類別'] = df_e['設備編號'].apply(lambda c: next((v for k, v in DEVICE_CODE_MAP.items() if str(c).startswith(k)), "其他/未分類"))
+    else: 
+        df_e['統計類別'] = "未設定I欄"
+    df_e['設備數量_num'] = pd.to_numeric(df_e.get('設備數量', 1), errors='coerce').fillna(1)
+    
+    try:
+        data = get_all_values_with_retry(ws_record)
+        if data and len(data) > 1:
+            df_r = pd.DataFrame(data[1:], columns=data[0])
+        elif data:
+            df_r = pd.DataFrame(columns=data[0])
+    except Exception as e:
+        st.error(f"載入填報紀錄發生錯誤: {e}")
+        
     return df_e, df_r
 
 df_equip, df_records = load_fuel_data()
@@ -284,6 +295,37 @@ if not df_records.empty:
     available_years = sorted(df_records['日期格式'].dt.year.dropna().astype(int).unique(), reverse=True)
     if not available_years: available_years = [datetime.now().year]
     record_units = sorted([str(x) for x in df_records['填報單位'].unique() if str(x) != 'nan'])
+
+
+# ==========================================
+# [圖片智慧快取機制]
+# ==========================================
+@st.cache_data(ttl=86400, show_spinner=False, max_entries=100)
+def get_cached_image_from_drive(url):
+    try:
+        # 在快取函數內調用資源，避開 drive_svc 不可 Hash 的問題
+        _, d_svc = init_google_fuel()
+        
+        match = re.search(r'/d/([a-zA-Z0-9_-]+)', url)
+        if not match:
+            match = re.search(r'id=([a-zA-Z0-9_-]+)', url)
+        if not match: return None, False
+
+        file_id = match.group(1)
+        request = d_svc.files().get_media(fileId=file_id)
+        fh = io.BytesIO()
+        downloader = MediaIoBaseDownload(fh, request)
+        done = False
+        while done is False:
+            status, done = downloader.next_chunk()
+        
+        fh.seek(0)
+        img = Image.open(fh)
+        is_landscape = img.width > img.height
+        return img, is_landscape
+    except Exception as e:
+        return None, False
+
 
 # ==========================================
 # [儀表板] 局部渲染區塊
@@ -472,10 +514,10 @@ def render_dashboard_fragment(df_records, df_equip, record_units, available_year
 
 
 # ==========================================
-# [明細與佐證] 局部渲染區塊 (視覺化卡片與圖片動態排版)
+# [明細與佐證] 局部渲染區塊 (已解決跑版問題與加入智慧快取)
 # ==========================================
 @st.fragment
-def render_details_fragment(df_records, record_units, available_years, drive_svc):
+def render_details_fragment(df_records, record_units, available_years):
     st.markdown("### 📋 單位申報明細與佐證資料")
     st.info("請依序選擇「單位」、「年份」與「月份」，以檢視該月各設備的用油統計與加油單影像。")
     
@@ -484,7 +526,6 @@ def render_details_fragment(df_records, record_units, available_years, drive_svc
         query_dept_3 = c_dept_3.selectbox("🏢 選擇查詢單位", record_units, index=None, placeholder="請選擇...", key="t3_dept")
         query_year_3 = c_year_3.selectbox("📅 選擇年份", available_years, index=0, key="t3_year")
         
-        # 依據所選單位與年份，動態篩選出有資料的「月份」
         if query_dept_3 and query_year_3:
             df_dept_3 = df_records[df_records['填報單位'] == query_dept_3].copy()
             df_year_3 = df_dept_3[df_dept_3['日期格式'].dt.year == query_year_3].copy()
@@ -498,31 +539,20 @@ def render_details_fragment(df_records, record_units, available_years, drive_svc
                     
                     if not df_final_3.empty:
                         st.markdown("---")
-                        # 依照設備名稱進行分組顯示
                         grouped = df_final_3.groupby('設備名稱備註')
                         
                         for equip_name, group in grouped:
                             fuel_type = group['原燃物料名稱'].iloc[0] if not group.empty else "未知"
                             total_vol = group['加油量'].sum()
                             
-                            # 切分版面：左側(資訊卡 4)，右側(圖片 6)
                             col_info, col_img = st.columns([4, 6], gap="large")
                             
                             # ==============================
-                            # 左側：資訊卡渲染
+                            # 左側：資訊卡渲染 (已扁平化字串，解決 Markdown 跑版問題)
                             # ==============================
                             with col_info:
-                                info_html = f"""
-                                <div style="background-color: #FFFFFF; border: 1px solid #BDC3C7; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.05); margin-bottom: 20px;">
-                                    <div style="background-color: #F8F9F9; padding: 15px 20px; border-bottom: 3px solid #E67E22; display: flex; justify-content: space-between; align-items: center;">
-                                        <div style="font-size: 1.2rem; font-weight: 900; color: #2C3E50;">🚜 {equip_name}</div>
-                                        <div style="text-align: right;">
-                                            <div style="font-size: 0.95rem; font-weight: bold; color: #7F8C8D;">⛽ {fuel_type}</div>
-                                            <div style="font-size: 1.15rem; font-weight: 900; color: #C0392B;">共 {total_vol:.1f} 公升</div>
-                                        </div>
-                                    </div>
-                                    <div style="padding: 10px 20px;">
-                                """
+                                info_html = f"""<div style="background-color: #FFFFFF; border: 1px solid #BDC3C7; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.05); margin-bottom: 20px;"><div style="background-color: #F8F9F9; padding: 15px 20px; border-bottom: 3px solid #E67E22; display: flex; justify-content: space-between; align-items: center;"><div style="font-size: 1.2rem; font-weight: 900; color: #2C3E50;">🚜 {equip_name}</div><div style="text-align: right;"><div style="font-size: 0.95rem; font-weight: bold; color: #7F8C8D;">⛽ {fuel_type}</div><div style="font-size: 1.15rem; font-weight: 900; color: #C0392B;">共 {total_vol:.1f} 公升</div></div></div><div style="padding: 10px 20px;">"""
+                                
                                 for _, row in group.iterrows():
                                     date_str = pd.to_datetime(row['加油日期']).strftime('%Y-%m-%d')
                                     vol = row['加油量']
@@ -531,63 +561,52 @@ def render_details_fragment(df_records, record_units, available_years, drive_svc
                                     
                                     shared_badge = ""
                                     if shared == '是':
-                                        shared_badge = f'<span style="background-color: #FDEBD0; color: #D35400; padding: 2px 8px; border-radius: 10px; font-size: 0.85rem; font-weight: bold; margin-left: 8px;">🔄 共用 ({note})</span>'
+                                        shared_badge = f"<span style='background-color: #FDEBD0; color: #D35400; padding: 2px 8px; border-radius: 10px; font-size: 0.85rem; font-weight: bold; margin-left: 8px;'>🔄 共用 ({note})</span>"
                                         
-                                    info_html += f"""
-                                    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px dashed #EAEDED; padding: 10px 0;">
-                                        <div style="font-size: 1.05rem; color: #34495E; font-weight: bold;">📅 {date_str}</div>
-                                        <div style="font-size: 1.05rem; color: #2C3E50; font-weight: bold;">💧 {vol:.1f} 公升 {shared_badge}</div>
-                                    </div>
-                                    """
+                                    info_html += f"<div style='display: flex; justify-content: space-between; align-items: center; border-bottom: 1px dashed #EAEDED; padding: 10px 0;'><div style='font-size: 1.05rem; color: #34495E; font-weight: bold;'>📅 {date_str}</div><div style='font-size: 1.05rem; color: #2C3E50; font-weight: bold;'>💧 {vol:.1f} 公升 {shared_badge}</div></div>"
+                                
                                 info_html += "</div></div>"
                                 st.markdown(info_html, unsafe_allow_html=True)
                             
                             # ==============================
-                            # 右側：圖片動態排版演算法
+                            # 右側：圖片動態排版演算法 (使用 Cache 加速)
                             # ==============================
                             with col_img:
                                 all_links = []
                                 for links_str in group['佐證資料'].dropna():
                                     if links_str and str(links_str).strip() not in ["無", "佐證如總務處事務組中油明細", "-"]:
-                                        # 支援換行或逗號分隔的多網址解析
                                         parsed_links = [l.strip() for l in re.split(r'[\n,]', str(links_str)) if l.strip()]
                                         all_links.extend(parsed_links)
                                 
                                 if not all_links:
                                     st.info("📁 此設備本月無上傳佐證圖片，或已註明與其他單位/設備共用。")
                                 else:
-                                    with st.spinner("正在從雲端載入佐證圖片..."):
+                                    with st.spinner("🚀 正在從智慧快取池載入佐證圖片..."):
                                         images_data = []
                                         for url in all_links:
-                                            img_obj, is_landscape = get_image_info_from_drive(url, drive_svc)
+                                            # 調用 Cache 函數
+                                            img_obj, is_landscape = get_cached_image_from_drive(url)
                                             images_data.append({"url": url, "img": img_obj, "is_landscape": is_landscape})
                                         
                                         idx = 0
                                         while idx < len(images_data):
                                             item = images_data[idx]
                                             
-                                            # 情境 1: 無法讀取的檔案(例如 PDF)，提供下載連結
                                             if item['img'] is None:
                                                 st.markdown(f"📄 **佐證附件：** [點擊此處查看或下載]({item['url']})")
                                                 idx += 1
-                                                
-                                            # 情境 2: 橫向圖片，單張佔滿一列
                                             elif item['is_landscape']:
                                                 st.image(item['img'], use_container_width=True)
                                                 idx += 1
-                                                
-                                            # 情境 3: 直向圖片，兩張並排一列
                                             else:
                                                 c1, c2 = st.columns(2)
                                                 c1.image(item['img'], use_container_width=True)
                                                 idx += 1
                                                 
-                                                # 檢查下一張是否也是直向圖片，若是則放入第二欄
                                                 if idx < len(images_data) and images_data[idx]['img'] is not None and not images_data[idx]['is_landscape']:
                                                     c2.image(images_data[idx]['img'], use_container_width=True)
                                                     idx += 1
                                                     
-                                            # 若尚未處理完所有圖片，則加入格線分隔
                                             if idx < len(images_data):
                                                 st.markdown("<hr style='margin: 15px 0; border: 1px dashed #BDC3C7;'>", unsafe_allow_html=True)
                                                 
@@ -719,8 +738,9 @@ def render_user_interface():
                                             fuel_rep = filtered_equip.iloc[0]['原燃物料名稱'] if not filtered_equip.empty else "混合油品"
                                             clean_name = f"{selected_dept}_{target_sub_cat}_{fuel_rep}_{total_vol}.{file_ext}"
                                             file_meta = {'name': clean_name, 'parents': [DRIVE_FOLDER_ID]}
-                                            media = MediaIoBaseUpload(file_obj, mimetype=mime_type, resumable=True)
-                                            file = drive_service.files().create(body=file_meta, media_body=media, fields='webViewLink').execute()
+                                            
+                                            # 使用重試裝甲保護上傳機制
+                                            file = upload_file_to_drive_with_retry(drive_service, file_meta, file_obj, mime_type)
                                             file_link = file.get('webViewLink')
                                         
                                         fleet_id = "-"; 
@@ -738,7 +758,7 @@ def render_user_interface():
                                             rows_to_append.append([current_time, selected_dept, p_name, p_ext, row['設備名稱備註'], str(row.get('校內財產編號','-')), row['原燃物料名稱'], fleet_id, str(batch_date), vol, "是", f"批次申報-{target_sub_cat} | {note_val}", file_link])
                                         
                                         if rows_to_append: 
-                                            safe_append_rows(ws_record, rows_to_append)
+                                            append_rows_with_retry(ws_record, rows_to_append)
                                             st.success(f"✅ 批次申報成功！已寫入 {len(rows_to_append)} 筆紀錄。")
                                             st.balloons()
                                             st.session_state['reset_counter'] += 1
@@ -841,8 +861,9 @@ def render_user_interface():
                                                     elif len(f_files) == 1 and len(data_entries) > 1: clean_name = f"{selected_dept}_{selected_device}_{fuel_type}_{total_report_vol}{shared_tag}.{file_ext}"
                                                     else: clean_name = f"{selected_dept}_{selected_device}_{fuel_type}_{data_entries[0]['date']}_{idx+1}{shared_tag}.{file_ext}"
                                                     meta = {'name': clean_name, 'parents': [DRIVE_FOLDER_ID]}
-                                                    media = MediaIoBaseUpload(file_obj, mimetype=mime_type, resumable=True)
-                                                    file = drive_service.files().create(body=meta, media_body=media, fields='webViewLink').execute()
+                                                    
+                                                    # 使用重試裝甲保護上傳機制
+                                                    file = upload_file_to_drive_with_retry(drive_service, meta, file_obj, mime_type)
                                                     links.append(file.get('webViewLink'))
                                                 except: valid_logic=False; st.error("上傳失敗"); break
                                         if valid_logic:
@@ -854,7 +875,7 @@ def render_user_interface():
                                             shared_str = "是" if is_shared else "-"; card_str = fuel_card_id if fuel_card_id else "-"
                                             for e in data_entries: rows.append([now_str, selected_dept, p_name, p_ext, selected_device, str(row.get('校內財產編號','-')), str(row.get('原燃物料名稱','-')), card_str, str(e['date']), e['vol'], shared_str, note_input, final_link])
                                             if rows: 
-                                                safe_append_rows(ws_record, rows)
+                                                append_rows_with_retry(ws_record, rows)
                                                 st.success("✅ 申報成功！")
                                                 st.balloons()
                                                 st.session_state['reset_counter'] += 1
@@ -864,7 +885,7 @@ def render_user_interface():
                                         note_input += f" [Email異動: {str(p_email).strip()}]"
                                         
                                     rows = [[get_taiwan_time().strftime("%Y-%m-%d %H:%M:%S"), selected_dept, p_name, p_ext, selected_device, str(row.get('校內財產編號','-')), str(row.get('原燃物料名稱','-')), "-", str(data_entries[0]['date']), 0.0, "-", note_input, "無"]]
-                                    safe_append_rows(ws_record, rows)
+                                    append_rows_with_retry(ws_record, rows)
                                     st.success("✅ 申報成功！")
                                     st.balloons()
                                     st.session_state['reset_counter'] += 1
@@ -877,8 +898,7 @@ def render_user_interface():
 
     # --- Tab 3: 單位申報明細 ---
     with tabs[2]:
-        # 將驅動 Google Drive API 的 drive_service 物件傳入函數
-        render_details_fragment(df_records, record_units, available_years, drive_service)
+        render_details_fragment(df_records, record_units, available_years)
 
 if __name__ == "__main__":
     render_user_interface()
