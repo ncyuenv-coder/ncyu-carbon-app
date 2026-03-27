@@ -11,3 +11,4 @@ openpyxl
 python-docx
 pymupdf
 Pillow
+requests
