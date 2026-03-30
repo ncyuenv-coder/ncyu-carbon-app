@@ -31,7 +31,7 @@ st.set_page_config(page_title="燃油資料檢視確認", page_icon="🔍", layo
 def get_taiwan_time():
     return datetime.utcnow() + timedelta(hours=8)
 
-# 將欄位長度轉換為 Excel 欄位字母 (例如 1 -> A, 27 -> AA)
+# 將欄位長度轉換為 Excel 欄位字母
 def get_col_letter(col_idx):
     result = ""
     while col_idx > 0:
@@ -61,7 +61,6 @@ def with_retry(max_retries=5, base_delay=2.0, backoff_factor=2.0):
         return wrapper
     return decorator
 
-# 每次寫入都重新獲取最新憑證，避免 Session 過期導致 'AuthorizedSession' 報錯
 @with_retry(max_retries=3, base_delay=2.0)
 def update_sheet_row_safe(worksheet_title, range_name, values):
     oauth = st.secrets["gcp_oauth"]
@@ -110,7 +109,6 @@ st.markdown("""
     button[kind="primary"] p { color: #FFFFFF !important; } 
     button[kind="primary"]:hover { background-color: var(--orange-dark) !important; transform: translateY(-2px) !important; }
     
-    /* 大標題：靠左對齊同一行 */
     .dashboard-main-title { font-size: 2.2rem; font-weight: 900; text-align: left; color: #1A5276; margin-bottom: 25px; margin-top: 10px; letter-spacing: 1px; }
     
     .stRadio div[role="radiogroup"] label { background-color: #D6EAF8 !important; border: 1px solid #AED6F1 !important; border-radius: 8px !important; padding: 8px 15px !important; margin-right: 10px !important; }
@@ -118,12 +116,10 @@ st.markdown("""
     .stRadio div[role="radiogroup"] label[data-checked="true"] { background-color: #1A5276 !important; border-color: #1A5276 !important; }
     .stRadio div[role="radiogroup"] label[data-checked="true"] p { color: #FFFFFF !important; }
     
-    /* 視覺化卡片樣式 */
     .db-card { background-color: #FFFFFF; border: 1px solid #BDC3C7; border-radius: 12px; padding: 0; box-shadow: 0 4px 10px rgba(0,0,0,0.05); margin-bottom: 25px; overflow: hidden; }
     .db-card-header { background-color: #2C3E50; color: #FFFFFF; padding: 12px 20px; font-size: 1.25rem; font-weight: 900; display: flex; justify-content: space-between; }
     .db-card-body { padding: 20px; background-color: #FDFEFE; }
     
-    /* HTML表格樣式 */
     .visual-table { width: 100%; border-collapse: collapse; margin-top: 10px; background-color: #FFFFFF; font-size: 1.05rem; }
     .visual-table th { background-color: #EBF5FB; color: #2C3E50; padding: 10px; text-align: left; border: 1px solid #BDC3C7; }
     .visual-table td { padding: 10px; border: 1px solid #EAEDED; color: #34495E; }
@@ -185,8 +181,8 @@ except Exception as e:
     st.error(f"雲端硬碟連線失敗: {e}")
     st.stop()
 
-# 資料讀取 (不再依賴 gspread worksheet 物件傳遞，只保留欄位標題與 sheet 名稱)
-@st.cache_data(ttl=60) 
+# [效能提升] 延長 TTL 到 1 小時，且將資料清洗運算全數前置於 Cache 中！
+@st.cache_data(ttl=3600, show_spinner="🔄 正在從資料庫同步並處理資料...") 
 def load_fuel_data():
     oauth = st.secrets["gcp_oauth"]
     creds = Credentials(token=None, refresh_token=oauth["refresh_token"], token_uri="https://oauth2.googleapis.com/token", client_id=oauth["client_id"], client_secret=oauth["client_secret"], scopes=["https://www.googleapis.com/auth/spreadsheets"])
@@ -215,6 +211,22 @@ def load_fuel_data():
     rec_data = ws_record.get_all_values()
     df_r = pd.DataFrame(rec_data[1:], columns=rec_data[0]) if len(rec_data) > 1 else pd.DataFrame(columns=rec_data[0])
     df_r['_row_index'] = range(2, len(df_r) + 2)
+    
+    # [效能提升] 將所有耗時的 Pandas 資料清洗移入快取，避免每次點擊重複運算
+    if not df_r.empty:
+        df_r['加油量_num'] = pd.to_numeric(df_r['加油量'], errors='coerce').fillna(0)
+        df_r['日期格式'] = pd.to_datetime(df_r['加油日期'], errors='coerce')
+        df_r['年份'] = df_r['日期格式'].dt.year.fillna(0).astype(int)
+        df_r['月份'] = df_r['日期格式'].dt.month.fillna(0).astype(int)
+        
+        # 跨表 Mapping (透過設備清單，將設備名稱映射至設備編號與統計類別)
+        if '設備編號' in df_e.columns:
+            eq_to_id_map = dict(zip(df_e['設備名稱備註'], df_e['設備編號']))
+            df_r['設備編號'] = df_r['設備名稱備註'].map(eq_to_id_map).fillna('')
+        else:
+            df_r['設備編號'] = ''
+        
+        df_r['統計類別'] = df_r['設備編號'].apply(lambda c: next((v for k, v in DEVICE_CODE_MAP.items() if str(c).startswith(k)), "其他/未分類"))
     
     return df_e, df_r, eq_data[0], rec_data[0], ws_equip_title, ws_record_title
 
@@ -406,10 +418,6 @@ def render_tab2_notify(df_records, df_equip_full):
     mode = st.radio("請選擇作業模式：", ["📅 每月申報提醒通知 (依月份檢視)", "🔍 篩選未申報名單催報 (依日期區間)"], horizontal=True, label_visibility="collapsed")
     st.markdown("---")
     
-    df_clean = df_records.copy()
-    df_clean['加油量'] = pd.to_numeric(df_clean['加油量'], errors='coerce').fillna(0)
-    df_clean['日期格式'] = pd.to_datetime(df_clean['加油日期'], errors='coerce')
-    
     test_mode = st.radio("寄件模式", ["🧪 測試模式 (僅寄送至測試信箱)", "🚀 正式發送 (寄送至各單位真實信箱)"], horizontal=True)
     test_email = st.text_input("測試用收件信箱", "test@example.com")
     st.markdown("<br>", unsafe_allow_html=True)
@@ -425,17 +433,16 @@ def render_tab2_notify(df_records, df_equip_full):
             df_eq = df_equip_full[df_equip_full['設備檢視年度'].astype(str) == str(sel_year)].copy()
         else: df_eq = df_equip_full.copy()
         
-        df_target_rec = df_clean[(df_clean['日期格式'].dt.year == sel_year) & (df_clean['日期格式'].dt.month == sel_month)]
+        df_target_rec = df_records[(df_records['年份'] == sel_year) & (df_records['月份'] == sel_month)]
         reported_keys = set(df_target_rec['填報單位'].astype(str) + "|||" + df_target_rec['設備名稱備註'].astype(str))
         
         def get_report_info(r):
             key = str(r.get('填報單位', '')) + "|||" + str(r.get('設備名稱備註', ''))
             if key in reported_keys:
                 recs = df_target_rec[(df_target_rec['填報單位'] == r['填報單位']) & (df_target_rec['設備名稱備註'] == r['設備名稱備註'])]
-                # [修改 1] 將日期排序
                 dts_list = sorted(pd.to_datetime(recs['加油日期'], errors='coerce').dropna().dt.date.unique())
                 dts = ", ".join([str(d) for d in dts_list])
-                vol = recs['加油量'].sum()
+                vol = recs['加油量_num'].sum()
                 return pd.Series(["✅ 已申報", dts, vol])
             else:
                 return pd.Series(["❌ 未申報", "-", 0.0])
@@ -502,14 +509,14 @@ def render_tab2_notify(df_records, df_equip_full):
             df_eq = df_equip_full[df_equip_full['設備檢視年度'].astype(str) == str(target_year)].copy()
         else: df_eq = df_equip_full.copy()
         
-        df_target_rec = df_clean[(df_clean['日期格式'].dt.date >= d_start) & (df_clean['日期格式'].dt.date <= d_end)]
+        df_target_rec = df_records[(df_records['日期格式'].dt.date >= d_start) & (df_records['日期格式'].dt.date <= d_end)]
         reported_keys = set(df_target_rec['填報單位'].astype(str) + "|||" + df_target_rec['設備名稱備註'].astype(str))
         
         def get_report_dates_range(r):
             key = str(r.get('填報單位', '')) + "|||" + str(r.get('設備名稱備註', ''))
             if key in reported_keys:
                 recs = df_target_rec[(df_target_rec['填報單位'] == r.get('填報單位')) & (df_target_rec['設備名稱備註'] == r.get('設備名稱備註'))]
-                # [修改 1] 將日期排序
+                # 依序排列
                 dts_list = sorted(pd.to_datetime(recs['加油日期'], errors='coerce').dropna().dt.date.unique())
                 dts = ", ".join([str(d) for d in dts_list])
                 return pd.Series(["✅ 已申報", dts])
@@ -528,7 +535,6 @@ def render_tab2_notify(df_records, df_equip_full):
             
             for _, row in group.iterrows():
                 color = "#148F77" if "✅" in row['申報狀態'] else "#C0392B"
-                # [修改 4] 查核期間改為申報日期，並拿掉未申報期間欄位，改以-表示
                 html_table += f"<tr><td style='color:{color}; font-weight:bold;'>{row['申報狀態']}</td><td>{row.get('設備編號','-')}</td><td>{row['設備名稱備註']}</td><td>{row.get('原燃物料名稱','-')}</td><td>{row.get('設備數量','1')}</td><td>{row['申報日期']}</td></tr>"
             html_table += "</table></div>"
             st.markdown(html_table, unsafe_allow_html=True)
@@ -566,22 +572,10 @@ def render_tab2_notify(df_records, df_equip_full):
 
 
 @st.fragment
-def render_tab3_edit_records(df_records, rec_cols, ws_title, df_equip_full):
+def render_tab3_edit_records(df_records, rec_cols, ws_title):
     st.markdown("<br>", unsafe_allow_html=True)
     
     df_clean = df_records.copy()
-    df_clean['日期格式'] = pd.to_datetime(df_clean['加油日期'], errors='coerce')
-    df_clean['年份'] = df_clean['日期格式'].dt.year.fillna(0).astype(int)
-    df_clean['月份'] = df_clean['日期格式'].dt.month.fillna(0).astype(int)
-    
-    # [修改 2] 透過跨表 Mapping 將「設備名稱」對應到設備清單的「設備編號」，解決 df_records 本身無設備編號的問題
-    if '設備編號' in df_equip_full.columns:
-        eq_to_id_map = dict(zip(df_equip_full['設備名稱備註'], df_equip_full['設備編號']))
-        df_clean['設備編號'] = df_clean['設備名稱備註'].map(eq_to_id_map).fillna('')
-    else:
-        df_clean['設備編號'] = ''
-        
-    df_clean['統計類別'] = df_clean['設備編號'].apply(lambda c: next((v for k, v in DEVICE_CODE_MAP.items() if str(c).startswith(k)), "其他/未分類"))
     
     all_years = sorted(df_clean['年份'][df_clean['年份']>0].unique(), reverse=True) if not df_clean.empty else [datetime.now().year]
     
@@ -696,9 +690,7 @@ def main():
     
     with admin_tabs[0]: render_tab1_db_manage(df_equip_full, eq_cols, ws_equip_title)
     with admin_tabs[1]: render_tab2_notify(df_records, df_equip_full)
-    
-    # 傳遞 df_equip_full 以進行設備編號 mapping
-    with admin_tabs[2]: render_tab3_edit_records(df_records, rec_cols, ws_record_title, df_equip_full)
+    with admin_tabs[2]: render_tab3_edit_records(df_records, rec_cols, ws_record_title)
 
 if __name__ == "__main__":
     main()
