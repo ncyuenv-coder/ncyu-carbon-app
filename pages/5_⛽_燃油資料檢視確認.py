@@ -31,6 +31,14 @@ st.set_page_config(page_title="燃油資料檢視確認", page_icon="🔍", layo
 def get_taiwan_time():
     return datetime.utcnow() + timedelta(hours=8)
 
+# 將欄位長度轉換為 Excel 欄位字母 (例如 1 -> A, 27 -> AA)
+def get_col_letter(col_idx):
+    result = ""
+    while col_idx > 0:
+        col_idx, remainder = divmod(col_idx - 1, 26)
+        result = chr(65 + remainder) + result
+    return result
+
 # ==========================================
 # [防護機制] 徹底解決 _auth_request 憑證失效問題
 # ==========================================
@@ -53,15 +61,20 @@ def with_retry(max_retries=5, base_delay=2.0, backoff_factor=2.0):
         return wrapper
     return decorator
 
-# 每次寫入都重新獲取最新憑證，避免 Session 過期導致 'AuthorizedSession' 報錯
+# [核心重構] 放棄 gspread 寫入，改用底層 Google API 直接覆寫，根除斷線問題
 @with_retry(max_retries=3, base_delay=2.0)
-def update_sheet_row_safe(worksheet_name, range_name, values):
+def update_sheet_row_safe(worksheet_title, range_name, values):
     oauth = st.secrets["gcp_oauth"]
     creds = Credentials(token=None, refresh_token=oauth["refresh_token"], token_uri="https://oauth2.googleapis.com/token", client_id=oauth["client_id"], client_secret=oauth["client_secret"], scopes=["https://www.googleapis.com/auth/spreadsheets"])
-    gc = gspread.authorize(creds)
-    sh = gc.open_by_key("1gqDU21YJeBoBOd8rMYzwwZ45offXWPGEODKTF6B8k-Y")
-    ws = sh.worksheet(worksheet_name)
-    ws.batch_update([{'range': range_name, 'values': [values]}])
+    service = build('sheets', 'v4', credentials=creds)
+    body = {'values': [values]}
+    full_range = f"'{worksheet_title}'!{range_name}"
+    service.spreadsheets().values().update(
+        spreadsheetId="1gqDU21YJeBoBOd8rMYzwwZ45offXWPGEODKTF6B8k-Y",
+        range=full_range,
+        valueInputOption="USER_ENTERED",
+        body=body
+    ).execute()
 
 # ==========================================
 # 1. CSS 樣式表 (莫蘭迪深色調)
@@ -114,6 +127,8 @@ st.markdown("""
     .visual-table { width: 100%; border-collapse: collapse; margin-top: 10px; background-color: #FFFFFF; font-size: 1.05rem; }
     .visual-table th { background-color: #EBF5FB; color: #2C3E50; padding: 10px; text-align: left; border: 1px solid #BDC3C7; }
     .visual-table td { padding: 10px; border: 1px solid #EAEDED; color: #34495E; }
+    
+    .edit-card-header { font-size: 1.3rem; font-weight: 900; color: #2C3E50; border-bottom: 2px solid #E67E22; padding-bottom: 10px; margin-bottom: 15px; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -153,8 +168,8 @@ with st.sidebar:
 # 3. 資料庫連線與資料載入
 # ==========================================
 SHEET_ID = "1gqDU21YJeBoBOd8rMYzwwZ45offXWPGEODKTF6B8k-Y" 
-DEVICE_ORDER = ["公務車輛(GV-1-)", "乘坐式割草機(GV-2-)", "乘坐式農用機具(GV-3-)", "鍋爐(GS-1-)", "發電機(GS-2-)", "肩背或手持式割草機、吹葉機(GS-3-)", "肩背或手持式農用機具(GS-4-)"]
 DEVICE_CODE_MAP = {"GV-1": "公務車輛(GV-1-)", "GV-2": "乘坐式割草機(GV-2-)", "GV-3": "乘坐式農用機具(GV-3-)", "GS-1": "鍋爐(GS-1-)", "GS-2": "發電機(GS-2-)", "GS-3": "肩背或手持式割草機、吹葉機(GS-3-)", "GS-4": "肩背或手持式農用機具(GS-4-)"}
+DEVICE_ORDER = ["公務車輛(GV-1-)", "乘坐式割草機(GV-2-)", "乘坐式農用機具(GV-3-)", "鍋爐(GS-1-)", "發電機(GS-2-)", "肩背或手持式割草機、吹葉機(GS-3-)", "肩背或手持式農用機具(GS-4-)"]
 
 # 僅獲取 Drive Service 用於下載圖片
 @st.cache_resource
@@ -170,7 +185,7 @@ except Exception as e:
     st.error(f"雲端硬碟連線失敗: {e}")
     st.stop()
 
-# 資料讀取 (獨立連線避免過期)
+# 資料讀取 (不再依賴 gspread worksheet 物件傳遞，只保留欄位標題與 sheet 名稱)
 @st.cache_data(ttl=60) 
 def load_fuel_data():
     oauth = st.secrets["gcp_oauth"]
@@ -178,10 +193,19 @@ def load_fuel_data():
     gc = gspread.authorize(creds)
     sh = gc.open_by_key(SHEET_ID)
     
-    try: ws_equip = sh.worksheet("設備清單") 
-    except: ws_equip = sh.sheet1 
-    try: ws_record = sh.worksheet("油料填報紀錄")
-    except: ws_record = sh.worksheet("填報紀錄")
+    try: 
+        ws_equip = sh.worksheet("設備清單")
+        ws_equip_title = "設備清單"
+    except: 
+        ws_equip = sh.sheet1 
+        ws_equip_title = ws_equip.title
+        
+    try: 
+        ws_record = sh.worksheet("油料填報紀錄")
+        ws_record_title = "油料填報紀錄"
+    except: 
+        ws_record = sh.worksheet("填報紀錄")
+        ws_record_title = "填報紀錄"
     
     eq_data = ws_equip.get_all_values()
     df_e = pd.DataFrame(eq_data[1:], columns=eq_data[0]) if len(eq_data) > 1 else pd.DataFrame(columns=eq_data[0])
@@ -192,9 +216,9 @@ def load_fuel_data():
     df_r = pd.DataFrame(rec_data[1:], columns=rec_data[0]) if len(rec_data) > 1 else pd.DataFrame(columns=rec_data[0])
     df_r['_row_index'] = range(2, len(df_r) + 2)
     
-    return df_e, df_r, eq_data[0], rec_data[0]
+    return df_e, df_r, eq_data[0], rec_data[0], ws_equip_title, ws_record_title
 
-df_equip_full, df_records, eq_cols, rec_cols = load_fuel_data()
+df_equip_full, df_records, eq_cols, rec_cols, ws_equip_title, ws_record_title = load_fuel_data()
 
 # ==========================================
 # 4. 輔助功能 (Email & 圖片下載)
@@ -302,10 +326,9 @@ def render_image_gallery(links, base_key):
 # ==========================================
 
 @st.fragment
-def render_tab1_db_manage(df_equip_full, eq_cols):
+def render_tab1_db_manage(df_equip_full, eq_cols, ws_title):
     st.markdown("<br>", unsafe_allow_html=True)
-    st.markdown("### 🗄️ 燃油設備單位資料庫管理")
-    st.info("請於下方視覺化卡片中直接修改資料，系統會「精準更新」該筆設備，確保其他資料庫內容安全無虞。")
+    st.info("請篩選單位後，直接於下方卡片中修改資料。系統會「精準更新」單一筆設備，確保其他資料庫內容安全。")
     
     all_years = sorted([y for y in df_equip_full['設備檢視年度'].unique() if str(y).strip() != ''], reverse=True) if '設備檢視年度' in df_equip_full.columns else [str(datetime.now().year)]
     all_units = sorted([u for u in df_equip_full['填報單位'].unique() if str(u).strip() != ''])
@@ -360,9 +383,12 @@ def render_tab1_db_manage(df_equip_full, eq_cols):
                             else: updated_vals.append("")
                         
                         try:
-                            range_str = f"A{r_idx}:{chr(65 + len(updated_vals) - 1)}{r_idx}"
+                            # 轉換欄數為字母，確保超過 Z 的欄位也正常 (例如 AA, AB)
+                            end_col = get_col_letter(len(updated_vals))
+                            range_str = f"A{r_idx}:{end_col}{r_idx}"
+                            
                             with st.spinner("🔄 寫入資料庫中..."):
-                                update_sheet_row_safe("設備清單", range_str, updated_vals)
+                                update_sheet_row_safe(ws_title, range_str, updated_vals)
                             st.success(f"✅ {new_name} 資料更新成功！")
                             st.cache_data.clear()
                             time.sleep(1)
@@ -378,7 +404,7 @@ def render_tab1_db_manage(df_equip_full, eq_cols):
 def render_tab2_notify(df_records, df_equip_full):
     st.markdown("<br>", unsafe_allow_html=True)
     
-    mode = st.radio("請選擇作業模式：", ["📅 每月申報提醒通知", "🔍 篩選未申報名單催報"], horizontal=True, label_visibility="collapsed")
+    mode = st.radio("請選擇作業模式：", ["📅 每月申報提醒通知 (依月份檢視)", "🔍 篩選未申報名單催報 (依日期區間)"], horizontal=True, label_visibility="collapsed")
     st.markdown("---")
     
     df_clean = df_records.copy()
@@ -413,7 +439,7 @@ def render_tab2_notify(df_records, df_equip_full):
             else:
                 return pd.Series(["❌ 未申報", "-", 0.0])
                 
-        df_eq[['申報狀態', '最近加油日期', '當月加油量']] = df_eq.apply(get_report_info, axis=1)
+        df_eq[['申報狀態', '申報日期', '當月加油量']] = df_eq.apply(get_report_info, axis=1)
         
         st.markdown(f"#### 📅 【{sel_year}年 {sel_month}月】各單位設備填報情形視覺化總覽")
         
@@ -421,11 +447,11 @@ def render_tab2_notify(df_records, df_equip_full):
             html_table = f"""<div style="background:#FDFEFE; border:1px solid #BDC3C7; border-radius:12px; padding:15px; margin-bottom:15px; box-shadow:0 2px 5px rgba(0,0,0,0.05);">
                 <h4 style="color:#2C3E50; margin-top:0; border-bottom:2px solid #E67E22; padding-bottom:5px;">🏢 {unit}</h4>
                 <table class="visual-table">
-                <tr><th>狀態</th><th>設備編號</th><th>設備名稱</th><th>燃料</th><th>數量</th><th>日期</th><th>加油量</th></tr>"""
+                <tr><th>狀態</th><th>設備編號</th><th>設備名稱</th><th>燃料</th><th>數量</th><th>申報日期</th><th>加油量</th></tr>"""
             
             for _, row in group.iterrows():
                 color = "#148F77" if "✅" in row['申報狀態'] else "#C0392B"
-                html_table += f"<tr><td style='color:{color}; font-weight:bold;'>{row['申報狀態']}</td><td>{row.get('設備編號','-')}</td><td>{row['設備名稱備註']}</td><td>{row.get('原燃物料名稱','-')}</td><td>{row.get('設備數量','1')}</td><td>{row['最近加油日期']}</td><td>{row['當月加油量']:.1f} L</td></tr>"
+                html_table += f"<tr><td style='color:{color}; font-weight:bold;'>{row['申報狀態']}</td><td>{row.get('設備編號','-')}</td><td>{row['設備名稱備註']}</td><td>{row.get('原燃物料名稱','-')}</td><td>{row.get('設備數量','1')}</td><td>{row['申報日期']}</td><td>{row['當月加油量']:.1f} L</td></tr>"
             html_table += "</table></div>"
             st.markdown(html_table, unsafe_allow_html=True)
         
@@ -478,20 +504,28 @@ def render_tab2_notify(df_records, df_equip_full):
         df_target_rec = df_clean[(df_clean['日期格式'].dt.date >= d_start) & (df_clean['日期格式'].dt.date <= d_end)]
         reported_keys = set(df_target_rec['填報單位'].astype(str) + "|||" + df_target_rec['設備名稱備註'].astype(str))
         
-        df_eq['申報狀態'] = df_eq.apply(lambda r: "✅ 已申報" if (str(r.get('填報單位', '')) + "|||" + str(r.get('設備名稱備註', ''))) in reported_keys else "❌ 未申報", axis=1)
-        df_eq['未申報期間'] = f"{d_start} ~ {d_end}"
+        def get_report_dates_range(r):
+            key = str(r.get('填報單位', '')) + "|||" + str(r.get('設備名稱備註', ''))
+            if key in reported_keys:
+                recs = df_target_rec[(df_target_rec['填報單位'] == r.get('填報單位')) & (df_target_rec['設備名稱備註'] == r.get('設備名稱備註'))]
+                dts = ", ".join(recs['加油日期'].astype(str).unique())
+                return pd.Series(["✅ 已申報", dts])
+            else:
+                return pd.Series(["❌ 未申報", "-"])
+                
+        df_eq[['申報狀態', '申報日期']] = df_eq.apply(get_report_dates_range, axis=1)
         
-        st.markdown(f"#### 🔍 【{d_start} ~ {d_end}】期間未申報篩選視覺化")
+        st.markdown(f"#### 🔍 【{d_start} ~ {d_end}】期間篩選與催報名單")
         
         for unit, group in df_eq.groupby('填報單位'):
             html_table = f"""<div style="background:#FDFEFE; border:1px solid #BDC3C7; border-radius:12px; padding:15px; margin-bottom:15px; box-shadow:0 2px 5px rgba(0,0,0,0.05);">
                 <h4 style="color:#2C3E50; margin-top:0; border-bottom:2px solid #E67E22; padding-bottom:5px;">🏢 {unit}</h4>
                 <table class="visual-table">
-                <tr><th>狀態</th><th>設備編號</th><th>設備名稱</th><th>燃料</th><th>數量</th><th>查核期間</th></tr>"""
+                <tr><th>狀態</th><th>設備編號</th><th>設備名稱</th><th>燃料</th><th>數量</th><th>申報日期</th></tr>"""
             
             for _, row in group.iterrows():
                 color = "#148F77" if "✅" in row['申報狀態'] else "#C0392B"
-                html_table += f"<tr><td style='color:{color}; font-weight:bold;'>{row['申報狀態']}</td><td>{row.get('設備編號','-')}</td><td>{row['設備名稱備註']}</td><td>{row.get('原燃物料名稱','-')}</td><td>{row.get('設備數量','1')}</td><td>{row['未申報期間']}</td></tr>"
+                html_table += f"<tr><td style='color:{color}; font-weight:bold;'>{row['申報狀態']}</td><td>{row.get('設備編號','-')}</td><td>{row['設備名稱備註']}</td><td>{row.get('原燃物料名稱','-')}</td><td>{row.get('設備數量','1')}</td><td>{row['申報日期']}</td></tr>"
             html_table += "</table></div>"
             st.markdown(html_table, unsafe_allow_html=True)
         
@@ -528,17 +562,15 @@ def render_tab2_notify(df_records, df_equip_full):
 
 
 @st.fragment
-def render_tab3_edit_records(df_records, ws_rec):
+def render_tab3_edit_records(df_records, rec_cols, ws_title):
     st.markdown("<br>", unsafe_allow_html=True)
-    st.markdown("### 🔍 申報資料異動管理")
     
     df_clean = df_records.copy()
     df_clean['日期格式'] = pd.to_datetime(df_clean['加油日期'], errors='coerce')
     df_clean['年份'] = df_clean['日期格式'].dt.year.fillna(0).astype(int)
     df_clean['月份'] = df_clean['日期格式'].dt.month.fillna(0).astype(int)
     
-    # [需求 4.2] 對齊統計類別 (如 GV-1)
-    df_clean['統計類別'] = df_clean['設備編號'].apply(lambda c: next((v for k, v in DEVICE_CODE_MAP.items() if str(c).startswith(k)), "其他/未分類"))
+    df_clean['統計類別'] = df_clean['設備名稱備註'].apply(lambda c: next((v for k, v in DEVICE_CODE_MAP.items() if str(c).startswith(k)), "其他/未分類"))
     
     all_years = sorted(df_clean['年份'][df_clean['年份']>0].unique(), reverse=True) if not df_clean.empty else [datetime.now().year]
     
@@ -551,7 +583,6 @@ def render_tab3_edit_records(df_records, ws_rec):
     
     df_mo = df_yr[df_yr['月份'] == sel_mo]
     
-    # [需求 4.2] 設備類別下拉選單
     cats = ["全部"] + DEVICE_ORDER
     sel_cat = c_c.selectbox("🚜 設備類別", cats, index=0)
     
@@ -563,7 +594,6 @@ def render_tab3_edit_records(df_records, ws_rec):
         df_target = df_mo
         
     if not df_target.empty:
-        # [需求 4.3] 按照設備分組，左側列出該設備所有申報單，右側去重顯示圖片
         grouped = df_target.groupby('設備名稱備註')
         
         for eq_name, group in grouped:
@@ -598,9 +628,8 @@ def render_tab3_edit_records(df_records, ws_rec):
                             
                             submit_btn = st.form_submit_button("💾 精準更新此筆紀錄", type="primary")
                             if submit_btn:
-                                orig_cols = rec_cols
                                 updated_vals = []
-                                for col in orig_cols:
+                                for col in rec_cols:
                                     if col == "設備名稱備註": updated_vals.append(eq_name_input)
                                     elif col == "校內財產編號": updated_vals.append(eq_id)
                                     elif col == "設備數量": updated_vals.append(eq_qty)
@@ -616,9 +645,11 @@ def render_tab3_edit_records(df_records, ws_rec):
                                     else: updated_vals.append("")
                                 
                                 try:
-                                    range_str = f"A{row_idx_in_sheet}:{chr(65 + len(updated_vals) - 1)}{row_idx_in_sheet}"
+                                    end_col = get_col_letter(len(updated_vals))
+                                    range_str = f"A{row_idx_in_sheet}:{end_col}{row_idx_in_sheet}"
+                                    
                                     with st.spinner("🔄 寫入資料庫中..."):
-                                        update_sheet_row_safe("油料填報紀錄", range_str, updated_vals)
+                                        update_sheet_row_safe(ws_title, range_str, updated_vals)
                                     st.success("✅ 更新成功！")
                                     st.cache_data.clear()
                                     time.sleep(1)
@@ -627,7 +658,6 @@ def render_tab3_edit_records(df_records, ws_rec):
                                     st.error(f"寫入失敗：{e}")
 
             with col_right:
-                # 統一收集該設備所有明細的圖片，並智慧去重
                 raw_links = []
                 for links_str in group['佐證資料'].dropna():
                     if links_str and str(links_str).strip() not in ["無", "-"]:
@@ -653,9 +683,9 @@ def main():
         "🔍 申報資料異動"
     ])
     
-    with admin_tabs[0]: render_tab1_db_manage(df_equip_full, eq_cols)
+    with admin_tabs[0]: render_tab1_db_manage(df_equip_full, eq_cols, ws_equip_title)
     with admin_tabs[1]: render_tab2_notify(df_records, df_equip_full)
-    with admin_tabs[2]: render_tab3_edit_records(df_records, ws_record)
+    with admin_tabs[2]: render_tab3_edit_records(df_records, rec_cols, ws_record_title)
 
 if __name__ == "__main__":
     main()
