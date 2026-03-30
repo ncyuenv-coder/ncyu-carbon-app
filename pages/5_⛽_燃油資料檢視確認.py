@@ -61,7 +61,7 @@ def with_retry(max_retries=5, base_delay=2.0, backoff_factor=2.0):
         return wrapper
     return decorator
 
-# [核心重構] 放棄 gspread 寫入，改用底層 Google API 直接覆寫，根除斷線問題
+# 每次寫入都重新獲取最新憑證，避免 Session 過期導致 'AuthorizedSession' 報錯
 @with_retry(max_retries=3, base_delay=2.0)
 def update_sheet_row_safe(worksheet_title, range_name, values):
     oauth = st.secrets["gcp_oauth"]
@@ -383,7 +383,6 @@ def render_tab1_db_manage(df_equip_full, eq_cols, ws_title):
                             else: updated_vals.append("")
                         
                         try:
-                            # 轉換欄數為字母，確保超過 Z 的欄位也正常 (例如 AA, AB)
                             end_col = get_col_letter(len(updated_vals))
                             range_str = f"A{r_idx}:{end_col}{r_idx}"
                             
@@ -433,7 +432,9 @@ def render_tab2_notify(df_records, df_equip_full):
             key = str(r.get('填報單位', '')) + "|||" + str(r.get('設備名稱備註', ''))
             if key in reported_keys:
                 recs = df_target_rec[(df_target_rec['填報單位'] == r['填報單位']) & (df_target_rec['設備名稱備註'] == r['設備名稱備註'])]
-                dts = ", ".join(recs['加油日期'].astype(str).unique())
+                # [修改 1] 將日期排序
+                dts_list = sorted(pd.to_datetime(recs['加油日期'], errors='coerce').dropna().dt.date.unique())
+                dts = ", ".join([str(d) for d in dts_list])
                 vol = recs['加油量'].sum()
                 return pd.Series(["✅ 已申報", dts, vol])
             else:
@@ -441,7 +442,7 @@ def render_tab2_notify(df_records, df_equip_full):
                 
         df_eq[['申報狀態', '申報日期', '當月加油量']] = df_eq.apply(get_report_info, axis=1)
         
-        st.markdown(f"#### 📅 【{sel_year}年 {sel_month}月】各單位設備填報情形視覺化總覽")
+        st.markdown(f"#### 📅 【{sel_year}年 {sel_month}月】各單位設備填報情形總覽")
         
         for unit, group in df_eq.groupby('填報單位'):
             html_table = f"""<div style="background:#FDFEFE; border:1px solid #BDC3C7; border-radius:12px; padding:15px; margin-bottom:15px; box-shadow:0 2px 5px rgba(0,0,0,0.05);">
@@ -508,7 +509,9 @@ def render_tab2_notify(df_records, df_equip_full):
             key = str(r.get('填報單位', '')) + "|||" + str(r.get('設備名稱備註', ''))
             if key in reported_keys:
                 recs = df_target_rec[(df_target_rec['填報單位'] == r.get('填報單位')) & (df_target_rec['設備名稱備註'] == r.get('設備名稱備註'))]
-                dts = ", ".join(recs['加油日期'].astype(str).unique())
+                # [修改 1] 將日期排序
+                dts_list = sorted(pd.to_datetime(recs['加油日期'], errors='coerce').dropna().dt.date.unique())
+                dts = ", ".join([str(d) for d in dts_list])
                 return pd.Series(["✅ 已申報", dts])
             else:
                 return pd.Series(["❌ 未申報", "-"])
@@ -525,6 +528,7 @@ def render_tab2_notify(df_records, df_equip_full):
             
             for _, row in group.iterrows():
                 color = "#148F77" if "✅" in row['申報狀態'] else "#C0392B"
+                # [修改 4] 查核期間改為申報日期，並拿掉未申報期間欄位，改以-表示
                 html_table += f"<tr><td style='color:{color}; font-weight:bold;'>{row['申報狀態']}</td><td>{row.get('設備編號','-')}</td><td>{row['設備名稱備註']}</td><td>{row.get('原燃物料名稱','-')}</td><td>{row.get('設備數量','1')}</td><td>{row['申報日期']}</td></tr>"
             html_table += "</table></div>"
             st.markdown(html_table, unsafe_allow_html=True)
@@ -562,7 +566,7 @@ def render_tab2_notify(df_records, df_equip_full):
 
 
 @st.fragment
-def render_tab3_edit_records(df_records, rec_cols, ws_title):
+def render_tab3_edit_records(df_records, rec_cols, ws_title, df_equip_full):
     st.markdown("<br>", unsafe_allow_html=True)
     
     df_clean = df_records.copy()
@@ -570,7 +574,14 @@ def render_tab3_edit_records(df_records, rec_cols, ws_title):
     df_clean['年份'] = df_clean['日期格式'].dt.year.fillna(0).astype(int)
     df_clean['月份'] = df_clean['日期格式'].dt.month.fillna(0).astype(int)
     
-    df_clean['統計類別'] = df_clean['設備名稱備註'].apply(lambda c: next((v for k, v in DEVICE_CODE_MAP.items() if str(c).startswith(k)), "其他/未分類"))
+    # [修改 2] 透過跨表 Mapping 將「設備名稱」對應到設備清單的「設備編號」，解決 df_records 本身無設備編號的問題
+    if '設備編號' in df_equip_full.columns:
+        eq_to_id_map = dict(zip(df_equip_full['設備名稱備註'], df_equip_full['設備編號']))
+        df_clean['設備編號'] = df_clean['設備名稱備註'].map(eq_to_id_map).fillna('')
+    else:
+        df_clean['設備編號'] = ''
+        
+    df_clean['統計類別'] = df_clean['設備編號'].apply(lambda c: next((v for k, v in DEVICE_CODE_MAP.items() if str(c).startswith(k)), "其他/未分類"))
     
     all_years = sorted(df_clean['年份'][df_clean['年份']>0].unique(), reverse=True) if not df_clean.empty else [datetime.now().year]
     
@@ -685,7 +696,9 @@ def main():
     
     with admin_tabs[0]: render_tab1_db_manage(df_equip_full, eq_cols, ws_equip_title)
     with admin_tabs[1]: render_tab2_notify(df_records, df_equip_full)
-    with admin_tabs[2]: render_tab3_edit_records(df_records, rec_cols, ws_record_title)
+    
+    # 傳遞 df_equip_full 以進行設備編號 mapping
+    with admin_tabs[2]: render_tab3_edit_records(df_records, rec_cols, ws_record_title, df_equip_full)
 
 if __name__ == "__main__":
     main()
