@@ -15,6 +15,7 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from PIL import Image
 from functools import wraps
+import random
 
 # [PDF 截圖套件防護]
 try:
@@ -473,11 +474,17 @@ def render_tab2_notify(df_records, df_equip_full):
         target_units = unreported_units if "過濾寄送" in send_target else all_units
         st.info(f"👉 預計發送單位數量：**{len(target_units)}** 個")
         
-        default_subject = f"【提醒】{sel_year}年{sel_month}月份燃油設備油料使用申報通知，請於次月5日前完成申報"
-        default_body = f"""您好：\n\n依據環境部「事業應盤查登錄溫室氣體排放量之排放源」及「溫室氣體排放量盤查登錄及查驗管理辦法」，本校須依辦理溫室氣體排放量盤查登錄作業。\n\n提醒您，請於每月5日前至校內溫室氣體盤查填報系統申報貴單位前一月份之燃油設備油料使用情形。\n\n若有疑問，請洽環境保護及安全管理中心林小姐 (分機7137)\n\n感謝您的配合！\n環境保護及安全管理中心 敬上"""
+        default_subject = f"【提醒】{sel_year}年{sel_month}月份燃油設備油料使用申報通知，請於次月5日前完成申報，以利辦理溫室氣體排放量盤查作業"
+        default_body = f"""您好：
+
+依據環境部「事業應盤查登錄溫室氣體排放量之排放源」及「溫室氣體排放量盤查登錄及查驗管理辦法」，本校須依辦理溫室氣體排放量盤查登錄作業。
+提醒您，請於每月5日前至校內溫室氣體盤查填報系統申報貴單位前一月份之燃油設備油料使用情形。
+
+若申報過程有任何疑問，歡迎隨時與我們聯繫。感謝您的協助與配合！
+環安中心環保組 林小姐 (分機 7137) 敬上"""
         
         sub_input = st.text_input("信件主旨", value=default_subject)
-        body_input = st.text_area("信件內容 (不含動態設備清單，系統會自動附於尾部)", value=default_body, height=200)
+        body_input = st.text_area("信件內容 (不含動態設備清單與系統連結，系統會自動組合)", value=default_body, height=220)
         
         if st.button("🚀 確認並寄出通知信", type="primary"):
             if not target_units:
@@ -491,8 +498,19 @@ def render_tab2_notify(df_records, df_equip_full):
                         
                         for email in set(emails):
                             if str(email).strip() and str(email).strip() != 'nan':
-                                eq_li = "".join([f"<li>{r['設備名稱備註']} ：{r.get('設備數量','1')}台</li>" for _, r in unit_eqs.iterrows()])
-                                final_body = body_input.replace('\n', '<br>') + f"<br><br><p>貴單位 ({unit}) 負責之設備清單如下，請撥冗確認：</p><ul>{eq_li}</ul><br><span style='color:#7F8C8D;font-size:12px;'>(系統自動發送)</span>"
+                                eq_li = "".join([f"<li>{r['設備名稱備註']}({unit}) ：{r.get('設備數量','1')}台</li>" for _, r in unit_eqs.iterrows()])
+                                
+                                list_html = f"<br>貴單位 ({unit}) 負責之設備清單如下，請撥冗確認：<ul style='list-style-type: none; padding-left: 0;'>{eq_li}</ul>"
+                                sys_info = f"申報系統連結：<a href='https://ncyu-carbon-app-mduue5hffp7uknsskmjet9.streamlit.app/'>https://ncyu-carbon-app-mduue5hffp7uknsskmjet9.streamlit.app/</a><br>申報帳號：ncyu<br>申報密碼：ncyu2026<br><br>"
+                                
+                                parts = body_input.split("若申報過程有任何疑問")
+                                if len(parts) > 1:
+                                    final_body = parts[0].replace('\n', '<br>') + list_html + sys_info + "若申報過程有任何疑問" + parts[1].replace('\n', '<br>')
+                                else:
+                                    final_body = body_input.replace('\n', '<br>') + list_html + sys_info
+                                    
+                                final_body += "<br><span style='color:#7F8C8D;font-size:12px;'>(系統自動發送)</span>"
+                                
                                 ok, msg = send_system_email(email, sub_input, final_body)
                                 if ok: success_count += 1
                                 else: fail_count += 1
@@ -516,7 +534,6 @@ def render_tab2_notify(df_records, df_equip_full):
             key = str(r.get('填報單位', '')) + "|||" + str(r.get('設備名稱備註', ''))
             if key in reported_keys:
                 recs = df_target_rec[(df_target_rec['填報單位'] == r.get('填報單位')) & (df_target_rec['設備名稱備註'] == r.get('設備名稱備註'))]
-                # 依序排列
                 dts_list = sorted(pd.to_datetime(recs['加油日期'], errors='coerce').dropna().dt.date.unique())
                 dts = ", ".join([str(d) for d in dts_list])
                 return pd.Series(["✅ 已申報", dts])
@@ -539,36 +556,93 @@ def render_tab2_notify(df_records, df_equip_full):
             html_table += "</table></div>"
             st.markdown(html_table, unsafe_allow_html=True)
         
-        unreported_units = sorted(list(df_eq[df_eq['申報狀態'] == '❌ 未申報']['填報單位'].unique()))
-        
+        # --- 新增：互動式勾選表單 ---
         st.markdown("---")
-        st.markdown("#### 📧 自訂信件與寄送")
-        st.info(f"👉 系統將自動發送給未申報的 **{len(unreported_units)}** 個單位。")
+        st.markdown("#### 📧 未申報設備催報確認 (取消勾選可排除發送)")
         
-        default_subject = f"【催報提醒】查貴單位尚未申報({d_start} ~ {d_end})之燃油設備油料使用情形，請盡速申報"
-        default_body = f"""您好：\n\n依據規定，本校須依辦理溫室氣體排放量盤查登錄作業。\n\n經系統比對，貴單位於 {d_start} 至 {d_end} 期間有設備尚未完成申報，請於通知日起3日內至系統完成補登。\n\n若有疑問，請洽環境保護及安全管理中心林小姐 (分機7137)\n\n感謝配合！"""
+        df_unreported = df_eq[df_eq['申報狀態'] == '❌ 未申報'].copy()
         
-        sub_input = st.text_input("信件主旨", value=default_subject, key="u_sub")
-        body_input = st.text_area("信件內容 (不含設備清單)", value=default_body, height=180, key="u_body")
-        
-        if st.button("🚀 針對未申報單位寄出催報信", type="primary"):
-            if not unreported_units: st.success("🎉 太棒了！該期間全數設備皆已完成申報。")
-            else:
-                with st.spinner("正在發送催報信件..."):
-                    success_count, fail_count = 0, 0
-                    for unit in unreported_units:
-                        unit_eqs = df_eq[(df_eq['填報單位'] == unit) & (df_eq['申報狀態'] == '❌ 未申報')]
-                        emails = [test_email] if "測試模式" in test_mode else unit_eqs['電子郵件'].unique()
+        if df_unreported.empty:
+            st.success("🎉 太棒了！該期間全數設備皆已完成申報。")
+        else:
+            # 建立互動用 DataFrame
+            df_interactive = pd.DataFrame({
+                "寄送催報": [True] * len(df_unreported),
+                "填報單位": df_unreported['填報單位'],
+                "設備名稱備註": df_unreported['設備名稱備註'],
+                "設備編號": df_unreported.get('設備編號', '-'),
+                "設備數量": df_unreported.get('設備數量', '1'),
+                "電子郵件": df_unreported['電子郵件']
+            })
+
+            # 使用 st.data_editor 進行編輯
+            edited_df = st.data_editor(
+                df_interactive,
+                hide_index=True,
+                use_container_width=True,
+                column_config={
+                    "寄送催報": st.column_config.CheckboxColumn("✉️ 寄送催報", help="取消勾選即不會寄送通知給該設備負責人", default=True),
+                    "填報單位": st.column_config.TextColumn("填報單位", disabled=True),
+                    "設備名稱備註": st.column_config.TextColumn("設備名稱備註", disabled=True),
+                    "設備編號": st.column_config.TextColumn("設備編號", disabled=True),
+                    "設備數量": st.column_config.TextColumn("設備數量", disabled=True)
+                }
+            )
+
+            # 篩選出勾選要寄送的資料
+            df_to_send = edited_df[edited_df["寄送催報"] == True]
+            target_units_send = sorted(list(df_to_send['填報單位'].unique()))
+
+            st.info(f"👉 根據上方勾選結果，系統預計發送給 **{len(target_units_send)}** 個單位。")
+            
+            default_subject = f"【重要通知】請儘速至系統申報燃油設備油料使用情形（{d_start} ~ {d_end}），以利辦理溫室氣體排放量盤查作業"
+            default_body = f"""您好：
+
+配合環境部「事業應盤查登錄溫室氣體排放量之排放源」公告及相關管理辦法，本校須於每年 4 月 30 日前完成前一年度之溫室氣體排放量盤查登錄作業。
+
+為順利推進全校盤查進度，請於收到此通知起 3 日內，撥冗至系統完成補登作業。
+⚠️ 重要提醒： 若上述設備於此期間皆未添加油料，仍請務必登入系統申報為「無使用」，並確實填寫未使用之起訖時間。
+
+若申報過程有任何疑問，歡迎隨時與我們聯繫。感謝您的協助與配合！
+環安中心 林小姐 (分機 7137) 敬上"""
+            
+            sub_input = st.text_input("信件主旨", value=default_subject, key="u_sub")
+            body_input = st.text_area("信件內容 (不含動態設備清單與系統連結，系統會自動組合)", value=default_body, height=280, key="u_body")
+            
+            if st.button("🚀 確認並針對勾選清單寄出催報信", type="primary"):
+                if df_to_send.empty: 
+                    st.warning("⚠️ 尚未勾選任何設備，無信件寄出。")
+                else:
+                    with st.spinner("正在發送催報信件..."):
+                        success_count, fail_count = 0, 0
+                        for unit in target_units_send:
+                            unit_eqs = df_to_send[df_to_send['填報單位'] == unit]
+                            emails = [test_email] if "測試模式" in test_mode else unit_eqs['電子郵件'].unique()
+                            
+                            for email in set(emails):
+                                if str(email).strip() and str(email).strip() != 'nan':
+                                    eq_li = "".join([f"<li>．{row['設備名稱備註']}：{row['設備數量']} 台</li>" for _, row in unit_eqs.iterrows()])
+                                    
+                                    list_html = f"<br>經系統比對，貴單位（{unit}）在 {d_start} 至 {d_end} 期間，尚有以下燃油設備未完成申報：<ul style='list-style-type: none; padding-left: 0;'>{eq_li}</ul><br>"
+                                    sys_info = f"【申報系統資訊】<br>．申報系統連結：<a href='https://ncyu-carbon-app-mduue5hffp7uknsskmjet9.streamlit.app/'>https://ncyu-carbon-app-mduue5hffp7uknsskmjet9.streamlit.app/</a><br>．申報帳號：ncyu<br>．申報密碼：ncyu2026<br><br>"
+                                    
+                                    parts = body_input.split("為順利推進全校盤查進度")
+                                    if len(parts) > 1:
+                                        final_body = parts[0].replace('\n', '<br>') + list_html + "為順利推進全校盤查進度" + parts[1].split("若申報過程有任何疑問")[0].replace('\n', '<br>') + sys_info + "若申報過程有任何疑問" + parts[1].split("若申報過程有任何疑問")[1].replace('\n', '<br>')
+                                    else:
+                                        parts_alt = body_input.split("若申報過程有任何疑問")
+                                        if len(parts_alt) > 1:
+                                            final_body = parts_alt[0].replace('\n', '<br>') + list_html + sys_info + "若申報過程有任何疑問" + parts_alt[1].replace('\n', '<br>')
+                                        else:
+                                            final_body = body_input.replace('\n', '<br>') + list_html + sys_info
+                                            
+                                    final_body += "<br><span style='color:#7F8C8D;font-size:12px;'>(系統自動發送)</span>"
+                                    
+                                    ok, msg = send_system_email(email, sub_input, final_body)
+                                    if ok: success_count += 1
+                                    else: fail_count += 1
                         
-                        for email in set(emails):
-                            if str(email).strip() and str(email).strip() != 'nan':
-                                eq_li = "".join([f"<li>{r['設備名稱備註']}</li>" for _, r in unit_eqs.iterrows()])
-                                final_body = body_input.replace('\n', '<br>') + f"<br><br><p>貴單位 ({unit}) 尚未申報之設備：</p><ul>{eq_li}</ul><br><span style='color:#7F8C8D;font-size:12px;'>(系統自動發送)</span>"
-                                ok, msg = send_system_email(email, sub_input, final_body)
-                                if ok: success_count += 1
-                                else: fail_count += 1
-                    
-                    st.success(f"寄送完畢！成功: {success_count} 封，失敗: {fail_count} 封。")
+                        st.success(f"寄送完畢！成功: {success_count} 封，失敗: {fail_count} 封。")
 
 
 @st.fragment
