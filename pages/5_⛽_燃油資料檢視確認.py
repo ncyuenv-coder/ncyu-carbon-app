@@ -41,7 +41,7 @@ def get_col_letter(col_idx):
     return result
 
 # ==========================================
-# [防護機制] 徹底解決 _auth_request 憑證失效問題
+# [防護機制] 徹底解決 _auth_request 憑證失效問題與 API 擴充
 # ==========================================
 def with_retry(max_retries=5, base_delay=2.0, backoff_factor=2.0):
     def decorator(func):
@@ -75,6 +75,55 @@ def update_sheet_row_safe(worksheet_title, range_name, values):
         valueInputOption="USER_ENTERED",
         body=body
     ).execute()
+
+# --- 新增：資料新增 (Append) 函數 ---
+@with_retry(max_retries=3, base_delay=2.0)
+def append_sheet_row_safe(worksheet_title, values):
+    oauth = st.secrets["gcp_oauth"]
+    creds = Credentials(token=None, refresh_token=oauth["refresh_token"], token_uri="https://oauth2.googleapis.com/token", client_id=oauth["client_id"], client_secret=oauth["client_secret"], scopes=["https://www.googleapis.com/auth/spreadsheets"])
+    service = build('sheets', 'v4', credentials=creds)
+    body = {'values': [values]}
+    full_range = f"'{worksheet_title}'!A:A"
+    service.spreadsheets().values().append(
+        spreadsheetId="1gqDU21YJeBoBOd8rMYzwwZ45offXWPGEODKTF6B8k-Y",
+        range=full_range,
+        valueInputOption="USER_ENTERED",
+        insertDataOption="INSERT_ROWS",
+        body=body
+    ).execute()
+
+# --- 新增：資料刪除 (Delete) 函數 ---
+@with_retry(max_retries=3, base_delay=2.0)
+def delete_sheet_row_safe(worksheet_title, row_index):
+    oauth = st.secrets["gcp_oauth"]
+    creds = Credentials(token=None, refresh_token=oauth["refresh_token"], token_uri="https://oauth2.googleapis.com/token", client_id=oauth["client_id"], client_secret=oauth["client_secret"], scopes=["https://www.googleapis.com/auth/spreadsheets"])
+    service = build('sheets', 'v4', credentials=creds)
+    
+    # 1. 取得目標工作表的 sheetId (Delete API 需要 ID 而非標題)
+    sheet_metadata = service.spreadsheets().get(spreadsheetId="1gqDU21YJeBoBOd8rMYzwwZ45offXWPGEODKTF6B8k-Y").execute()
+    sheets = sheet_metadata.get('sheets', '')
+    sheet_id = None
+    for sheet in sheets:
+        if sheet.get("properties", {}).get("title") == worksheet_title:
+            sheet_id = sheet.get("properties", {}).get("sheetId")
+            break
+            
+    # 2. 執行刪除動作 (startIndex 為 0-based)
+    if sheet_id is not None:
+        requests = [{
+            "deleteDimension": {
+                "range": {
+                    "sheetId": sheet_id,
+                    "dimension": "ROWS",
+                    "startIndex": row_index - 1,
+                    "endIndex": row_index
+                }
+            }
+        }]
+        service.spreadsheets().batchUpdate(
+            spreadsheetId="1gqDU21YJeBoBOd8rMYzwwZ45offXWPGEODKTF6B8k-Y", 
+            body={'requests': requests}
+        ).execute()
 
 # ==========================================
 # 1. CSS 樣式表 (莫蘭迪深色調)
@@ -341,7 +390,7 @@ def render_image_gallery(links, base_key):
 @st.fragment
 def render_tab1_db_manage(df_equip_full, eq_cols, ws_title):
     st.markdown("<br>", unsafe_allow_html=True)
-    st.info("請篩選單位後，直接於下方卡片中修改資料。系統會「精準更新」單一筆設備，確保其他資料庫內容安全。")
+    st.info("請篩選單位後，直接於下方卡片中修改或刪除資料。系統會「精準更新」單一筆設備，確保其他資料庫內容安全。")
     
     all_years = sorted([y for y in df_equip_full['設備檢視年度'].unique() if str(y).strip() != ''], reverse=True) if '設備檢視年度' in df_equip_full.columns else [str(datetime.now().year)]
     all_units = sorted([u for u in df_equip_full['填報單位'].unique() if str(u).strip() != ''])
@@ -349,7 +398,60 @@ def render_tab1_db_manage(df_equip_full, eq_cols, ws_title):
     c1, c2 = st.columns(2)
     sel_year = c1.selectbox("📅 設備年度", all_years, index=0)
     sel_unit = c2.selectbox("🏢 填報單位", all_units, index=0)
-    
+
+    # ==========================
+    # [新增] 設備新增表單區塊
+    # ==========================
+    with st.expander("➕ 新增設備至此單位", expanded=False):
+        with st.form(key="add_new_equip_form"):
+            st.markdown(f"<div style='color:#1A5276; font-weight:bold; margin-bottom:10px;'>將新增至：年度「{sel_year}」 / 單位「{sel_unit}」</div>", unsafe_allow_html=True)
+            c_n1, c_n2, c_n3 = st.columns(3)
+            add_id = c_n1.text_input("設備編號", key="add_id")
+            add_name = c_n2.text_input("設備名稱備註*", key="add_nm", placeholder="必填欄位")
+            add_fuel = c_n3.text_input("原燃物料名稱", key="add_fl")
+            
+            c_n4, c_n5, c_n6 = st.columns(3)
+            add_keeper = c_n4.text_input("保管人", key="add_kp")
+            add_sub = c_n5.text_input("設備所屬單位/部門", key="add_sub")
+            add_loc = c_n6.text_input("詳細位置/樓層", key="add_loc")
+            
+            c_n7, c_n8, c_n9 = st.columns(3)
+            add_qty = c_n7.text_input("設備數量", value="1", key="add_qty")
+            add_mail = c_n8.text_input("電子郵件", key="add_mail")
+            add_ast = c_n9.text_input("校內財產編號", key="add_ast")
+            
+            if st.form_submit_button("➕ 確認新增設備", type="primary"):
+                if not add_name.strip():
+                    st.error("⚠️ 「設備名稱備註」為必填欄位，請填寫後再送出！")
+                else:
+                    new_vals = []
+                    for col in eq_cols:
+                        if col == "設備檢視年度": new_vals.append(str(sel_year))
+                        elif col == "填報單位": new_vals.append(str(sel_unit))
+                        elif col == "設備編號": new_vals.append(add_id)
+                        elif col == "設備名稱備註": new_vals.append(add_name)
+                        elif col == "原燃物料名稱": new_vals.append(add_fuel)
+                        elif col == "保管人": new_vals.append(add_keeper)
+                        elif col == "設備所屬單位/部門": new_vals.append(add_sub)
+                        elif col == "設備詳細位置/樓層": new_vals.append(add_loc)
+                        elif col == "設備數量": new_vals.append(add_qty)
+                        elif col == "電子郵件": new_vals.append(add_mail)
+                        elif col == "校內財產編號": new_vals.append(add_ast)
+                        else: new_vals.append("") 
+                    
+                    try:
+                        with st.spinner("🔄 寫入資料庫中..."):
+                            append_sheet_row_safe(ws_title, new_vals)
+                        st.success(f"✅ 【{add_name}】 新增成功！")
+                        st.cache_data.clear()
+                        time.sleep(1)
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"新增失敗：{e}")
+
+    # ==========================
+    # 設備編輯與刪除區塊
+    # ==========================
     if '設備檢視年度' in df_equip_full.columns:
         df_target = df_equip_full[(df_equip_full['設備檢視年度'].astype(str) == str(sel_year)) & (df_equip_full['填報單位'] == sel_unit)].copy()
     else:
@@ -380,7 +482,15 @@ def render_tab1_db_manage(df_equip_full, eq_cols, ws_title):
                     new_mail = c_c2.text_input("電子郵件", value=row.get('電子郵件', ''), key=f"eml_{r_idx}")
                     new_ast = c_c3.text_input("校內財產編號", value=row.get('校內財產編號', ''), key=f"eas_{r_idx}")
                     
-                    if st.form_submit_button("💾 精準儲存此設備變更", type="primary"):
+                    # [新增] 雙按鈕佈局：儲存 vs 刪除
+                    col_btn_save, col_btn_del = st.columns([7, 3])
+                    with col_btn_save:
+                        submit_btn = st.form_submit_button("💾 精準儲存此設備變更", type="primary", use_container_width=True)
+                    with col_btn_del:
+                        delete_btn = st.form_submit_button("🗑️ 刪除此設備", use_container_width=True)
+                    
+                    # 判斷點擊的是哪一個按鈕
+                    if submit_btn:
                         updated_vals = []
                         for col in eq_cols:
                             if col == "設備編號": updated_vals.append(new_id)
@@ -407,6 +517,17 @@ def render_tab1_db_manage(df_equip_full, eq_cols, ws_title):
                             st.rerun()
                         except Exception as e:
                             st.error(f"寫入失敗：{e}")
+                    
+                    elif delete_btn:
+                        try:
+                            with st.spinner("🗑️ 正在刪除設備資料..."):
+                                delete_sheet_row_safe(ws_title, r_idx)
+                            st.success(f"✅ 【{new_name}】 已成功從資料庫刪除！")
+                            st.cache_data.clear()
+                            time.sleep(1)
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"刪除失敗：{e}")
                 
                 st.markdown("</div></div>", unsafe_allow_html=True)
     else:
@@ -556,7 +677,7 @@ def render_tab2_notify(df_records, df_equip_full):
             html_table += "</table></div>"
             st.markdown(html_table, unsafe_allow_html=True)
         
-        # --- 新增：互動式勾選表單 ---
+        # --- 互動式勾選表單 ---
         st.markdown("---")
         st.markdown("#### 📧 未申報設備催報確認 (取消勾選可排除發送)")
         
