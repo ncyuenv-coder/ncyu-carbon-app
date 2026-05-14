@@ -32,12 +32,14 @@ st.markdown("""
     }
     .stApp { background-color: #F8F9F9; }
 
-    /* 修改 Login 按鈕樣式 */
+    /* 修改 Login 與 Logout 按鈕樣式 (確保側邊欄登出按鈕也是橘色) */
+    [data-testid="stSidebar"] div.stButton > button,
     div.stButton > button {
         background-color: #E67E22 !important; color: #FFFFFF !important;
         border: 2px solid #D35400 !important; border-radius: 12px !important;
         font-weight: 800 !important; box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
     }
+    [data-testid="stSidebar"] div.stButton > button:hover,
     div.stButton > button:hover {
         background-color: #D35400 !important; transform: translateY(-2px);
     }
@@ -74,27 +76,7 @@ def get_online_user_status():
     return active_count
 # ===============================
 
-# 2. 顯示標題
-st.markdown('<div class="main-header">🏫 國立嘉義大學溫室氣體盤查填報系統<br><span style="font-size: 1.4rem; font-weight: 600; color: #5D6D7E;">National Chiayi University Greenhouse Gas Data Reporting System</span></div>', unsafe_allow_html=True)
-
-# ===== 核心修改：將人數燈號移至右上角 (主標題下方靠右) =====
-online_count = get_online_user_status()
-if online_count >= 11: 
-    status_html = f"🔴 目前線上人數: {online_count} 人 (擁擠，建議稍候操作)"
-elif online_count >= 6: 
-    status_html = f"🟡 目前線上人數: {online_count} 人 (普通，可正常填報)"
-else: 
-    status_html = f"🟢 目前線上人數: {online_count} 人 (順暢)"
-
-# 利用 HTML div 靠右對齊，並用負 margin 讓它稍微貼近上方標題框
-st.markdown(f"""
-    <div style="text-align: right; margin-top: 5px; margin-bottom: 15px; font-size: 0.95rem; font-weight: 600; color: #4A4A4A;">
-        {status_html}
-    </div>
-""", unsafe_allow_html=True)
-# ==========================================================
-
-# 3. 首頁引導文案
+# 3. 首頁引導文案 (已將大標題移至下方動態判斷區)
 def home_page():
     st.markdown("""
     <div class="info-box">
@@ -162,7 +144,39 @@ if st.session_state.get("authentication_status"):
         pages_dict["⚡ 全校電力管理"] = [elec_report, elec_admin]
         pages_dict["💨 氣體鋼瓶管理"] = [gas_report, gas_admin]
         
+    # 取得當前準備執行的頁面物件
     pg = st.navigation(pages_dict)
+
+    # ==========================================================
+    # 🌟 核心修改區：在執行頁面「前」，根據所在頁面決定標題顯示
+    # ==========================================================
+    online_count = get_online_user_status()
+    if online_count >= 11: 
+        status_html = f"🔴 目前線上人數: {online_count} 人 (擁擠，建議稍候操作)"
+    elif online_count >= 6: 
+        status_html = f"🟡 目前線上人數: {online_count} 人 (普通，可正常填報)"
+    else: 
+        status_html = f"🟢 目前線上人數: {online_count} 人 (順暢)"
+
+    # 只在「首頁」與兩個「填報作業」顯示系統大標題
+    if pg.title in ["系統首頁", "燃油設備填報", "冷媒設備填報"]:
+        # 印出大標題
+        st.markdown('<div class="main-header">🏫 國立嘉義大學溫室氣體盤查填報系統<br><span style="font-size: 1.4rem; font-weight: 600; color: #5D6D7E;">National Chiayi University Greenhouse Gas Data Reporting System</span></div>', unsafe_allow_html=True)
+        # 印出燈號 (使用負數 margin-top 把它往上拉，完美貼合在標題右下方)
+        st.markdown(f"""
+            <div style="text-align: right; margin-top: -10px; margin-bottom: 20px; font-size: 0.95rem; font-weight: 600; color: #4A4A4A;">
+                {status_html}
+            </div>
+        """, unsafe_allow_html=True)
+    else:
+        # 如果是後台頁面：不顯示大標題，單純把燈號顯示在右上方
+        st.markdown(f"""
+            <div style="text-align: right; margin-bottom: 20px; font-size: 0.95rem; font-weight: 600; color: #4A4A4A;">
+                {status_html}
+            </div>
+        """, unsafe_allow_html=True)
+
+    # 執行該分頁的內容
     pg.run()
 
 elif st.session_state.get("authentication_status") is False:
