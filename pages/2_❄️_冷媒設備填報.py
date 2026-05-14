@@ -133,31 +133,6 @@ try:
 except:
     pass
 
-with st.sidebar:
-    st.header(f"👤 {name}")
-    st.caption(f"帳號: {username}")
-    st.success("☁️ 雲端連線正常")
-        
-    # --- 線上人數統計雷達 ---
-    # [精準導入 2] 使用 @st.cache_resource 確保變數跨 Session 共用
-    @st.cache_resource
-    def get_active_users(): return {}
-    
-    active_users = get_active_users()
-    if 'session_id' not in st.session_state: st.session_state['session_id'] = str(uuid.uuid4())
-    current_time = time.time()
-    active_users[st.session_state['session_id']] = current_time
-    
-    timeout_seconds = 300
-    keys_to_delete = [sid for sid, ts in active_users.items() if current_time - ts > timeout_seconds]
-    for sid in keys_to_delete: del active_users[sid]
-        
-    online_count = len(active_users)
-    st.markdown("<br>", unsafe_allow_html=True)
-    if online_count >= 11: st.error(f"🔴 目前線上人數: {online_count} 人 (擁擠，建議稍候操作)")
-    elif online_count >= 6: st.warning(f"🟡 目前線上人數: {online_count} 人 (普通，可正常填報)")
-    else: st.success(f"🟢 目前線上人數: {online_count} 人 (順暢)")
-    # ------------------------------
     
     st.markdown("---")
 
