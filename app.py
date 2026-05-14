@@ -3,7 +3,7 @@ import streamlit_authenticator as stauth
 import time
 from streamlit.runtime.scriptrunner import get_script_run_ctx
 
-# 0. 系統設定 (這是首頁的設定)
+# 0. 系統設定
 st.set_page_config(
     page_title="嘉義大學碳盤查", 
     page_icon="🏫", 
@@ -32,12 +32,14 @@ st.markdown("""
     }
     .stApp { background-color: #F8F9F9; }
 
-    /* 修改 Login 按鈕樣式 */
+    /* 修改 Login 與 Logout 按鈕樣式 (強化選擇器，確保橘色樣式不跑版) */
+    [data-testid="stSidebar"] div.stButton > button,
     div.stButton > button {
         background-color: #E67E22 !important; color: #FFFFFF !important;
         border: 2px solid #D35400 !important; border-radius: 12px !important;
         font-weight: 800 !important; box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
     }
+    [data-testid="stSidebar"] div.stButton > button:hover,
     div.stButton > button:hover {
         background-color: #D35400 !important; transform: translateY(-2px);
     }
@@ -74,10 +76,7 @@ def get_online_user_status():
     return active_count
 # ===============================
 
-# 2. 顯示標題
-st.markdown('<div class="main-header">🏫 國立嘉義大學溫室氣體盤查填報系統<br><span style="font-size: 1.4rem; font-weight: 600; color: #5D6D7E;">National Chiayi University Greenhouse Gas Data Reporting System</span></div>', unsafe_allow_html=True)
-
-# ===== 核心修改：將人數燈號移至右上角 (主標題下方靠右) =====
+# ===== 核心修改：人數燈號保留在右上角 =====
 online_count = get_online_user_status()
 if online_count >= 11: 
     status_html = f"🔴 目前線上人數: {online_count} 人 (擁擠，建議稍候操作)"
@@ -86,7 +85,6 @@ elif online_count >= 6:
 else: 
     status_html = f"🟢 目前線上人數: {online_count} 人 (順暢)"
 
-# 利用 HTML div 靠右對齊，並用負 margin 讓它稍微貼近上方標題框
 st.markdown(f"""
     <div style="text-align: right; margin-top: 5px; margin-bottom: 15px; font-size: 0.95rem; font-weight: 600; color: #4A4A4A;">
         {status_html}
@@ -96,6 +94,9 @@ st.markdown(f"""
 
 # 3. 首頁引導文案
 def home_page():
+    # 【關鍵修改】：將主標題移進來，這樣切換到其他分頁時，就不會顯示主標題了！
+    st.markdown('<div class="main-header">🏫 國立嘉義大學溫室氣體盤查填報系統<br><span style="font-size: 1.4rem; font-weight: 600; color: #5D6D7E;">National Chiayi University Greenhouse Gas Data Reporting System</span></div>', unsafe_allow_html=True)
+    
     st.markdown("""
     <div class="info-box">
         <h4>👋 您好！歡迎來到本校「溫室氣體盤查填報系統」</h4>
@@ -103,6 +104,7 @@ def home_page():
         <ul>
             <li><strong>燃油設備填報</strong>：公務車輛、發電機、除草機、農用機具等油料使用申報。</li>
             <li><strong>冷媒設備填報</strong>：冷氣機、冷凍/藏設備等冷媒填充維修申報。</li>
+            <li><strong>後台管理與資料檢視</strong>：系統管理員專用之數據維護與檢視確認作業。</li>
         </ul>
     </div>
     """, unsafe_allow_html=True)
@@ -130,7 +132,7 @@ if st.session_state.get("authentication_status"):
     current_username = st.session_state.get("username")
     
     with st.sidebar:
-        # 側邊欄現在非常乾淨，只保留登出按鈕
+        # 整個系統只需要在這裡呼叫一次登出按鈕
         authenticator.logout('登出系統', 'sidebar')
         st.markdown("---")
 
@@ -139,14 +141,14 @@ if st.session_state.get("authentication_status"):
     fuel_report = st.Page("pages/1_⛽_燃油設備填報.py", title="燃油設備填報", icon="⛽")
     refrig_report = st.Page("pages/2_❄️_冷媒設備填報.py", title="冷媒設備填報", icon="❄️")
     
-    fuel_admin = st.Page("pages/3_⛽_燃油後台管理.py", title="燃油後台管理", icon="⛽")
-    refrig_admin = st.Page("pages/4_❄️_冷媒後台管理.py", title="冷媒後台管理", icon="❄️")
+    fuel_admin = st.Page("pages/3_⛽_燃油後台管理.py", title="燃油後台管理", icon="⚙️")
+    refrig_admin = st.Page("pages/4_❄️_冷媒後台管理.py", title="冷媒後台管理", icon="⚙️")
     fuel_view = st.Page("pages/5_⛽_燃油資料檢視確認.py", title="燃油資料檢視確認", icon="📊")
     
-    elec_report = st.Page("pages/6_⚡_全校電力填報.py", title="全校電力填報", icon="📝")
-    elec_admin = st.Page("pages/7_⚡_全校電力管理.py", title="全校電力管理", icon="🖥️")
-    gas_report = st.Page("pages/8_💨_實驗室氣體鋼瓶資料回報.py", title="氣體鋼瓶資料回報", icon="📝")
-    gas_admin = st.Page("pages/9_💨_實驗室氣體鋼瓶資料管理與追蹤.py", title="氣體鋼瓶管理與追蹤", icon="🖥️")
+    elec_report = st.Page("pages/6_⚡_全校電力填報.py", title="全校電力填報", icon="⚡")
+    elec_admin = st.Page("pages/7_⚡_全校電力管理.py", title="全校電力管理", icon="⚡")
+    gas_report = st.Page("pages/8_💨_實驗室氣體鋼瓶資料回報.py", title="氣體鋼瓶資料回報", icon="💨")
+    gas_admin = st.Page("pages/9_💨_實驗室氣體鋼瓶資料管理與追蹤.py", title="氣體鋼瓶管理與追蹤", icon="💨")
     
     # 建立基礎選單
     pages_dict = {
