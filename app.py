@@ -19,36 +19,12 @@ st.markdown("""
         padding-bottom: 1rem !important; 
     }
     
-    /* 主標題樣式 (登入後) */
+    /* 主標題樣式 (白底配黃底線，清爽樣式) */
     .main-header {
         font-size: 2rem; font-weight: 800; color: #2C3E50; text-align: center; 
         margin-bottom: 5px; padding: 12px; background-color: #FFFFFF; 
         border-bottom: 3px solid #F4D03F; border-radius: 10px;
         box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-    }
-
-    /* 補回：Login 專屬資訊卡樣式 (登入前) */
-    .login-header-card {
-        background-color: #5C6B73; 
-        padding: 30px; 
-        border-radius: 12px; 
-        text-align: center; 
-        margin-bottom: 30px;
-        box-shadow: 0 4px 10px rgba(0,0,0,0.1);
-        border-bottom: 5px solid #9DB4AB;
-    }
-    .login-title {
-        color: #FFFFFF; 
-        margin: 0; 
-        font-weight: 900; 
-        font-size: 32px;
-        letter-spacing: 2px;
-    }
-    .login-subtitle {
-        color: #FDFBF7; 
-        font-size: 18px; 
-        margin-top: 10px;
-        opacity: 0.9;
     }
 
     .info-box {
@@ -128,15 +104,10 @@ try:
     cookie_cfg = st.secrets["cookie"]
     authenticator = stauth.Authenticate(credentials_login, cookie_cfg["name"], cookie_cfg["key"], cookie_cfg["expiry_days"])
     
-    # --- 關鍵修正：在登入表單上方顯示系統名稱資訊卡 ---
+    # --- 關鍵修正：登入前顯示與截圖完全一致的清爽白底標題卡 ---
     if not st.session_state.get("authentication_status"):
-        st.markdown("""
-        <div class="login-header-card">
-            <h1 class="login-title">👑 國立嘉義大學 溫室氣體盤查填報系統</h1>
-            <p class="login-subtitle">Environmental Health and Safety Management System</p>
-        </div>
-        """, unsafe_allow_html=True)
-    # ---------------------------------------------
+        st.markdown('<div class="main-header" style="margin-bottom: 30px;">🏫 國立嘉義大學溫室氣體盤查填報系統<br><span style="font-size: 1.4rem; font-weight: 600; color: #5D6D7E;">National Chiayi University Greenhouse Gas Data Reporting System</span></div>', unsafe_allow_html=True)
+    # ---------------------------------------------------
 
     authenticator.login('main')
 except Exception as e:
@@ -194,7 +165,7 @@ if st.session_state.get("authentication_status"):
 
     # 只在「首頁」與兩個「填報作業」顯示系統大標題
     if pg.title in ["系統首頁", "燃油設備填報", "冷媒設備填報"]:
-        # 印出大標題 (白底黃條定案版)
+        # 印出大標題
         st.markdown('<div class="main-header">🏫 國立嘉義大學溫室氣體盤查填報系統<br><span style="font-size: 1.4rem; font-weight: 600; color: #5D6D7E;">National Chiayi University Greenhouse Gas Data Reporting System</span></div>', unsafe_allow_html=True)
         # 印出燈號
         st.markdown(f"""
@@ -214,6 +185,6 @@ if st.session_state.get("authentication_status"):
     pg.run()
 
 elif st.session_state.get("authentication_status") is False:
-    st.error('❌ 帳號劇密碼錯誤，請重試')
+    st.error('❌ 帳號或密碼錯誤，請重試')
 elif st.session_state.get("authentication_status") is None:
     st.warning('🔒 請輸入帳號密碼以登入系統')
