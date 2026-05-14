@@ -122,14 +122,14 @@ if st.session_state.get("authentication_status"):
     fuel_report = st.Page("pages/1_⛽_燃油設備填報.py", title="燃油設備填報", icon="⛽")
     refrig_report = st.Page("pages/2_❄️_冷媒設備填報.py", title="冷媒設備填報", icon="❄️")
     
-    fuel_admin = st.Page("pages/3_⛽_燃油後台管理.py", title="燃油後台管理", icon="⚙️")
-    refrig_admin = st.Page("pages/4_❄️_冷媒後台管理.py", title="冷媒後台管理", icon="⚙️")
+    fuel_admin = st.Page("pages/3_⛽_燃油後台管理.py", title="燃油後台管理", icon="⛽")
+    refrig_admin = st.Page("pages/4_❄️_冷媒後台管理.py", title="冷媒後台管理", icon="❄️")
     fuel_view = st.Page("pages/5_⛽_燃油資料檢視確認.py", title="燃油資料檢視確認", icon="📊")
     
-    elec_report = st.Page("pages/6_⚡_全校電力填報.py", title="全校電力填報", icon="⚡")
-    elec_admin = st.Page("pages/7_⚡_全校電力管理.py", title="全校電力管理", icon="⚡")
-    gas_report = st.Page("pages/8_💨_實驗室氣體鋼瓶資料回報.py", title="氣體鋼瓶資料回報", icon="💨")
-    gas_admin = st.Page("pages/9_💨_實驗室氣體鋼瓶資料管理與追蹤.py", title="氣體鋼瓶管理與追蹤", icon="💨")
+    elec_report = st.Page("pages/6_⚡_全校電力填報.py", title="全校電力填報", icon="📃")
+    elec_admin = st.Page("pages/7_⚡_全校電力管理.py", title="全校電力管理", icon="🖥️")
+    gas_report = st.Page("pages/8_💨_實驗室氣體鋼瓶資料回報.py", title="氣體鋼瓶資料回報", icon="📃")
+    gas_admin = st.Page("pages/9_💨_實驗室氣體鋼瓶資料管理與追蹤.py", title="氣體鋼瓶管理與追蹤", icon="🖥️")
     
     # 建立基礎選單
     pages_dict = {
@@ -162,16 +162,16 @@ if st.session_state.get("authentication_status"):
     if pg.title in ["系統首頁", "燃油設備填報", "冷媒設備填報"]:
         # 印出大標題
         st.markdown('<div class="main-header">🏫 國立嘉義大學溫室氣體盤查填報系統<br><span style="font-size: 1.4rem; font-weight: 600; color: #5D6D7E;">National Chiayi University Greenhouse Gas Data Reporting System</span></div>', unsafe_allow_html=True)
-        # 印出燈號 (使用負數 margin-top 把它往上拉，完美貼合在標題右下方)
+        # 印出燈號 (【關鍵修改】：將 margin-top 改為 15px，使其往下移一行)
         st.markdown(f"""
-            <div style="text-align: right; margin-top: -10px; margin-bottom: 20px; font-size: 0.95rem; font-weight: 600; color: #4A4A4A;">
+            <div style="text-align: right; margin-top: 15px; margin-bottom: 20px; font-size: 0.95rem; font-weight: 600; color: #4A4A4A;">
                 {status_html}
             </div>
         """, unsafe_allow_html=True)
     else:
-        # 如果是後台頁面：不顯示大標題，單純把燈號顯示在右上方
+        # 如果是後台頁面：不顯示大標題，單純把燈號顯示在右上方，同樣給予 margin-top 往下推
         st.markdown(f"""
-            <div style="text-align: right; margin-bottom: 20px; font-size: 0.95rem; font-weight: 600; color: #4A4A4A;">
+            <div style="text-align: right; margin-top: 15px; margin-bottom: 20px; font-size: 0.95rem; font-weight: 600; color: #4A4A4A;">
                 {status_html}
             </div>
         """, unsafe_allow_html=True)
