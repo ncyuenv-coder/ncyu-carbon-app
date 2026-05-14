@@ -221,9 +221,9 @@ with st.sidebar:
     online_count = len(active_users)
     
     st.markdown("<br>", unsafe_allow_html=True)
-    if online_count >= 20:
+    if online_count >= 11:
         st.error(f"🔴 目前線上人數: {online_count} 人 (擁擠，建議稍候操作)")
-    elif online_count >= 10:
+    elif online_count >= 6:
         st.warning(f"🟡 目前線上人數: {online_count} 人 (普通，可正常填報)")
     else:
         st.success(f"🟢 目前線上人數: {online_count} 人 (順暢)")
@@ -231,7 +231,6 @@ with st.sidebar:
     st.markdown("---")
     if not HAS_FITZ:
         st.warning("⚠️ 系統未偵測到 `PyMuPDF` 套件，PDF 截圖預覽功能將停用 (仍可下載附件)。\n請管理者執行 `pip install PyMuPDF`。")
-    authenticator.logout('登出系統', 'sidebar')
 
 # ==========================================
 # 3. 資料庫連線與設定

@@ -205,11 +205,6 @@ try:
     authenticator = stauth.Authenticate(credentials_login, cookie_cfg["name"], cookie_cfg["key"], cookie_cfg["expiry_days"])
 except: pass
 
-with st.sidebar:
-    st.header(f"👤 {name} (最高管理員)")
-    st.success("☁️ 查核後台連線正常")
-    authenticator.logout('登出系統', 'sidebar')
-
 # ==========================================
 # 3. 資料庫連線與資料載入
 # ==========================================

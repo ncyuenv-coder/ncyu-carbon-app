@@ -122,10 +122,6 @@ try:
     authenticator = stauth.Authenticate(credentials_login, cookie_cfg["name"], cookie_cfg["key"], cookie_cfg["expiry_days"])
 except: pass
 
-with st.sidebar:
-    st.header(f"👤 {name} (管理員)")
-    st.success("☁️ 後台連線正常")
-    authenticator.logout('登出系統', 'sidebar')
 
 # 3. 資料庫連線
 REF_SHEET_ID = "1p7GsW-nrjerXhnn3pNgZzu_CdIh1Yxsm-fLJDqQ6MqA"
