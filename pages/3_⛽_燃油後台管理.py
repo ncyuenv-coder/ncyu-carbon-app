@@ -765,7 +765,7 @@ def render_tab3_export(df_clean, df_equip_full, all_years):
 # 6. 主程式入口
 # ==========================================
 def main():
-    st.markdown('<div style="font-size: 2.4rem; font-weight: 900; color: #2C3E50; margin-bottom: 20px;">⛽ 燃油設備動態管理專區 (Fuel Equipment Dynamic Management Area)</div>', unsafe_allow_html=True)
+    st.markdown('<div style="font-size: 2.4rem; font-weight: 900; color: #2C3E50; margin-bottom: 16px;">⛽ 燃油設備動態管理專區 (Fuel Equipment Dynamic Management Area)</div>', unsafe_allow_html=True)
     
     try:
         df_equip, df_records = load_fuel_data()

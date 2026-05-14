@@ -557,7 +557,7 @@ def render_tab3_export(df_clean_dash, all_years):
 # 6. 主程式 (管理員後台)
 # ==========================================
 def render_admin_dashboard():
-    st.markdown('<div style="font-size: 2.4rem; font-weight: 900; color: #2C3E50; margin-bottom: 20px;">👑 冷媒管理後台 (Refrigerant Management Backend)</div>', unsafe_allow_html=True)
+    st.markdown('<div style="font-size: 2.4rem; font-weight: 900; color: #2C3E50; margin-bottom: 16px;">👑 冷媒管理後台 (Refrigerant Management Backend)</div>', unsafe_allow_html=True)
     
     gwp_map = st.session_state.get('gwp_map', DATA_GWP)
     df_records = load_records_data()
