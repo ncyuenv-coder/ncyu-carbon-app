@@ -3,7 +3,7 @@ import streamlit_authenticator as stauth
 import time
 from streamlit.runtime.scriptrunner import get_script_run_ctx
 
-# 0. 系統設定
+# 0. 系統設定 (這是首頁的設定)
 st.set_page_config(
     page_title="嘉義大學碳盤查", 
     page_icon="🏫", 
@@ -32,7 +32,7 @@ st.markdown("""
     }
     .stApp { background-color: #F8F9F9; }
 
-    /* 修改 Login 與 Logout 按鈕樣式 */
+    /* 修改 Login 與 Logout 按鈕樣式 (強化選擇器確保不跑版) */
     [data-testid="stSidebar"] div.stButton > button,
     div.stButton > button {
         background-color: #E67E22 !important; color: #FFFFFF !important;
@@ -50,7 +50,7 @@ st.markdown("""
         border-radius: 5px; padding-left: 5px; margin-bottom: 5px;
     }
     
-    /* === 新增：右上角絕對定位燈號樣式 === */
+    /* === 右上角絕對定位燈號樣式 (零高度佔用) === */
     .online-badge {
         position: absolute;
         top: 1rem;
@@ -58,7 +58,7 @@ st.markdown("""
         font-size: 0.95rem;
         font-weight: 600;
         color: #4A4A4A;
-        background-color: rgba(255, 255, 255, 0.85); /* 帶有微透明背景，避免與後面文字重疊難辨識 */
+        background-color: rgba(255, 255, 255, 0.85);
         padding: 4px 10px;
         border-radius: 8px;
         z-index: 999;
@@ -90,7 +90,7 @@ def get_online_user_status():
     return active_count
 # ===============================
 
-# 3. 首頁引導文案 (已將主標題移出)
+# 3. 首頁引導文案 (已將主標題抽離)
 def home_page():
     st.markdown("""
     <div class="info-box">
@@ -127,6 +127,7 @@ if st.session_state.get("authentication_status"):
     current_username = st.session_state.get("username")
     
     with st.sidebar:
+        # 側邊欄現在非常乾淨，只保留登出按鈕
         authenticator.logout('登出系統', 'sidebar')
         st.markdown("---")
 
@@ -137,7 +138,7 @@ if st.session_state.get("authentication_status"):
     
     fuel_admin = st.Page("pages/3_⛽_燃油後台管理.py", title="燃油後台管理", icon="⚙️")
     refrig_admin = st.Page("pages/4_❄️_冷媒後台管理.py", title="冷媒後台管理", icon="⚙️")
-    fuel_view = st.Page("pages/5_⛽_燃油資料檢視確認.py", title="燃油資料檢視確認", icon="📊")
+    fuel_view = st.Page("pages/5_⛽_燃油資料檢視確認.py", title="燃這次檢視確認", icon="📊")
     
     elec_report = st.Page("pages/6_⚡_全校電力填報.py", title="全校電力填報", icon="⚡")
     elec_admin = st.Page("pages/7_⚡_全校電力管理.py", title="全校電力管理", icon="⚡")
@@ -160,7 +161,7 @@ if st.session_state.get("authentication_status"):
     pg = st.navigation(pages_dict)
 
     # ==========================================================
-    # 核心優化 1：絕對定位的人數燈號 (零高度佔用)
+    # 核心優化 1：絕對定位的人數燈號
     online_count = get_online_user_status()
     if online_count >= 11: 
         status_html = f"🔴 目前線上人數: {online_count} 人 (擁擠，建議稍候)"
@@ -171,8 +172,16 @@ if st.session_state.get("authentication_status"):
 
     st.markdown(f'<div class="online-badge">{status_html}</div>', unsafe_allow_html=True)
     
-    # 核心優化 2：動態判斷，僅在「首頁」與兩個「填報分頁」顯示系統標題
-    if pg.title in ["系統首頁", "燃油設備填報", "冷媒設備填報"]:
+    # 核心優化 2：安全恢復系統大標題 (排除後台分頁)
+    # 定義「不顯示」大標題的後台分頁名單
+    backend_pages = [
+        "燃油後台管理", "冷媒後台管理", "燃油資料檢視確認", 
+        "全校電力填報", "全校電力管理", 
+        "氣體鋼瓶資料回報", "氣體鋼瓶管理與追蹤"
+    ]
+    
+    # 只要當前頁面名稱不在後台名單中，就顯示大標題
+    if pg.title not in backend_pages:
         st.markdown('<div class="main-header">🏫 國立嘉義大學溫室氣體盤查填報系統<br><span style="font-size: 1.4rem; font-weight: 600; color: #5D6D7E;">National Chiayi University Greenhouse Gas Data Reporting System</span></div>', unsafe_allow_html=True)
     # ==========================================================
     
