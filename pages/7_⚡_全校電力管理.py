@@ -50,11 +50,13 @@ ADDRESS_ORDER = {
 
 st.markdown(f"""
     <style>
-    .stApp {{ font-family: "Microsoft JhengHei", sans-serif; }}
+    /* 修復頁首色差 */
+    [data-testid="stHeader"] {{ background-color: transparent !important; }}
+    .stApp {{ font-family: "Microsoft JhengHei", sans-serif; background-color: #F8F9F9; }}
     
     /* 1. 分頁標籤按鈕 */
     button[data-baseweb="tab"] {{
-        font-size: 24px !important;
+        font-size: 28px !important; /* 🔥 放大一號字 */
         font-weight: 700 !important;
         background-color: #EAEDED !important;
         color: {COLORS['text_main']} !important;
@@ -457,15 +459,17 @@ def plot_yoy_line_custom(df, year_curr, year_prev, group_col=None, group_val=Non
     
     fig = go.Figure()
     
+    # 🔥 加入 <b> 標籤使圖例文字加粗
     fig.add_trace(go.Scatter(
-        x=list(range(1,13)), y=df_p_g, name=f"{year_prev}年",
+        x=list(range(1,13)), y=df_p_g, name=f"<b>{year_prev}年</b>",
         mode='lines+markers', 
         line=dict(color=COLORS['line_prev_year'], width=3, dash='solid'),
         marker=dict(size=8, opacity=0.8),
     ))
     
+    # 🔥 加入 <b> 標籤使圖例文字加粗
     fig.add_trace(go.Scatter(
-        x=list(range(1,13)), y=df_c_g, name=f"{year_curr}年",
+        x=list(range(1,13)), y=df_c_g, name=f"<b>{year_curr}年</b>",
         mode='lines+markers+text',
         line=dict(color=color_curr, width=5),
         marker=dict(size=12),
@@ -479,7 +483,12 @@ def plot_yoy_line_custom(df, year_curr, year_prev, group_col=None, group_val=Non
     fig.update_layout(
         title=dict(text=f"{title_suffix}", font=dict(size=20, color=COLORS['text_main'])),
         plot_bgcolor='rgba(0,0,0,0)',
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5, font=dict(size=16)),
+        # 🔥 修改 legend 設定：移除背景色、放大字體
+        legend=dict(
+            orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5, 
+            font=dict(size=20), 
+            bgcolor="rgba(0,0,0,0)" 
+        ),
         margin=dict(t=120, b=20, l=20, r=20),
         height=500,
         hovermode="x unified"

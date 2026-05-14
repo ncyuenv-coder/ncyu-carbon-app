@@ -20,7 +20,9 @@ if 'form_reset_key' not in st.session_state:
 # =========================================================
 st.markdown("""
     <style>
-    .stApp { color: #2C3E50; }
+    /* 修復頁首色差，強制透明以顯示主系統的米灰底色 */
+    [data-testid="stHeader"] { background-color: transparent !important; }
+    .stApp { color: #2C3E50; background-color: #F8F9F9; }
     
     /* 1. 電號資訊卡片 (橫幅滿版) */
     .meter-card {
