@@ -8,7 +8,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# 1. CSS 樣式 (定義首頁標題與按鈕樣式)
+# 1. CSS 樣式
 st.markdown("""
 <style>
     /* 主標題樣式 */
@@ -42,9 +42,24 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# 2. 顯示標題 (不管有無登入都顯示)
-# 【修改】：英文名稱字體大小放大至 1.5rem
+# 2. 顯示標題
 st.markdown('<div class="main-header">🏫 國立嘉義大學溫室氣體盤查填報系統<br><span style="font-size: 1.5rem; font-weight: 600; color: #5D6D7E;">National Chiayi University Greenhouse Gas Data Reporting System</span></div>', unsafe_allow_html=True)
+
+# ===== 核心修改：首頁引導文案 =====
+def home_page():
+    st.markdown("""
+    <div class="info-box">
+        <h4>👋 您好！歡迎來到本校「溫室氣體盤查填報系統」</h4>
+        <p>請查看 <strong>👈 左側側邊欄 (Sidebar)</strong> 的選單來進入對應功能：</p>
+        <ul>
+            <li><strong>燃油設備填報</strong>：公務車輛、發電機、除草機、農用機具等油料使用申報。</li>
+            <li><strong>冷媒設備填報</strong>：冷氣機、冷凍/藏設備等冷媒填充維修申報。</li>
+            <li><strong>後台管理與資料檢視</strong>：系統管理員專用之數據維護與檢視確認作業。</li>
+        </ul>
+    </div>
+    """, unsafe_allow_html=True)
+    st.info("💡 提示：如果左側沒有看到選單，請點擊左上角的箭頭展開側邊欄 (Sidebar)。")
+# =========================================================
 
 # 3. 身份驗證邏輯
 def clean_secrets(obj):
@@ -59,36 +74,40 @@ try:
     cookie_cfg = st.secrets["cookie"]
     authenticator = stauth.Authenticate(credentials_login, cookie_cfg["name"], cookie_cfg["key"], cookie_cfg["expiry_days"])
     
-    # 執行登入 (這會自動處理 UI)
+    # 執行登入
     authenticator.login('main')
 
     # 判斷登入狀態
     if st.session_state["authentication_status"]:
         # === 登入成功 ===
-        name = st.session_state["name"]
-        
-        # 側邊欄：顯示歡迎與登出
         with st.sidebar:
-            # 修改點 3: 文字改成 "歡迎，師長/同仁"
             st.header(f"👤 歡迎，師長/同仁")
             st.success("☁️ 連線成功")
             authenticator.logout('登出系統', 'sidebar')
             st.markdown("---")
-            # 修改點 2: 移除了 "👇 請點擊上方頁面切換功能"
 
-        # 主畫面：顯示導引說明 (修改點 1: 更新歡迎詞)
-        st.markdown(f"""
-        <div class="info-box">
-            <h4>👋 您好！歡迎來到本校「溫室氣體盤查填報系統」</h4>
-            <p>請查看 <strong>👈 左側側邊欄 (Sidebar)</strong> 的選單來進入功能：</p>
-            <ul>
-                <li><strong>1_⛽_燃油填報</strong>：公務車輛、發電機、除草機、農用機具等油料使用申報。</li>
-                <li><strong>2_❄️_冷媒填報</strong>：冷氣機、冷凍/藏設備等冷媒填充維修申報。</li>
-            </ul>
-        </div>
-        """, unsafe_allow_html=True)
+        # === 精準升級：綁定截圖中的實體檔案名稱 ===
+        # 1. 首頁
+        home = st.Page(home_page, title="系統首頁", icon="🏠", default=True)
         
-        st.info("💡 提示：如果左側沒有看到選單，請點擊左上角的箭頭展開側邊欄 (Sidebar)。")
+        # 2. 填報作業群組
+        fuel_report = st.Page("pages/1_⛽_燃油設備填報.py", title="燃油設備填報", icon="⛽")
+        refrig_report = st.Page("pages/2_❄️_冷媒設備填報.py", title="冷媒設備填報", icon="❄️")
+        
+        # 3. 後台管理群組
+        fuel_admin = st.Page("pages/3_⛽_燃油後台管理.py", title="燃油後台管理", icon="⚙️")
+        refrig_admin = st.Page("pages/4_❄️_冷媒後台管理.py", title="冷媒後台管理", icon="⚙️")
+        fuel_view = st.Page("pages/5_⛽_燃油資料檢視確認.py", title="燃油資料檢視確認", icon="📊")
+        
+        # 4. 建立並執行美觀的側邊欄導航 (分群顯示)
+        pg = st.navigation(
+            {
+                "📌 系統導覽": [home],
+                "📝 設備填報作業": [fuel_report, refrig_report],
+                "⚙️ 管理與檢視": [fuel_admin, refrig_admin, fuel_view]
+            }
+        )
+        pg.run()
 
     elif st.session_state["authentication_status"] is False:
         st.error('❌ 帳號或密碼錯誤，請重試')
