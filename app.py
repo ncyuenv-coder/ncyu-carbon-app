@@ -82,17 +82,14 @@ except Exception as e:
 # 4. 判斷登入狀態與動態路由
 if st.session_state.get("authentication_status"):
     # === 登入成功 ===
-    
-    # 取得目前登入的帳號與姓名
     current_username = st.session_state.get("username")
-    current_name = st.session_state.get("name")
     
     with st.sidebar:
-        st.header(f"👤 歡迎，{current_name} 師長/同仁")
-        st.success("☁️ 連線成功")
-        # 統一在此處登出，分頁檔案中絕對不能再寫這行！
+        # === 核心修改：精簡側邊欄資訊 ===
+        st.markdown("**目前線上人數: 2 人 (順暢)**")
         authenticator.logout('登出系統', 'sidebar')
         st.markdown("---")
+        # ===============================
 
     # 宣告所有實體檔案路徑
     home = st.Page(home_page, title="系統首頁", icon="🏠", default=True)
@@ -108,11 +105,8 @@ if st.session_state.get("authentication_status"):
         "📝 設備填報作業": [fuel_report, refrig_report]
     }
     
-    # 🔐 權限控管：如果是管理者 admin，才加入後台管理的選單
-    # ==========================================
+    # 🔐 權限控管
     admin_users = ["admin"] 
-    # ==========================================
-    
     if current_username in admin_users:
         pages_dict["⚙️ 管理與檢視"] = [fuel_admin, refrig_admin, fuel_view]
         
