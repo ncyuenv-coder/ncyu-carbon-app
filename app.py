@@ -53,7 +53,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# ===== 自動偵測線上人數邏輯 =====
+# 2. 自動偵測線上人數邏輯
 @st.cache_resource
 def get_session_tracker():
     return {}
@@ -75,7 +75,6 @@ def get_online_user_status():
             
     active_count = max(1, active_count)
     return active_count
-# ===============================
 
 # 3. 首頁引導文案
 def home_page():
@@ -98,23 +97,42 @@ def clean_secrets(obj):
     elif isinstance(obj, list): return [clean_secrets(i) for i in obj]
     return obj
 
+# ==========================================================
+# 🌟 核心修正：Token 專屬連結免登入特權通道
+# ==========================================================
+query_params = st.query_params
+if "token" in query_params:
+    # 老師點連結進來，強制隱藏側邊欄與標頭
+    st.markdown('<style>[data-testid="stSidebar"], [data-testid="collapsedControl"], [data-testid="stHeader"] { display: none !important; }</style>', unsafe_allow_html=True)
+    
+    # 根據需求定義允許免登入進入的頁面
+    gas_report = st.Page("pages/8_💨_實驗室氣體鋼瓶資料回報.py", title="氣體鋼瓶資料回報", icon="📃")
+    toxic_report = st.Page("pages/10_📧實驗室資料確認回報.py", title="實驗室資料確認回報", icon="📧")
+    
+    # 直接執行路由，不經過登入判斷
+    pg = st.navigation([gas_report, toxic_report])
+    pg.run()
+    st.stop() # 阻斷下方所有登入邏輯執行
+
+# ==========================================================
+# 下方為正常管理員登入邏輯 (無 Token 時才會執行)
+# ==========================================================
 try:
     _raw_creds = st.secrets["credentials"]
     credentials_login = clean_secrets(_raw_creds)
     cookie_cfg = st.secrets["cookie"]
     authenticator = stauth.Authenticate(credentials_login, cookie_cfg["name"], cookie_cfg["key"], cookie_cfg["expiry_days"])
     
-    # --- 關鍵修正：登入前顯示與截圖完全一致的清爽白底標題卡 ---
+    # --- 登入前顯示清爽白底標題卡 ---
     if not st.session_state.get("authentication_status"):
         st.markdown('<div class="main-header" style="margin-bottom: 30px;">🏫 國立嘉義大學溫室氣體盤查填報系統<br><span style="font-size: 1.4rem; font-weight: 600; color: #5D6D7E;">National Chiayi University Greenhouse Gas Data Reporting System</span></div>', unsafe_allow_html=True)
-    # ---------------------------------------------------
 
     authenticator.login('main')
 except Exception as e:
     st.error(f"系統認證初始化錯誤: {e}")
     st.stop()
 
-# 5. 判斷登入狀態與動態路由
+# 5. 判斷登入狀態與管理員路由
 if st.session_state.get("authentication_status"):
     current_username = st.session_state.get("username")
     
@@ -149,12 +167,10 @@ if st.session_state.get("authentication_status"):
         pages_dict["⚡ 全校電力管理"] = [elec_report, elec_admin]
         pages_dict["💨 氣體鋼瓶管理"] = [gas_report, gas_admin]
         
-    # 取得當前準備執行的頁面物件
+    # 取得導覽列
     pg = st.navigation(pages_dict)
 
-    # ==========================================================
-    # 🌟 核心標題與燈號顯示區
-    # ==========================================================
+    # 顯示線上人數燈號
     online_count = get_online_user_status()
     if online_count >= 11: 
         status_html = f"🔴 目前線上人數: {online_count} 人 (擁擠，建議稍候操作)"
@@ -163,25 +179,13 @@ if st.session_state.get("authentication_status"):
     else: 
         status_html = f"🟢 目前線上人數: {online_count} 人 (順暢)"
 
-    # 只在「首頁」與兩個「填報作業」顯示系統大標題
+    # 頁面標題邏輯
     if pg.title in ["系統首頁", "燃油設備填報", "冷媒設備填報"]:
-        # 印出大標題
         st.markdown('<div class="main-header">🏫 國立嘉義大學溫室氣體盤查填報系統<br><span style="font-size: 1.4rem; font-weight: 600; color: #5D6D7E;">National Chiayi University Greenhouse Gas Data Reporting System</span></div>', unsafe_allow_html=True)
-        # 印出燈號
-        st.markdown(f"""
-            <div style="text-align: right; margin-top: 15px; margin-bottom: 20px; font-size: 0.95rem; font-weight: 600; color: #4A4A4A;">
-                {status_html}
-            </div>
-        """, unsafe_allow_html=True)
+        st.markdown(f"""<div style="text-align: right; margin-top: 15px; margin-bottom: 20px; font-size: 0.95rem; font-weight: 600; color: #4A4A4A;">{status_html}</div>""", unsafe_allow_html=True)
     else:
-        # 如果是後台頁面：單純把燈號顯示在右上方
-        st.markdown(f"""
-            <div style="text-align: right; margin-top: 15px; margin-bottom: 20px; font-size: 0.95rem; font-weight: 600; color: #4A4A4A;">
-                {status_html}
-            </div>
-        """, unsafe_allow_html=True)
+        st.markdown(f"""<div style="text-align: right; margin-top: 15px; margin-bottom: 20px; font-size: 0.95rem; font-weight: 600; color: #4A4A4A;">{status_html}</div>""", unsafe_allow_html=True)
 
-    # 執行該分頁的內容
     pg.run()
 
 elif st.session_state.get("authentication_status") is False:
