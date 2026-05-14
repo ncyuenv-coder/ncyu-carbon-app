@@ -11,10 +11,34 @@ from google.oauth2.credentials import Credentials
 import plotly.express as px
 import plotly.graph_objects as go
 from gspread.utils import rowcol_to_a1
+import streamlit_authenticator as stauth
 
 # ================= 系統與全域參數設定 =================
 st.set_page_config(page_title="溫室氣體盤查範疇之氣體鋼瓶購買盤查與追蹤管理", page_icon="📢", layout="wide")
 
+# ================= 身份驗證與初始化 (修復補回) =================
+def clean_secrets(obj):
+    if isinstance(obj, dict) or "AttrDict" in str(type(obj)): return {k: clean_secrets(v) for k, v in obj.items()}
+    elif isinstance(obj, list): return [clean_secrets(i) for i in obj]
+    return obj
+
+try:
+    _raw_creds = st.secrets["credentials"]
+    credentials_login = clean_secrets(_raw_creds)
+    cookie_cfg = st.secrets["cookie"]
+    authenticator = stauth.Authenticate(credentials_login, cookie_cfg["name"], cookie_cfg["key"], cookie_cfg["expiry_days"])
+except: pass
+
+if st.session_state.get("authentication_status") is not True:
+    st.warning("🔒 請先至首頁登入系統")
+    st.stop()
+
+username = st.session_state.get("username")
+if username != 'admin':
+    st.error("🚫 權限不足：此頁面僅供系統管理員使用。")
+    st.stop()
+
+# ================= 參數與色票設定 =================
 SHEET_ID = '1Hw4rXo4ww7O9YXTwoUJeWioO5ZzM_bivRcLLpOl26DY'
 
 # ⚠️ 部署 8號程式 後，請將下方網址替換為實際的 Streamlit App 網址
@@ -23,7 +47,6 @@ BASE_FORM_URL = "https://ncyu-gas-cylinder-report.streamlit.app/"
 GAS_TYPES = ["二氧化碳", "甲烷", "乙炔", "一氧化二氮(笑氣)"]
 CAMPUS_OPTS = ["蘭潭校區", "民雄校區", "新民校區", "林森校區"]
 
-# 圖表莫蘭迪色票
 MORANDI_PALETTE = ['#88B04B', '#92A8D1', '#F7CAC9', '#5D6D7E', '#7FB3D5', '#E59866', '#F7DC6F', '#CCD1D1', '#76D7C4']
 MORANDI_LIGHT_BGS = ["#F0F4F8", "#FDF2E9", "#EBF5FB", "#F5EEF8", "#FDFBF7"]
 
@@ -46,7 +69,7 @@ def apply_morandi_theme():
         div[data-baseweb="tab-list"] button p { font-size: 20px !important; color: #FFFFFF !important; font-weight: 600 !important; }
         div[data-baseweb="tab-list"] button[aria-selected="true"] { background-color: #3F4E4F !important; opacity: 1; border-bottom: 3px solid #9DB4AB !important; }
         
-        /* 庫存管理專屬區塊底色 (對齊毒化物系統) */
+        /* 庫存管理專屬區塊底色 */
         div[data-testid="stElementContainer"]:has(.basic-bg-marker) + div[data-testid="stVerticalBlock"] {
             background-color: #E4E9E5 !important; padding: 30px !important; border-radius: 12px !important; margin-bottom: 25px !important; border: 1px solid #C4CDC5;
         }
@@ -136,11 +159,11 @@ def generate_styled_email_html(email_body_text, title="溫室氣體盤查 氣體
     </body></html>
     """
 
-# ================= 視覺化圖表渲染 (對齊冷媒系統) =================
+# ================= 視覺化圖表渲染 =================
+@st.fragment
 def render_dashboard(df_pur):
     st.markdown("<br>", unsafe_allow_html=True)
     
-    # 預處理日期與數值
     df_plot = df_pur.copy()
     if not df_plot.empty:
         df_plot['購買日期'] = pd.to_datetime(df_plot['購買日期'], errors='coerce')
@@ -204,7 +227,9 @@ def render_dashboard(df_pur):
 # ================= 主程式 =================
 def main():
     apply_morandi_theme()
-    st.title("📢 溫室氣體盤查範疇之氣體鋼瓶購買盤查與追蹤管理")
+    
+    # 重新加入後台系統大標題，對齊冷媒系統視覺
+    st.markdown('<div style="font-size: 2.4rem; font-weight: 900; color: #2C3E50; margin-bottom: 16px;">👑 溫室氣體盤查範疇之氣體鋼瓶購買盤查與追蹤管理</div>', unsafe_allow_html=True)
     
     if 'reset_key' not in st.session_state: st.session_state.reset_key = 0
     rk = st.session_state.reset_key
@@ -346,7 +371,7 @@ def main():
             if not df_pur.empty:
                 st.data_editor(df_pur, column_config={"購買單據連結": st.column_config.LinkColumn("單據檢視")}, hide_index=True)
 
-    # ================= Tab 4: 🛠️ 庫存資料管理 (對齊毒化物系統) =================
+    # ================= Tab 4: 🛠️ 庫存資料管理 =================
     with tab4:
         st.markdown("### 🛠️ 氣體鋼瓶資料庫管理")
         m_tab1, m_tab2 = st.tabs(["➕ 新增實驗室與庫存", "🔄 現有庫存查詢與異動"])
