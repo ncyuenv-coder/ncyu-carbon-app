@@ -45,7 +45,7 @@ st.markdown("""
 # 2. 顯示標題
 st.markdown('<div class="main-header">🏫 國立嘉義大學溫室氣體盤查填報系統<br><span style="font-size: 1.5rem; font-weight: 600; color: #5D6D7E;">National Chiayi University Greenhouse Gas Data Reporting System</span></div>', unsafe_allow_html=True)
 
-# ===== 核心修改：首頁引導文案 =====
+# ===== 首頁引導文案 =====
 def home_page():
     st.markdown("""
     <div class="info-box">
@@ -59,7 +59,6 @@ def home_page():
     </div>
     """, unsafe_allow_html=True)
     st.info("💡 提示：如果左側沒有看到選單，請點擊左上角的箭頭展開側邊欄 (Sidebar)。")
-# =========================================================
 
 # 3. 身份驗證邏輯
 def clean_secrets(obj):
@@ -67,8 +66,8 @@ def clean_secrets(obj):
     elif isinstance(obj, list): return [clean_secrets(i) for i in obj]
     return obj
 
+# 【關鍵修改】：縮小 try 區塊，只保護密碼載入與初始化
 try:
-    # 讀取 secrets
     _raw_creds = st.secrets["credentials"]
     credentials_login = clean_secrets(_raw_creds)
     cookie_cfg = st.secrets["cookie"]
@@ -76,43 +75,39 @@ try:
     
     # 執行登入
     authenticator.login('main')
-
-    # 判斷登入狀態
-    if st.session_state["authentication_status"]:
-        # === 登入成功 ===
-        with st.sidebar:
-            st.header(f"👤 歡迎，師長/同仁")
-            st.success("☁️ 連線成功")
-            authenticator.logout('登出系統', 'sidebar')
-            st.markdown("---")
-
-        # === 精準升級：綁定截圖中的實體檔案名稱 ===
-        # 1. 首頁
-        home = st.Page(home_page, title="系統首頁", icon="🏠", default=True)
-        
-        # 2. 填報作業群組
-        fuel_report = st.Page("pages/1_⛽_燃油設備填報.py", title="燃油設備填報", icon="⛽")
-        refrig_report = st.Page("pages/2_❄️_冷媒設備填報.py", title="冷媒設備填報", icon="❄️")
-        
-        # 3. 後台管理群組
-        fuel_admin = st.Page("pages/3_⛽_燃油後台管理.py", title="燃油後台管理", icon="⚙️")
-        refrig_admin = st.Page("pages/4_❄️_冷媒後台管理.py", title="冷媒後台管理", icon="⚙️")
-        fuel_view = st.Page("pages/5_⛽_燃油資料檢視確認.py", title="燃油資料檢視確認", icon="📊")
-        
-        # 4. 建立並執行美觀的側邊欄導航 (分群顯示)
-        pg = st.navigation(
-            {
-                "📌 系統導覽": [home],
-                "📝 設備填報作業": [fuel_report, refrig_report],
-                "⚙️ 管理與檢視": [fuel_admin, refrig_admin, fuel_view]
-            }
-        )
-        pg.run()
-
-    elif st.session_state["authentication_status"] is False:
-        st.error('❌ 帳號或密碼錯誤，請重試')
-    elif st.session_state["authentication_status"] is None:
-        st.warning('🔒 請輸入帳號密碼以登入系統')
-
 except Exception as e:
-    st.error(f"系統啟動錯誤: {e}")
+    st.error(f"系統認證初始化錯誤: {e}")
+    st.stop()  # 若初始化失敗則停止往下執行
+
+# 判斷登入狀態 (使用 .get 避免 KeyError)
+if st.session_state.get("authentication_status"):
+    # === 登入成功 ===
+    with st.sidebar:
+        st.header(f"👤 歡迎，師長/同仁")
+        st.success("☁️ 連線成功")
+        authenticator.logout('登出系統', 'sidebar')
+        st.markdown("---")
+
+    # 綁定截圖中的實體檔案名稱
+    home = st.Page(home_page, title="系統首頁", icon="🏠", default=True)
+    fuel_report = st.Page("pages/1_⛽_燃油設備填報.py", title="燃油設備填報", icon="⛽")
+    refrig_report = st.Page("pages/2_❄️_冷媒設備填報.py", title="冷媒設備填報", icon="❄️")
+    fuel_admin = st.Page("pages/3_⛽_燃油後台管理.py", title="燃油後台管理", icon="⚙️")
+    refrig_admin = st.Page("pages/4_❄️_冷媒後台管理.py", title="冷媒後台管理", icon="⚙️")
+    fuel_view = st.Page("pages/5_⛽_燃油資料檢視確認.py", title="燃油資料檢視確認", icon="📊")
+    
+    pg = st.navigation(
+        {
+            "📌 系統導覽": [home],
+            "📝 設備填報作業": [fuel_report, refrig_report],
+            "⚙️ 管理與檢視": [fuel_admin, refrig_admin, fuel_view]
+        }
+    )
+    
+    # 【關鍵修改】：將 pg.run() 移出 try...except 之外
+    pg.run()
+
+elif st.session_state.get("authentication_status") is False:
+    st.error('❌ 帳號或密碼錯誤，請重試')
+elif st.session_state.get("authentication_status") is None:
+    st.warning('🔒 請輸入帳號密碼以登入系統')
