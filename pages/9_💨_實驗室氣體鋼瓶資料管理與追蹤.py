@@ -117,18 +117,28 @@ def batch_update_safe(worksheet, updates): worksheet.batch_update(updates)
 
 def send_email_action(to_email, subject, html_body):
     try:
-        sender_email = st.secrets["email"]["sender_email"]
-        app_password = st.secrets["email"]["app_password"]
+        # 精準對接您的 [smtp] 設定
+        sender_email = st.secrets["smtp"]["email"]
+        app_password = st.secrets["smtp"]["password"]
+        smtp_server = st.secrets["smtp"]["server"]
+        smtp_port = st.secrets["smtp"]["port"]
+        
         msg = MIMEMultipart('alternative')
-        msg['Subject'], msg['From'], msg['To'] = subject, sender_email, to_email
+        msg['Subject'] = subject
+        msg['From'] = sender_email
+        msg['To'] = to_email
         msg.attach(MIMEText(html_body, 'html'))
-        server = smtplib.SMTP_SSL('smtp.gmail.com', 465)
+        
+        # 對接 Port 587 與 TLS 加密協定
+        server = smtplib.SMTP(smtp_server, smtp_port)
+        server.starttls() # 啟動安全傳輸
         server.login(sender_email, app_password)
-        server.send_message(msg); server.quit()
+        server.send_message(msg)
+        server.quit()
         return True
     except Exception as e:
-        # 關鍵：將隱藏的錯誤丟到畫面上
-        st.error(f"❌ 發送信件給 {to_email} 失敗！錯誤代碼：{str(e)}")
+        # 將錯誤顯示在畫面上，方便未來除錯
+        st.error(f"❌ 發送信件給 {to_email} 失敗！錯誤訊息：{str(e)}")
         return False
 
 def generate_styled_email_html(email_body_text, title="溫室氣體盤查 氣體鋼瓶通知"):
