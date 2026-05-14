@@ -10,7 +10,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# 1. CSS 樣式 (已加入縮減空白與側邊欄標題優化)
+# 1. CSS 樣式
 st.markdown("""
 <style>
     /* 縮減 Streamlit 預設的頂部與兩側空白 */
@@ -19,7 +19,7 @@ st.markdown("""
         padding-bottom: 1rem !important; 
     }
     
-    /* 主標題樣式 (已縮小 padding 與 margin) */
+    /* 主標題樣式 */
     .main-header {
         font-size: 2rem; font-weight: 800; color: #2C3E50; text-align: center; 
         margin-bottom: 5px; padding: 12px; background-color: #FFFFFF; 
@@ -42,12 +42,10 @@ st.markdown("""
         background-color: #D35400 !important; transform: translateY(-2px);
     }
     
-    /* 微調側邊欄群組標題，增加視覺區隔 */
+    /* 微調側邊欄群組標題 */
     [data-testid="stSidebarNavGroup"] > div {
-        background-color: #E8F8F5; /* 淡淡的背景色 */
-        border-radius: 5px;
-        padding-left: 5px;
-        margin-bottom: 5px;
+        background-color: #E8F8F5; 
+        border-radius: 5px; padding-left: 5px; margin-bottom: 5px;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -79,7 +77,24 @@ def get_online_user_status():
 # 2. 顯示標題
 st.markdown('<div class="main-header">🏫 國立嘉義大學溫室氣體盤查填報系統<br><span style="font-size: 1.4rem; font-weight: 600; color: #5D6D7E;">National Chiayi University Greenhouse Gas Data Reporting System</span></div>', unsafe_allow_html=True)
 
-# 3. 首頁引導文案 (虛擬分頁)
+# ===== 核心修改：將人數燈號移至右上角 (主標題下方靠右) =====
+online_count = get_online_user_status()
+if online_count >= 11: 
+    status_html = f"🔴 目前線上人數: {online_count} 人 (擁擠，建議稍候操作)"
+elif online_count >= 6: 
+    status_html = f"🟡 目前線上人數: {online_count} 人 (普通，可正常填報)"
+else: 
+    status_html = f"🟢 目前線上人數: {online_count} 人 (順暢)"
+
+# 利用 HTML div 靠右對齊，並用負 margin 讓它稍微貼近上方標題框
+st.markdown(f"""
+    <div style="text-align: right; margin-top: 5px; margin-bottom: 15px; font-size: 0.95rem; font-weight: 600; color: #4A4A4A;">
+        {status_html}
+    </div>
+""", unsafe_allow_html=True)
+# ==========================================================
+
+# 3. 首頁引導文案
 def home_page():
     st.markdown("""
     <div class="info-box">
@@ -113,64 +128,40 @@ except Exception as e:
 
 # 5. 判斷登入狀態與動態路由
 if st.session_state.get("authentication_status"):
-    # === 登入成功 ===
     current_username = st.session_state.get("username")
     
-    # 取得當下即時人數，並套用您規劃的判斷邏輯
-    online_count = get_online_user_status()
-    if online_count >= 11:
-        dot_color, status_text = "#FF4444", "擁擠，建議稍候"
-    elif online_count >= 6:
-        dot_color, status_text = "#FFBB33", "普通"
-    else:
-        dot_color, status_text = "#00C851", "順暢"
-    
     with st.sidebar:
-        # 動態顯示精簡版人數燈號
-        st.markdown(f"""
-            <div style="display: flex; align-items: center; margin-bottom: 15px; padding: 10px; background-color: #FFFFFF; border-radius: 8px; border: 1px solid #eee;">
-                <span style="height: 12px; width: 12px; background-color: {dot_color}; border-radius: 50%; display: inline-block; margin-right: 10px; box-shadow: 0 0 5px {dot_color};"></span>
-                <span style="font-weight: 700; color: #333333; font-size: 1.05rem;">線上人數: {online_count} 人 ({status_text})</span>
-            </div>
-        """, unsafe_allow_html=True)
-        
-        # 登出按鈕
+        # 側邊欄現在非常乾淨，只保留登出按鈕
         authenticator.logout('登出系統', 'sidebar')
         st.markdown("---")
 
-    # ================= 宣告所有實體檔案路徑 =================
-    # 基礎頁面
+    # 宣告所有實體檔案路徑
     home = st.Page(home_page, title="系統首頁", icon="🏠", default=True)
     fuel_report = st.Page("pages/1_⛽_燃油設備填報.py", title="燃油設備填報", icon="⛽")
     refrig_report = st.Page("pages/2_❄️_冷媒設備填報.py", title="冷媒設備填報", icon="❄️")
     
-    # 原有的管理者頁面
     fuel_admin = st.Page("pages/3_⛽_燃油後台管理.py", title="燃油後台管理", icon="⚙️")
     refrig_admin = st.Page("pages/4_❄️_冷媒後台管理.py", title="冷媒後台管理", icon="⚙️")
     fuel_view = st.Page("pages/5_⛽_燃油資料檢視確認.py", title="燃油資料檢視確認", icon="📊")
     
-    # 📌 新增的管理者頁面
     elec_report = st.Page("pages/6_⚡_全校電力填報.py", title="全校電力填報", icon="⚡")
     elec_admin = st.Page("pages/7_⚡_全校電力管理.py", title="全校電力管理", icon="⚡")
     gas_report = st.Page("pages/8_💨_實驗室氣體鋼瓶資料回報.py", title="氣體鋼瓶資料回報", icon="💨")
     gas_admin = st.Page("pages/9_💨_實驗室氣體鋼瓶資料管理與追蹤.py", title="氣體鋼瓶管理與追蹤", icon="💨")
-    # ========================================================
     
-    # 建立基礎選單 (所有人可見)
+    # 建立基礎選單
     pages_dict = {
-        "": [home], # 隱藏大標題，精簡顯示
+        "": [home], 
         "📝 設備填報作業": [fuel_report, refrig_report]
     }
     
-    # 🔐 權限控管：當登入者為管理員時，加入所有後台與新增功能的選單
+    # 🔐 權限控管
     admin_users = ["admin"] 
     if current_username in admin_users:
-        # 將管理員功能進行分組，側邊欄才不會太亂
         pages_dict["⚙️ 燃油與冷媒管理"] = [fuel_admin, refrig_admin, fuel_view]
         pages_dict["⚡ 全校電力管理"] = [elec_report, elec_admin]
         pages_dict["💨 氣體鋼瓶管理"] = [gas_report, gas_admin]
         
-    # 執行導航
     pg = st.navigation(pages_dict)
     pg.run()
 
