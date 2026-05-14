@@ -45,7 +45,7 @@ st.markdown("""
 # 2. 顯示標題
 st.markdown('<div class="main-header">🏫 國立嘉義大學溫室氣體盤查填報系統<br><span style="font-size: 1.5rem; font-weight: 600; color: #5D6D7E;">National Chiayi University Greenhouse Gas Data Reporting System</span></div>', unsafe_allow_html=True)
 
-# ===== 首頁引導文案 =====
+# ===== 首頁引導文案 (虛擬分頁) =====
 def home_page():
     st.markdown("""
     <div class="info-box">
@@ -66,7 +66,7 @@ def clean_secrets(obj):
     elif isinstance(obj, list): return [clean_secrets(i) for i in obj]
     return obj
 
-# 【關鍵修改】：縮小 try 區塊，只保護密碼載入與初始化
+# 嘗試初始化登入套件
 try:
     _raw_creds = st.secrets["credentials"]
     credentials_login = clean_secrets(_raw_creds)
@@ -77,18 +77,24 @@ try:
     authenticator.login('main')
 except Exception as e:
     st.error(f"系統認證初始化錯誤: {e}")
-    st.stop()  # 若初始化失敗則停止往下執行
+    st.stop()
 
-# 判斷登入狀態 (使用 .get 避免 KeyError)
+# 4. 判斷登入狀態與動態路由
 if st.session_state.get("authentication_status"):
     # === 登入成功 ===
+    
+    # 取得目前登入的帳號與姓名
+    current_username = st.session_state.get("username")
+    current_name = st.session_state.get("name")
+    
     with st.sidebar:
-        st.header(f"👤 歡迎，師長/同仁")
+        st.header(f"👤 歡迎，{current_name} 師長/同仁")
         st.success("☁️ 連線成功")
+        # 統一在此處登出，分頁檔案中絕對不能再寫這行！
         authenticator.logout('登出系統', 'sidebar')
         st.markdown("---")
 
-    # 綁定截圖中的實體檔案名稱
+    # 宣告所有實體檔案路徑
     home = st.Page(home_page, title="系統首頁", icon="🏠", default=True)
     fuel_report = st.Page("pages/1_⛽_燃油設備填報.py", title="燃油設備填報", icon="⛽")
     refrig_report = st.Page("pages/2_❄️_冷媒設備填報.py", title="冷媒設備填報", icon="❄️")
@@ -96,15 +102,22 @@ if st.session_state.get("authentication_status"):
     refrig_admin = st.Page("pages/4_❄️_冷媒後台管理.py", title="冷媒後台管理", icon="⚙️")
     fuel_view = st.Page("pages/5_⛽_燃油資料檢視確認.py", title="燃油資料檢視確認", icon="📊")
     
-    pg = st.navigation(
-        {
-            "📌 系統導覽": [home],
-            "📝 設備填報作業": [fuel_report, refrig_report],
-            "⚙️ 管理與檢視": [fuel_admin, refrig_admin, fuel_view]
-        }
-    )
+    # 建立基礎選單 (包含 ncyu 在內的所有人都能看見)
+    pages_dict = {
+        "📌 系統導覽": [home],
+        "📝 設備填報作業": [fuel_report, refrig_report]
+    }
     
-    # 【關鍵修改】：將 pg.run() 移出 try...except 之外
+    # 🔐 權限控管：如果是管理者 admin，才加入後台管理的選單
+    # ==========================================
+    admin_users = ["admin"] 
+    # ==========================================
+    
+    if current_username in admin_users:
+        pages_dict["⚙️ 管理與檢視"] = [fuel_admin, refrig_admin, fuel_view]
+        
+    # 建立並執行美觀的側邊欄導航
+    pg = st.navigation(pages_dict)
     pg.run()
 
 elif st.session_state.get("authentication_status") is False:
