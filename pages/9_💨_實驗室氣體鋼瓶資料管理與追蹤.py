@@ -127,7 +127,8 @@ def send_email_action(to_email, subject, html_body):
         server.send_message(msg); server.quit()
         return True
     except Exception as e:
-        print(f"發信失敗: {e}")
+        # 關鍵：將隱藏的錯誤丟到畫面上
+        st.error(f"❌ 發送信件給 {to_email} 失敗！錯誤代碼：{str(e)}")
         return False
 
 def generate_styled_email_html(email_body_text, title="溫室氣體盤查 氣體鋼瓶通知"):
