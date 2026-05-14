@@ -22,7 +22,7 @@ st.markdown("""
     /* 主標題樣式 */
     .main-header {
         font-size: 2rem; font-weight: 800; color: #2C3E50; text-align: center; 
-        margin-bottom: 5px; padding: 12px; background-color: #FFFFFF; 
+        margin-bottom: 20px; padding: 12px; background-color: #FFFFFF; 
         border-bottom: 3px solid #F4D03F; border-radius: 10px;
         box-shadow: 0 4px 6px rgba(0,0,0,0.1);
     }
@@ -32,7 +32,7 @@ st.markdown("""
     }
     .stApp { background-color: #F8F9F9; }
 
-    /* 修改 Login 與 Logout 按鈕樣式 (強化選擇器，確保橘色樣式不跑版) */
+    /* 修改 Login 與 Logout 按鈕樣式 */
     [data-testid="stSidebar"] div.stButton > button,
     div.stButton > button {
         background-color: #E67E22 !important; color: #FFFFFF !important;
@@ -48,6 +48,20 @@ st.markdown("""
     [data-testid="stSidebarNavGroup"] > div {
         background-color: #E8F8F5; 
         border-radius: 5px; padding-left: 5px; margin-bottom: 5px;
+    }
+    
+    /* === 新增：右上角絕對定位燈號樣式 === */
+    .online-badge {
+        position: absolute;
+        top: 1rem;
+        right: 1.5rem;
+        font-size: 0.95rem;
+        font-weight: 600;
+        color: #4A4A4A;
+        background-color: rgba(255, 255, 255, 0.85); /* 帶有微透明背景，避免與後面文字重疊難辨識 */
+        padding: 4px 10px;
+        border-radius: 8px;
+        z-index: 999;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -76,27 +90,8 @@ def get_online_user_status():
     return active_count
 # ===============================
 
-# ===== 核心修改：人數燈號保留在右上角 =====
-online_count = get_online_user_status()
-if online_count >= 11: 
-    status_html = f"🔴 目前線上人數: {online_count} 人 (擁擠，建議稍候操作)"
-elif online_count >= 6: 
-    status_html = f"🟡 目前線上人數: {online_count} 人 (普通，可正常填報)"
-else: 
-    status_html = f"🟢 目前線上人數: {online_count} 人 (順暢)"
-
-st.markdown(f"""
-    <div style="text-align: right; margin-top: 5px; margin-bottom: 15px; font-size: 0.95rem; font-weight: 600; color: #4A4A4A;">
-        {status_html}
-    </div>
-""", unsafe_allow_html=True)
-# ==========================================================
-
-# 3. 首頁引導文案
+# 3. 首頁引導文案 (已將主標題移出)
 def home_page():
-    # 【關鍵修改】：將主標題移進來，這樣切換到其他分頁時，就不會顯示主標題了！
-    st.markdown('<div class="main-header">🏫 國立嘉義大學溫室氣體盤查填報系統<br><span style="font-size: 1.4rem; font-weight: 600; color: #5D6D7E;">National Chiayi University Greenhouse Gas Data Reporting System</span></div>', unsafe_allow_html=True)
-    
     st.markdown("""
     <div class="info-box">
         <h4>👋 您好！歡迎來到本校「溫室氣體盤查填報系統」</h4>
@@ -132,7 +127,6 @@ if st.session_state.get("authentication_status"):
     current_username = st.session_state.get("username")
     
     with st.sidebar:
-        # 整個系統只需要在這裡呼叫一次登出按鈕
         authenticator.logout('登出系統', 'sidebar')
         st.markdown("---")
 
@@ -164,6 +158,25 @@ if st.session_state.get("authentication_status"):
         pages_dict["💨 氣體鋼瓶管理"] = [gas_report, gas_admin]
         
     pg = st.navigation(pages_dict)
+
+    # ==========================================================
+    # 核心優化 1：絕對定位的人數燈號 (零高度佔用)
+    online_count = get_online_user_status()
+    if online_count >= 11: 
+        status_html = f"🔴 目前線上人數: {online_count} 人 (擁擠，建議稍候)"
+    elif online_count >= 6: 
+        status_html = f"🟡 目前線上人數: {online_count} 人 (普通，可正常填報)"
+    else: 
+        status_html = f"🟢 目前線上人數: {online_count} 人 (順暢)"
+
+    st.markdown(f'<div class="online-badge">{status_html}</div>', unsafe_allow_html=True)
+    
+    # 核心優化 2：動態判斷，僅在「首頁」與兩個「填報分頁」顯示系統標題
+    if pg.title in ["系統首頁", "燃油設備填報", "冷媒設備填報"]:
+        st.markdown('<div class="main-header">🏫 國立嘉義大學溫室氣體盤查填報系統<br><span style="font-size: 1.4rem; font-weight: 600; color: #5D6D7E;">National Chiayi University Greenhouse Gas Data Reporting System</span></div>', unsafe_allow_html=True)
+    # ==========================================================
+    
+    # 最後再執行該分頁的內容
     pg.run()
 
 elif st.session_state.get("authentication_status") is False:
