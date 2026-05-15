@@ -150,8 +150,8 @@ if st.session_state.get("authentication_status"):
     
     elec_report = st.Page("pages/6_⚡_全校電力填報.py", title="全校電力填報", icon="📃")
     elec_admin = st.Page("pages/7_⚡_全校電力管理.py", title="全校電力管理", icon="🖥️")
-    gas_report = st.Page("pages/8_💨_實驗室氣體鋼瓶資料回報.py", title="氣體鋼瓶資料回報", icon="📃")
-    gas_admin = st.Page("pages/9_💨_實驗室氣體鋼瓶資料管理與追蹤.py", title="氣體鋼瓶管理與追蹤", icon="🖥️")
+    gas_report = st.Page("pages/9_💨_實驗室氣體鋼瓶資料回報.py", title="氣體鋼瓶資料回報", icon="📃")
+    gas_admin = st.Page("pages/8_💨_實驗室氣體鋼瓶資料管理與追蹤.py", title="氣體鋼瓶管理與追蹤", icon="🖥️")
     
     # 建立基礎選單
     pages_dict = {
