@@ -106,8 +106,7 @@ if "token" in query_params:
     st.markdown('<style>[data-testid="stSidebar"], [data-testid="collapsedControl"], [data-testid="stHeader"] { display: none !important; }</style>', unsafe_allow_html=True)
     
     # 根據需求定義允許免登入進入的頁面
-    gas_report = st.Page("pages/8_💨_實驗室氣體鋼瓶資料回報.py", title="氣體鋼瓶資料回報", icon="📃")
-    toxic_report = st.Page("pages/10_📧實驗室資料確認回報.py", title="實驗室資料確認回報", icon="📧")
+    gas_report = st.Page("pages/9_💨_實驗室氣體鋼瓶資料回報.py", title="氣體鋼瓶資料回報", icon="📃")
     
     # 直接執行路由，不經過登入判斷
     pg = st.navigation([gas_report, toxic_report])
