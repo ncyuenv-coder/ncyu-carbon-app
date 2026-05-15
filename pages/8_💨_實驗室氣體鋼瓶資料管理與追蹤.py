@@ -5,6 +5,7 @@ import uuid
 import datetime
 import smtplib
 import time
+import io
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from google.oauth2.credentials import Credentials
@@ -41,7 +42,7 @@ if username != 'admin':
 # ================= 參數與色票設定 =================
 SHEET_ID = '1Hw4rXo4ww7O9YXTwoUJeWioO5ZzM_bivRcLLpOl26DY'
 
-# 🚀 精準修正：真實填報系統網址
+# 🚀 真實填報系統網址
 BASE_FORM_URL = "https://ncyu-carbon-app-mduue5hffp7uknsskmjet9.streamlit.app/實驗室氣體鋼瓶資料回報"
 
 GAS_TYPES = ["二氧化碳", "甲烷", "乙炔", "一氧化二氮(笑氣)"]
@@ -117,7 +118,6 @@ def batch_update_safe(worksheet, updates): worksheet.batch_update(updates)
 
 def send_email_action(to_email, subject, html_body):
     try:
-        # 精準對接您的 [smtp] 設定
         sender_email = st.secrets["smtp"]["email"]
         app_password = st.secrets["smtp"]["password"]
         smtp_server = st.secrets["smtp"]["server"]
@@ -129,15 +129,13 @@ def send_email_action(to_email, subject, html_body):
         msg['To'] = to_email
         msg.attach(MIMEText(html_body, 'html'))
         
-        # 對接 Port 587 與 TLS 加密協定
         server = smtplib.SMTP(smtp_server, smtp_port)
-        server.starttls() # 啟動安全傳輸
+        server.starttls() 
         server.login(sender_email, app_password)
         server.send_message(msg)
         server.quit()
         return True
     except Exception as e:
-        # 將錯誤顯示在畫面上，方便未來除錯
         st.error(f"❌ 發送信件給 {to_email} 失敗！錯誤訊息：{str(e)}")
         return False
 
@@ -145,64 +143,73 @@ def generate_styled_email_html(email_body_text, title="溫室氣體盤查 氣體
     html_content = email_body_text.replace("\n", "<br>")
     return f"<html><body style='font-family: Arial, sans-serif; line-height: 1.6; color: #333; font-size: 15px;'><div style='max-width: 600px; margin: 0 auto; border: 1px solid #ddd; border-radius: 10px; overflow: hidden;'><div style='background-color: #5C6B73; color: white; padding: 15px 20px; text-align: center;'><h2 style='margin: 0;'>{title}</h2></div><div style='padding: 20px;'>{html_content}</div></div></body></html>"
 
-# ================= 視覺化圖表渲染 =================
+# ================= 視覺化圖表渲染 (依需求重構) =================
 @st.fragment
-def render_dashboard(df_pur):
+def render_dashboard(df_inv, df_pur):
     st.markdown("<br>", unsafe_allow_html=True)
-    df_plot = df_pur.copy()
-    if not df_plot.empty:
-        df_plot['購買日期'] = pd.to_datetime(df_plot['購買日期'], errors='coerce')
-        df_plot['年份'] = df_plot['購買日期'].dt.year.fillna(datetime.datetime.now().year).astype(int)
-        df_plot['購買量'] = pd.to_numeric(df_plot['年度氣體鋼瓶購買量(公斤)'], errors='coerce').fillna(0)
     
-    all_years = sorted(df_plot['年份'].unique().tolist(), reverse=True) if not df_plot.empty else [datetime.datetime.now().year]
+    # 建立年度選單
+    all_years = []
+    if not df_pur.empty:
+        df_pur['購買日期'] = pd.to_datetime(df_pur['購買日期'], errors='coerce')
+        df_pur['年份'] = df_pur['購買日期'].dt.year.fillna(datetime.datetime.now().year).astype(int)
+        all_years = sorted(df_pur['年份'].unique().tolist(), reverse=True)
+    if not all_years: all_years = [datetime.datetime.now().year]
     
     c_year, _ = st.columns([1, 3])
-    sel_year = c_year.selectbox("📅 選擇統計年份", all_years, key="dash_year")
+    sel_year = c_year.selectbox("📅 檢視年度", all_years, key="dash_year")
     st.markdown("---")
     
-    df_year = df_plot[df_plot['年份'] == sel_year] if not df_plot.empty else pd.DataFrame()
+    df_year = df_pur[df_pur['年份'] == sel_year] if not df_pur.empty else pd.DataFrame()
     
-    if not df_year.empty:
-        st.markdown(f"<h3 style='text-align:center; color: #2C3E50; font-weight: bold; background-color: #FFFFFF; padding: 10px; border-radius: 10px; border: 1px solid #BDC3C7;'>{sel_year}年度 氣體鋼瓶購買統計與盤查概況</h3>", unsafe_allow_html=True)
-        tot_kg = df_year['購買量'].sum()
-        tot_count = len(df_year)
-        tot_labs = df_year['氣體鋼瓶所在位置實驗室門牌'].nunique()
-        
-        c1, c2, c3 = st.columns(3)
-        c1.markdown(f"""<div class="metric-card"><div class="metric-title" style="background-color: #A9CCE3;">📄 總購買申報筆數</div><div class="metric-value">{tot_count} <span>筆</span></div></div>""", unsafe_allow_html=True)
-        c2.markdown(f"""<div class="metric-card"><div class="metric-title" style="background-color: #F5CBA7;">⚖️ 總氣體購買量</div><div class="metric-value">{tot_kg:,.2f} <span>公斤 (kg)</span></div></div>""", unsafe_allow_html=True)
-        c3.markdown(f"""<div class="metric-card"><div class="metric-title" style="background-color: #A3E4D7;">🏢 涵蓋實驗室數量</div><div class="metric-value">{tot_labs} <span>間</span></div></div>""", unsafe_allow_html=True)
-        
-        st.markdown("---")
-        st.markdown("<h3 style='color: #2C3E50;'>📈 年度氣體購買概況 (依氣體種類)</h3>", unsafe_allow_html=True)
-        df_gas = df_year.groupby(['鋼瓶氣體種類', '校區'])['購買量'].sum().reset_index()
-        fig1 = px.bar(df_gas, x='鋼瓶氣體種類', y='購買量', color='校區', text_auto='.2f', color_discrete_sequence=MORANDI_PALETTE)
-        fig1.update_layout(height=500, yaxis_title="購買量 (公斤)", xaxis_title="", font=dict(size=16), plot_bgcolor='rgba(0,0,0,0)')
-        fig1.update_yaxes(showgrid=True, gridcolor='#EAEDED')
-        st.plotly_chart(fig1, use_container_width=True)
-        
-        st.markdown("---")
-        st.markdown("<h3 style='color: #2C3E50;'>🏆 前十大氣體購買系所</h3>", unsafe_allow_html=True)
-        top_depts = df_year.groupby('系所')['購買量'].sum().nlargest(10).index.tolist()
-        df_top = df_year[df_year['系所'].isin(top_depts)].groupby(['系所', '鋼瓶氣體種類'])['購買量'].sum().reset_index()
-        fig2 = px.bar(df_top, x='系所', y='購買量', color='鋼瓶氣體種類', text_auto='.2f', color_discrete_sequence=MORANDI_PALETTE)
-        fig2.update_layout(height=500, xaxis={'categoryorder':'total descending'}, yaxis_title="購買量 (公斤)", xaxis_title="", font=dict(size=16), plot_bgcolor='rgba(0,0,0,0)')
-        st.plotly_chart(fig2, use_container_width=True)
-
-        st.markdown("---")
-        st.markdown("<h3 style='color: #2C3E50;'>🍩 氣體購買資訊佔比分析</h3>", unsafe_allow_html=True)
-        c_l, c_r = st.columns(2)
-        gas_total = df_year.groupby('鋼瓶氣體種類')['購買量'].sum().reset_index()
-        fig3_l = px.pie(gas_total, values='購買量', names='鋼瓶氣體種類', title='依氣體購買重量統計', hole=0.4, color_discrete_sequence=MORANDI_PALETTE)
-        fig3_l.update_traces(textinfo='label+percent', textfont=dict(size=16), hovertemplate='<b>%{label}</b><br>重量: %{value:.2f} kg<br>佔比: %{percent:.1%}')
-        fig3_r = px.sunburst(df_year, path=['校區', '系所', '鋼瓶氣體種類'], values='購買量', title='校區與系所結構分析 (旭日圖)', color='校區', color_discrete_sequence=MORANDI_PALETTE)
-        fig3_r.update_traces(textinfo='label+percent parent')
-        
-        with c_l: st.plotly_chart(fig3_l, use_container_width=True)
-        with c_r: st.plotly_chart(fig3_r, use_container_width=True)
-    else:
-        st.info("該年度目前尚無購買紀錄資料。")
+    # 統計資訊卡
+    tot_labs = df_inv['氣體鋼瓶所在位置實驗室門牌'].nunique() if not df_inv.empty else 0
+    gas_counts = df_inv.groupby('鋼瓶氣體種類')['氣體鋼瓶所在位置實驗室門牌'].nunique().to_dict() if not df_inv.empty else {}
+    gas_summary_text = "、".join([f"{k}{v}間" for k, v in gas_counts.items()])
+    
+    co2_kg = df_year[df_year['鋼瓶氣體種類'] == '二氧化碳']['年度氣體鋼瓶購買量(公斤)'].astype(float).sum() if not df_year.empty else 0
+    acet_kg = df_year[df_year['鋼瓶氣體種類'] == '乙炔']['年度氣體鋼瓶購買量(公斤)'].astype(float).sum() if not df_year.empty else 0
+    
+    c1, c2, c3, c4 = st.columns(4)
+    c1.markdown(f"""<div class="metric-card"><div class="metric-title" style="background-color: #A9CCE3;">盤查範疇之氣體鋼瓶實驗室總數量</div><div class="metric-value">{tot_labs} <span>間</span></div></div>""", unsafe_allow_html=True)
+    c2.markdown(f"""<div class="metric-card"><div class="metric-title" style="background-color: #F5CBA7;">盤查範疇之氣體鋼瓶種類及實驗室數量</div><div class="metric-value" style="font-size: 20px;">{gas_summary_text}</div></div>""", unsafe_allow_html=True)
+    c3.markdown(f"""<div class="metric-card"><div class="metric-title" style="background-color: #A3E4D7;">二氧化碳鋼瓶年度購買量</div><div class="metric-value">{co2_kg:,.2f} <span>公斤</span></div></div>""", unsafe_allow_html=True)
+    c4.markdown(f"""<div class="metric-card"><div class="metric-title" style="background-color: #D7BDE2;">乙炔鋼瓶年度購買量</div><div class="metric-value">{acet_kg:,.2f} <span>公斤</span></div></div>""", unsafe_allow_html=True)
+    
+    st.markdown("---")
+    
+    # 各系所展開清單
+    if not df_inv.empty:
+        for dept in sorted(df_inv['系所'].astype(str).unique()):
+            dept_inv = df_inv[df_inv['系所'] == dept]
+            with st.expander(f"📁 {dept} (共 {dept_inv['氣體鋼瓶所在位置實驗室門牌'].nunique()} 間實驗室)"):
+                for idx, row in dept_inv.iterrows():
+                    mgr = row.get('實驗室老師', '')
+                    room = row.get('氣體鋼瓶所在位置實驗室門牌', '')
+                    gas = row.get('鋼瓶氣體種類', '')
+                    
+                    # 尋找該年度購買紀錄
+                    pur_record = pd.DataFrame()
+                    if not df_year.empty:
+                        pur_record = df_year[(df_year['實驗室老師'] == mgr) & (df_year['氣體鋼瓶所在位置實驗室門牌'] == room) & (df_year['鋼瓶氣體種類'] == gas)]
+                    
+                    has_pur = "有購買" if not pur_record.empty and float(pur_record.iloc[0].get('年度氣體鋼瓶購買量(公斤)', 0)) > 0 else "無購買"
+                    pur_date = pur_record.iloc[0].get('購買日期', '-') if has_pur == "有購買" else '-'
+                    pur_qty = pur_record.iloc[0].get('年度氣體鋼瓶購買量(公斤)', '0') if has_pur == "有購買" else '0'
+                    
+                    st.markdown(f"""
+                    <div style="background-color: #FDFBF7; padding: 15px; border-radius: 8px; border-left: 5px solid #88B04B; margin-bottom: 10px;">
+                        <div style="font-weight: bold; font-size: 18px; color: #2C3E50;">{mgr} 老師 <span style="font-size: 14px; color: #7F8C8D;">({room})</span></div>
+                        <div style="display: flex; gap: 20px; margin-top: 8px; font-size: 15px;">
+                            <div>📧 {row.get('電子郵件', '-')}</div>
+                            <div>📞 分機: {row.get('分機', '-')}</div>
+                            <div>🧪 氣體: <b>{gas}</b> ({row.get('鋼瓶數量', 0)} 支)</div>
+                            <div>🛒 年度購買: <span style="color: {'#E74C3C' if has_pur == '無購買' else '#27AE60'}; font-weight: bold;">{has_pur}</span></div>
+                            <div>📅 購買日期: {pur_date}</div>
+                            <div>⚖️ 購買量: {pur_qty} kg</div>
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
 
 # ================= 主程式 =================
 def main():
@@ -219,7 +226,7 @@ def main():
         if st.button("🔄 強制刷新最新資料", use_container_width=True):
             load_data.clear(); st.rerun()
 
-    tab1, tab2, tab3, tab4 = st.tabs(["📧 批次發送作業", "📊 回報進度追蹤與稽催", "📈 年度氣體鋼瓶購買量統計", "🛠️ 庫存資料管理"])
+    tab1, tab2, tab3, tab4 = st.tabs(["📧 批次發送作業", "📊 回報進度追蹤與稽催", "📈 盤查範疇之氣體鋼瓶資料庫及年度購買量管理", "🛠️ 庫存資料管理"])
 
     # ================= Tab 1: 批次發送作業 =================
     with tab1:
@@ -227,6 +234,15 @@ def main():
         if df_inv.empty: st.warning("⚠️ 氣體鋼瓶資料庫尚無任何紀錄，無法執行發送作業。")
         else:
             labs = df_inv[['系所', '實驗室老師', '電子郵件', '氣體鋼瓶所在位置實驗室門牌', '校區']].drop_duplicates()
+            
+            # 【新增】特定對象勾選
+            all_teachers = labs['實驗室老師'].unique().tolist()
+            selected_teachers = st.multiselect("🎯 選擇特定發送對象 (若留空則全選批次發送)", all_teachers, help="可輸入關鍵字搜尋特定老師，適合單獨補寄")
+            
+            if selected_teachers:
+                labs = labs[labs['實驗室老師'].isin(selected_teachers)]
+                st.info(f"將針對選定的 {len(selected_teachers)} 位老師進行發送。")
+
             with st.form("send_form"):
                 batch_name = st.text_input("📝 批次名稱", value=f"{now_year_roc}年度溫室氣體盤查範疇之氣體鋼瓶購買調查")
                 data_year_roc = st.text_input("📅 盤查年度", value=f"{now_year_roc-1}年度")
@@ -250,7 +266,6 @@ def main():
                         links_html = ""
                         for _, row in group.iterrows():
                             token = uuid.uuid4().hex
-                            # 精準修正：處理 URL 串接 ?token=
                             link = f"{BASE_FORM_URL}?token={token}"
                             links_html += f'<div style="margin-bottom: 8px; background-color: #FDFBF7; padding: 10px; border-left: 5px solid #D4A373;"><b>{row["校區"]} - 門牌 {row["氣體鋼瓶所在位置實驗室門牌"]}</b>：<a href="{link}" style="color: #3498DB; font-weight: bold;">點此進入系統</a></div>'
                             all_appends.append([batch_name, dept, mgr, row["校區"], row["氣體鋼瓶所在位置實驗室門牌"], email, token, link, "", now_time, "待回覆", ""])
@@ -259,7 +274,6 @@ def main():
                         html_wrap = generate_styled_email_html(mail_content, title=batch_name)
                         subject_content = batch_subject.replace("{批次名稱}", batch_name)
                         
-                        # 🚀 精準修正：確認發信成功才標記成功
                         if send_email_action(target_email, subject_content, html_wrap):
                             success_count += 1
                             for record in all_appends[-len(group):]: record[8] = "發送成功"
@@ -269,7 +283,7 @@ def main():
                         my_bar.progress((idx+1)/total_groups, text=f"發送中 ({idx+1}/{total_groups})")
                     
                     safe_append_rows(get_gc().open_by_key(SHEET_ID).worksheet('發送紀錄與金鑰'), all_appends)
-                    st.success(f"✅ 完成！成功寄出 {success_count} 位老師。請檢查 Gmail 已寄出資料夾。")
+                    st.success(f"✅ 完成！成功寄出 {success_count} 位老師。")
                     time.sleep(2); load_data.clear(); st.rerun()
 
     # ================= Tab 2: 進度追蹤與稽催 =================
@@ -295,6 +309,13 @@ def main():
             follow_mode = st.radio("稽催發送模式", ["🧪 測試寄信模式", "🚀 正式寄信模式"], horizontal=True) == "🧪 測試寄信模式"
             f_test_email = st.text_input("📩 稽催測試接收信箱") if follow_mode else ""
             
+            # 【新增】特定稽催對象勾選
+            f_all_teachers = pending['實驗室老師'].unique().tolist()
+            f_selected_teachers = st.multiselect("🎯 選擇特定稽催對象 (若留空則依系所批次稽催)", f_all_teachers)
+            
+            if f_selected_teachers:
+                pending = pending[pending['實驗室老師'].isin(f_selected_teachers)]
+            
             if not pending.empty:
                 for dept in pending['系所'].unique():
                     dept_pending = pending[pending['系所'] == dept]
@@ -303,8 +324,9 @@ def main():
                         grouped_pending = dept_pending.groupby(['實驗室老師', '電子郵件'])
                         with col_list:
                             for (mgr, email), group in grouped_pending:
-                                rooms = ", ".join(group['氣體鋼瓶所在位置實驗室門牌'].tolist())
-                                st.write(f"- **{mgr}** 老師 (門牌: {rooms})")
+                                # 【修改】顯示資訊改為「分機」
+                                ext_info = df_inv[(df_inv['系所']==dept) & (df_inv['實驗室老師']==mgr)]['分機'].iloc[0] if not df_inv.empty and len(df_inv[(df_inv['系所']==dept) & (df_inv['實驗室老師']==mgr)]) > 0 else "無資料"
+                                st.write(f"- **{mgr}** 老師 (分機: {ext_info})")
                         with col_btn:
                             if st.button(f"✉️ 稽催 {dept}", key=f"f_{dept}"):
                                 if follow_mode and not f_test_email: st.error("請輸入測試信箱！")
@@ -319,12 +341,22 @@ def main():
                                         if send_email_action(target, f"國立嘉義大學 {sel_batch} 未回報提醒", html_wrap): f_count += 1
                                     st.success(f"✅ {dept} 稽催發送完成 ({f_count} 封信)。")
 
-    # ================= Tab 3: 年度氣體鋼瓶購買量統計 (圖表) =================
+    # ================= Tab 3: 年度氣體鋼瓶購買量統計 =================
     with tab3:
-        render_dashboard(df_pur)
+        # 渲染重構後的 Dashboard
+        render_dashboard(df_inv, df_pur)
         
         st.markdown("<hr>", unsafe_allow_html=True)
-        st.markdown("### 📁 原始資料下載區")
+        st.markdown("### 📁 原始資料與報表下載")
+        
+        # 【新增】Excel 下載功能
+        if not df_pur.empty and not df_inv.empty:
+            output = io.BytesIO()
+            with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+                df_inv.to_excel(writer, sheet_name='氣體鋼瓶資料庫(總庫存)', index=False)
+                df_pur.to_excel(writer, sheet_name='氣體鋼瓶年度使用紀錄', index=False)
+            st.download_button("📥 匯出盤查清冊 Excel 檔", data=output.getvalue(), file_name=f"氣體鋼瓶盤查清冊_{datetime.datetime.now().year}.xlsx", type="primary")
+
         c_raw1, c_raw2 = st.tabs(["氣體鋼瓶資料庫 (現有總庫存)", "年度氣體鋼瓶使用紀錄 (購買憑證)"])
         with c_raw1: st.dataframe(df_inv)
         with c_raw2: 
