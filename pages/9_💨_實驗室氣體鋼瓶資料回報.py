@@ -67,17 +67,16 @@ def apply_morandi_theme():
     </style>
     """, unsafe_allow_html=True)
 
-# ================= 🚀 PDF 轉圖片核心函式 (全頁擷取版) =================
+# ================= PDF 轉圖片核心函式 =================
 def get_pdf_preview_images(file_obj):
-    """將 PDF 的「所有頁面」擷取為 PNG 圖片格式清單"""
     try:
-        import fitz  # 需要 PyMuPDF 套件
+        import fitz  
         file_obj.seek(0)
         doc = fitz.open(stream=file_obj.read(), filetype="pdf")
         images = []
         for page_num in range(len(doc)):
             page = doc.load_page(page_num)
-            pix = page.get_pixmap(dpi=150) # 解析度 150 dpi
+            pix = page.get_pixmap(dpi=150)
             images.append(io.BytesIO(pix.tobytes("png")))
         file_obj.seek(0) 
         return images
@@ -114,6 +113,12 @@ def fetch_main_inventory():
     try: return get_gc().open_by_key(SHEET_ID).worksheet('氣體鋼瓶資料庫').get_all_records()
     except: return []
 
+# 🚀 新增：為唯讀模式抓取年度購買紀錄
+@st.cache_data(ttl=120, show_spinner=False)
+def fetch_pur_records():
+    try: return get_gc().open_by_key(SHEET_ID).worksheet('氣體鋼瓶年度使用紀錄').get_all_records()
+    except: return []
+
 @with_retry(max_retries=3)
 def append_dicts(worksheet, list_of_dicts):
     headers = worksheet.row_values(1)
@@ -132,11 +137,10 @@ def upload_to_drive(uploaded_file, file_name):
     file = drive_service.files().create(body=file_metadata, media_body=media, fields='id').execute()
     return f"https://drive.google.com/file/d/{file.get('id')}/view?usp=sharing"
 
-# ================= 🚀 產生 Word 申報表 (精準排版與字型修復) =================
+# ================= 產生 Word 申報表 =================
 def create_report_docx(base_data, pur_data, status):
     doc = Document()
     
-    # 🚀 安全字體設定掃描器 (確保每個角落都是標楷體與 Times New Roman)
     def apply_font_to_all(document):
         for p in document.paragraphs:
             for run in p.runs:
@@ -152,13 +156,10 @@ def create_report_docx(base_data, pur_data, status):
                             try: run._element.rPr.rFonts.set(qn('w:eastAsia'), '標楷體')
                             except: pass
 
-    # --- 版面設定為「中等邊界」 ---
     sections = doc.sections
     for section in sections:
-        section.top_margin = Inches(1)
-        section.bottom_margin = Inches(1)
-        section.left_margin = Inches(0.75)
-        section.right_margin = Inches(0.75)
+        section.top_margin = Inches(1); section.bottom_margin = Inches(1)
+        section.left_margin = Inches(0.75); section.right_margin = Inches(0.75)
 
     title = doc.add_heading('溫室氣體盤查 - 實驗室氣體鋼瓶申報表', 0)
     title.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -191,20 +192,19 @@ def create_report_docx(base_data, pur_data, status):
                 for cell in row.cells: cell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
             doc.add_paragraph("")
             
-        # 移至第 2 頁顯示單據與照片
         doc.add_page_break()
         p_proof_title = doc.add_paragraph()
         p_proof_title.alignment = WD_ALIGN_PARAGRAPH.CENTER
         run_title = p_proof_title.add_run("【年度購買單據佐證】")
-        run_title.bold = True
-        run_title.font.size = Pt(16)
+        run_title.bold = True; run_title.font.size = Pt(16)
         
         for idx, p in enumerate(pur_data):
-            # 🚀 精準修正：符合規範的文字格式
             desc_text = f"單據 {idx+1}： 氣體種類: {p['鋼瓶氣體種類']} | 購買日期: {p['購買日期']} | 申報購買量: {p['年度氣體鋼瓶購買量(公斤)']} 公斤"
             doc.add_paragraph(desc_text).alignment = WD_ALIGN_PARAGRAPH.CENTER
             
-            file_obj = p['file']
+            file_obj = p.get('file')
+            file_url = p.get('file_url') # 🚀 相容唯讀模式的雲端連結
+            
             if file_obj:
                 if file_obj.type in ['image/jpeg', 'image/png']:
                     try:
@@ -222,11 +222,12 @@ def create_report_docx(base_data, pur_data, status):
                             p_img.add_run().add_picture(img_stream, width=Inches(5.5))
                     else:
                         doc.add_paragraph(f"📄 附檔佐證單據：{file_obj.name}").alignment = WD_ALIGN_PARAGRAPH.CENTER
+            elif file_url:
+                doc.add_paragraph(f"📎 此單據已上傳至雲端硬碟備查，連結：{file_url}").alignment = WD_ALIGN_PARAGRAPH.CENTER
             else:
                 doc.add_paragraph("⚠️ 未建立購買單據連結").alignment = WD_ALIGN_PARAGRAPH.CENTER
             doc.add_paragraph("")
 
-    # 🚀 執行地毯式字體轉換
     apply_font_to_all(doc)
     buf = io.BytesIO(); doc.save(buf); return buf.getvalue()
 
@@ -296,8 +297,35 @@ def main():
     </div>
     """, unsafe_allow_html=True)
     
-    if is_readonly: st.success("✅ 該實驗室已完成本期回報，目前為唯讀檢視模式。")
-    if is_readonly and not is_admin: st.stop() 
+    # 🚀 精準修正：開放老師唯讀檢視模式
+    if is_readonly: 
+        st.success("✅ 貴實驗室已完成本期回報，下方為您申報的資料留存 (唯讀檢視模式)。")
+        st.session_state.step = "preview" # 強制進入預覽頁
+        
+        # 動態抓取該老師的購買紀錄供預覽
+        if "form_data" not in st.session_state:
+            df_pur_all = pd.DataFrame(fetch_pur_records())
+            teacher_pur = []
+            if not df_pur_all.empty:
+                mask_pur = (df_pur_all['系所'].astype(str) == st.session_state.dept) & (df_pur_all['實驗室老師'].astype(str) == st.session_state.manager) & (df_pur_all['氣體鋼瓶所在位置實驗室門牌'].astype(str) == st.session_state.room)
+                teacher_pur = df_pur_all[mask_pur].to_dict('records')
+            
+            pur_reconstructed = []
+            for p in teacher_pur:
+                pur_reconstructed.append({
+                    "鋼瓶氣體種類": p.get("鋼瓶氣體種類", ""),
+                    "購買日期": p.get("購買日期", ""),
+                    "年度氣體鋼瓶購買量(公斤)": p.get("年度氣體鋼瓶購買量(公斤)", 0),
+                    "file_url": p.get("購買單據連結", "") # 唯讀模式僅提供連結
+                })
+            
+            st.session_state.form_data = {
+                "dept": st.session_state.dept, "mgr": st.session_state.manager,
+                "campus": st.session_state.campus, "room": st.session_state.room,
+                "mail": st.session_state.email, "ext": st.session_state.inventory[0].get("分機", "") if st.session_state.inventory else "",
+                "status": "有購買" if pur_reconstructed else "無購買",
+                "inv": st.session_state.inventory, "pur": pur_reconstructed
+            }
     
     saved_d = st.session_state.get("form_data", {})
     def_dept = saved_d.get("dept", st.session_state.dept)
@@ -310,7 +338,7 @@ def main():
     saved_inv = saved_d.get("inv", [])
 
     # ================= 第一階段：填寫資料 =================
-    if st.session_state.step == "input" and (not is_readonly or is_admin):
+    if st.session_state.step == "input" and not is_readonly:
         
         st.markdown('<div class="section-header">👩‍🔬 實驗室基本資訊確認與修改</div>', unsafe_allow_html=True)
         c1, c2, c3 = st.columns(3)
@@ -425,25 +453,25 @@ def main():
                 st.rerun()
 
     # ================= 第二階段：預覽確認與送出 =================
-    elif st.session_state.step == "preview" or (is_readonly and is_admin):
+    elif st.session_state.step == "preview":
         
-        # 🚀 精準修正：預覽頁面置頂 JavaScript
-        components.html("<script>window.parent.document.querySelector('.main').scrollTo({top: 0, behavior: 'smooth'});</script>", height=0)
+        # 🚀 精準修正：等待 DOM 渲染後，強制將畫面捲動至最頂端
+        components.html("""
+        <script>
+            setTimeout(function() {
+                var parentContent = window.parent.document.querySelector('.main');
+                if(parentContent) { parentContent.scrollTo({top: 0, behavior: 'smooth'}); }
+                var appView = window.parent.document.querySelector('[data-testid="stAppViewContainer"]');
+                if(appView) { appView.scrollTo({top: 0, behavior: 'smooth'}); }
+            }, 300);
+        </script>
+        """, height=0)
         
         st.markdown('<div class="section-header">🔍 申報內容預覽確認</div>', unsafe_allow_html=True)
+        d = st.session_state.form_data
         
-        if is_readonly and is_admin and "form_data" not in st.session_state:
-            d = {
-                "dept": st.session_state.dept, "mgr": st.session_state.manager,
-                "campus": st.session_state.campus, "room": st.session_state.room,
-                "mail": st.session_state.email, "ext": st.session_state.inventory[0].get("分機", "") if st.session_state.inventory else "",
-                "status": "已回報 (詳細購買請見下方表單)", "inv": st.session_state.inventory, "pur": []
-            }
-        else:
-            d = st.session_state.form_data
-            
         inv_str = ', '.join([f"{i['鋼瓶氣體種類']} ({i['鋼瓶數量']}支)" for i in d['inv']]) if d['inv'] else '登記無現有庫存'
-        status_color = '#B03A2E' if d.get('status')=='有購買' else '#27AE60'
+        status_color = '#B03A2E' if d['status']=='有購買' else '#27AE60'
         
         preview_html = f"""
 <div style="background: #FDFBF7; border: 2px solid #9DB4AB; border-radius: 10px; padding: 25px; margin-bottom: 25px;">
@@ -454,12 +482,12 @@ def main():
 <tr><td style="width:250px; white-space:nowrap; color:#7F8C8D;"><b>聯絡分機/信箱</b></td><td style="font-weight:bold;">{d['ext']} / {d['mail']}</td></tr>
 <tr><td style="width:250px; white-space:nowrap; color:#7F8C8D;"><b>最新現況總庫存</b></td><td><span style="background-color: #EBF5FB; padding: 4px 12px; border-radius: 4px; border-left: 4px solid #3498DB; font-weight:bold; color:#2980B9;">{inv_str}</span></td></tr>
 </table>
-<h3 style="color: #2C3E50; margin-top: 25px; border-top: 2px solid #EEEEEE; padding-top: 15px; margin-bottom: 0;">🧾 年度購買狀況：<span style="color: {status_color}; font-weight:900;">{d.get('status', '已回報')}</span></h3>
+<h3 style="color: #2C3E50; margin-top: 25px; border-top: 2px solid #EEEEEE; padding-top: 15px; margin-bottom: 0;">🧾 年度購買狀況：<span style="color: {status_color}; font-weight:900;">{d['status']}</span></h3>
 </div>
 """
         st.markdown(preview_html, unsafe_allow_html=True)
         
-        if d.get('status') == "有購買":
+        if d['status'] == "有購買":
             st.markdown("#### 📄 購買佐證憑證審視清單")
             for idx, p in enumerate(d['pur']):
                 st.markdown(f"""
@@ -468,7 +496,9 @@ def main():
 </div>
 """, unsafe_allow_html=True)
                 
-                file_obj = p['file']
+                file_obj = p.get('file')
+                file_url = p.get('file_url') # 唯讀模式下為 URL
+                
                 if file_obj:
                     if file_obj.type in ['image/jpeg', 'image/png']:
                         st.image(file_obj, width=600, caption=f"單據 {idx+1} 影像畫面")
@@ -476,17 +506,24 @@ def main():
                         img_streams = get_pdf_preview_images(file_obj)
                         if img_streams:
                             for img_idx, img_stream in enumerate(img_streams):
-                                st.image(img_stream, width=600, caption=f"單據 {idx+1} PDF 第 {img_idx+1} 頁完整預覽 (系統自動擷取)")
+                                st.image(img_stream, width=600, caption=f"單據 {idx+1} PDF 第 {img_idx+1} 頁預覽 (系統自動擷取)")
                         else:
                             st.markdown(f"📄 **佐證單據 PDF 檔案已暫存** (檔名: {file_obj.name})")
+                elif file_url:
+                    st.markdown(f"📎 **[點此前往雲端檢視已上傳之單據檔案]({file_url})**")
+                
                 st.markdown("<br>", unsafe_allow_html=True)
 
         st.markdown("<br>", unsafe_allow_html=True)
         
-        if is_readonly and is_admin:
-            st.info("💡 此為已回報資料，若需產製 Word 檔請通知老師重新上傳暫存，或直接至後台下載總表。")
+        # 🚀 唯讀模式防呆：隱藏按鈕，僅開放 Word 下載
+        if is_readonly:
+            st.info("💡 此為已回報之唯讀資料，無法再次修改或送出。若需修正請聯繫管理員。")
+            word_buf = create_report_docx(d, d['pur'], d['status'])
+            st.download_button("📥 下載我的申報存查表 (Word)", data=word_buf, file_name=f"氣體鋼瓶申報存查表_{d['dept']}_{d['mgr']}.docx", use_container_width=True)
         else:
             col_btn1, col_btn2, col_btn3 = st.columns(3)
+            
             with col_btn1:
                 if st.button("⬅️ 回去修改資料", use_container_width=True):
                     st.session_state.step = "input"; st.rerun()
