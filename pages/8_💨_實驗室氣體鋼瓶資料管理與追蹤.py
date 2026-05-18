@@ -143,7 +143,7 @@ def generate_styled_email_html(email_body_text, title="溫室氣體盤查 氣體
     html_content = email_body_text.replace("\n", "<br>")
     return f"<html><body style='font-family: Arial, sans-serif; line-height: 1.6; color: #333; font-size: 15px;'><div style='max-width: 600px; margin: 0 auto; border: 1px solid #ddd; border-radius: 10px; overflow: hidden;'><div style='background-color: #5C6B73; color: white; padding: 15px 20px; text-align: center;'><h2 style='margin: 0;'>{title}</h2></div><div style='padding: 20px;'>{html_content}</div></div></body></html>"
 
-# ================= 視覺化圖表渲染 (依需求重構) =================
+# ================= 視覺化圖表渲染 =================
 @st.fragment
 def render_dashboard(df_inv, df_pur):
     st.markdown("<br>", unsafe_allow_html=True)
@@ -235,7 +235,7 @@ def main():
         else:
             labs = df_inv[['系所', '實驗室老師', '電子郵件', '氣體鋼瓶所在位置實驗室門牌', '校區']].drop_duplicates()
             
-            # 【新增】特定對象勾選
+            # 特定對象勾選
             all_teachers = labs['實驗室老師'].unique().tolist()
             selected_teachers = st.multiselect("🎯 選擇特定發送對象 (若留空則全選批次發送)", all_teachers, help="可輸入關鍵字搜尋特定老師，適合單獨補寄")
             
@@ -249,7 +249,9 @@ def main():
                 is_test_mode = st.radio("寄送模式", ["🧪 測試寄信模式", "🚀 正式寄信模式"], horizontal=True) == "🧪 測試寄信模式"
                 test_email = st.text_input("📩 測試接收信箱") if is_test_mode else ""
                 batch_subject = st.text_input("信件主旨", value="國立嘉義大學 {批次名稱}")
-                batch_body = st.text_area("信件內容", value="{系所} {老師名稱} 您好：\n\n為配合溫室氣體盤查作業，請協助檢視與更新貴實驗室之基本資料、氣體鋼瓶庫存及使用量，並上傳{年度}之購買佐證單據。\n\n📍 您所管理的實驗室專屬確認連結如下：\n{links}\n\n⚠️ 提醒：若您管理多間實驗室，請於「氣體鋼瓶所在位置實驗室門牌」欄位填寫多個位置。\n本信件由系統自動發送，請勿直接回覆。", height=220)
+                
+                # 【修改處】修正稱呼語為 {老師名稱}老師 您好：
+                batch_body = st.text_area("信件內容", value="{老師名稱}老師 您好：\n\n為配合溫室氣體盤查作業，請協助檢視與更新貴實驗室之基本資料、氣體鋼瓶庫存及使用量，並上傳{年度}之購買佐證單據。\n\n📍 您所管理的實驗室專屬確認連結如下：\n{links}\n\n⚠️ 提醒：若您管理多間實驗室，請於「氣體鋼瓶所在位置實驗室門牌」欄位填寫多個位置。\n本信件由系統自動發送，請勿直接回覆。", height=220)
                 submit_btn = st.form_submit_button("🚀 產生金鑰並發送通知信", type="primary")
                 
             if submit_btn:
@@ -270,7 +272,9 @@ def main():
                             links_html += f'<div style="margin-bottom: 8px; background-color: #FDFBF7; padding: 10px; border-left: 5px solid #D4A373;"><b>{row["校區"]} - 門牌 {row["氣體鋼瓶所在位置實驗室門牌"]}</b>：<a href="{link}" style="color: #3498DB; font-weight: bold;">點此進入系統</a></div>'
                             all_appends.append([batch_name, dept, mgr, row["校區"], row["氣體鋼瓶所在位置實驗室門牌"], email, token, link, "", now_time, "待回覆", ""])
                         
-                        mail_content = batch_body.replace("{系所}", dept).replace("{老師名稱}", mgr).replace("{年度}", data_year_roc).replace("{links}", links_html)
+                        # 【修改處】清除可能重複的「老師」字眼，確保稱呼精準
+                        clean_mgr = str(mgr).replace("老師", "").strip()
+                        mail_content = batch_body.replace("{系所}", dept).replace("{老師名稱}", clean_mgr).replace("{年度}", data_year_roc).replace("{links}", links_html)
                         html_wrap = generate_styled_email_html(mail_content, title=batch_name)
                         subject_content = batch_subject.replace("{批次名稱}", batch_name)
                         
@@ -309,7 +313,7 @@ def main():
             follow_mode = st.radio("稽催發送模式", ["🧪 測試寄信模式", "🚀 正式寄信模式"], horizontal=True) == "🧪 測試寄信模式"
             f_test_email = st.text_input("📩 稽催測試接收信箱") if follow_mode else ""
             
-            # 【新增】特定稽催對象勾選
+            # 特定稽催對象勾選
             f_all_teachers = pending['實驗室老師'].unique().tolist()
             f_selected_teachers = st.multiselect("🎯 選擇特定稽催對象 (若留空則依系所批次稽催)", f_all_teachers)
             
@@ -324,7 +328,6 @@ def main():
                         grouped_pending = dept_pending.groupby(['實驗室老師', '電子郵件'])
                         with col_list:
                             for (mgr, email), group in grouped_pending:
-                                # 【修改】顯示資訊改為「分機」
                                 ext_info = df_inv[(df_inv['系所']==dept) & (df_inv['實驗室老師']==mgr)]['分機'].iloc[0] if not df_inv.empty and len(df_inv[(df_inv['系所']==dept) & (df_inv['實驗室老師']==mgr)]) > 0 else "無資料"
                                 st.write(f"- **{mgr}** 老師 (分機: {ext_info})")
                         with col_btn:
@@ -343,13 +346,11 @@ def main():
 
     # ================= Tab 3: 年度氣體鋼瓶購買量統計 =================
     with tab3:
-        # 渲染重構後的 Dashboard
         render_dashboard(df_inv, df_pur)
         
         st.markdown("<hr>", unsafe_allow_html=True)
         st.markdown("### 📁 原始資料與報表下載")
         
-        # 【新增】Excel 下載功能
         if not df_pur.empty and not df_inv.empty:
             output = io.BytesIO()
             with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
