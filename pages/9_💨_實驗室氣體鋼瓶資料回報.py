@@ -12,6 +12,7 @@ from docx import Document
 from docx.shared import Pt, Inches
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.enum.table import WD_CELL_VERTICAL_ALIGNMENT
+from docx.oxml.ns import qn
 
 # ================= 系統與全域參數設定 =================
 st.set_page_config(page_title="實驗室氣體鋼瓶資料回報", page_icon="💨", layout="wide")
@@ -130,11 +131,17 @@ def upload_to_drive(uploaded_file, file_name):
     file = drive_service.files().create(body=file_metadata, media_body=media, fields='id').execute()
     return f"https://drive.google.com/file/d/{file.get('id')}/view?usp=sharing"
 
-# ================= 產生 Word 申報表 =================
+# ================= 🚀 產生 Word 申報表 (排版與字體精準修正) =================
 def create_report_docx(base_data, pur_data, status):
     doc = Document()
     
-    # 版面設定為「中等邊界」
+    # --- 字體設定 ---
+    style = doc.styles['Normal']
+    font = style.font
+    font.name = 'Times New Roman'  # 英文與數字使用 Times New Roman
+    font.element.rPr.rFonts.set(qn('w:eastAsia'), '標楷體')  # 中文使用標楷體
+    
+    # --- 版面設定為「中等邊界」 ---
     sections = doc.sections
     for section in sections:
         section.top_margin = Inches(1)
@@ -144,11 +151,14 @@ def create_report_docx(base_data, pur_data, status):
 
     title = doc.add_heading('溫室氣體盤查 - 實驗室氣體鋼瓶申報表', 0)
     title.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    # 強制標題字體同步
+    title.runs[0].font.name = 'Times New Roman'
+    title.runs[0].font.element.rPr.rFonts.set(qn('w:eastAsia'), '標楷體')
     
     doc.add_paragraph(f"盤查年度：2026年")
     doc.add_paragraph(f"填報日期：{datetime.datetime.now().strftime('%Y/%m/%d')}")
     
-    doc.add_heading('【實驗室基本資訊】', level=2)
+    doc.add_heading('【實驗室基本資訊】', level=2).runs[0].font.element.rPr.rFonts.set(qn('w:eastAsia'), '標楷體')
     t_base = doc.add_table(rows=3, cols=2)
     t_base.style = 'Table Grid'
     t_base.cell(0, 0).text = "系所 / 老師"; t_base.cell(0, 1).text = f"{base_data['dept']} / {base_data['mgr']}"
@@ -158,7 +168,7 @@ def create_report_docx(base_data, pur_data, status):
     for row in t_base.rows:
         for cell in row.cells: cell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
         
-    doc.add_heading('【年度購買紀錄申報】', level=2)
+    doc.add_heading('【年度購買紀錄申報】', level=2).runs[0].font.element.rPr.rFonts.set(qn('w:eastAsia'), '標楷體')
     if status == "無購買" or not pur_data:
         doc.add_paragraph("☑️ 盤查期間無購買氣體鋼瓶")
     else:
@@ -171,51 +181,68 @@ def create_report_docx(base_data, pur_data, status):
             
             for row in p_table.rows:
                 for cell in row.cells: cell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
-            
             doc.add_paragraph("")
             
-            # 🚀 精準修正：於圖片上方加入【年度購買單據佐證】並水平置中
-            p_proof_title = doc.add_paragraph()
-            p_proof_title.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            run_title = p_proof_title.add_run("【年度購買單據佐證】")
-            run_title.bold = True
-            run_title.font.size = Pt(14)
-            
+        # 🚀 在第 2 頁顯示單據與照片
+        doc.add_page_break()
+        p_proof_title = doc.add_paragraph()
+        p_proof_title.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        run_title = p_proof_title.add_run("【年度購買單據佐證】")
+        run_title.bold = True
+        run_title.font.size = Pt(16)
+        run_title.font.element.rPr.rFonts.set(qn('w:eastAsia'), '標楷體')
+        
+        for idx, p in enumerate(pur_data):
+            doc.add_paragraph(f"單據 {idx+1} ({p['鋼瓶氣體種類']})：").alignment = WD_ALIGN_PARAGRAPH.CENTER
             file_obj = p['file']
             if file_obj:
                 if file_obj.type in ['image/jpeg', 'image/png']:
                     try:
                         file_obj.seek(0)
-                        # 🚀 精準修正：設定照片為水平中央置中
                         p_img = doc.add_paragraph()
                         p_img.alignment = WD_ALIGN_PARAGRAPH.CENTER
                         p_img.add_run().add_picture(io.BytesIO(file_obj.read()), width=Inches(5.5))
-                    except Exception: doc.add_paragraph("⚠️ [圖片單據載入異常]")
+                    except Exception: doc.add_paragraph("⚠️ [圖片單據載入異常]").alignment = WD_ALIGN_PARAGRAPH.CENTER
                 elif file_obj.type == 'application/pdf':
                     img_streams = get_pdf_preview_images(file_obj)
                     if img_streams:
                         for img_idx, img_stream in enumerate(img_streams):
-                            # 🚀 精準修正：設定 PDF 轉圖照片為水平中央置中
                             p_img = doc.add_paragraph()
                             p_img.alignment = WD_ALIGN_PARAGRAPH.CENTER
                             p_img.add_run().add_picture(img_stream, width=Inches(5.5))
-                            if img_idx < len(img_streams) - 1:
-                                doc.add_paragraph("") # 圖片間加入小換行
                     else:
-                        doc.add_paragraph(f"📄 附檔佐證單據：{file_obj.name} (PDF 轉圖失敗，請至系統後台檢視原檔)")
+                        doc.add_paragraph(f"📄 附檔佐證單據：{file_obj.name}").alignment = WD_ALIGN_PARAGRAPH.CENTER
             else:
-                doc.add_paragraph("⚠️ 未建立購買單據連結")
-            doc.add_paragraph("\n")
+                doc.add_paragraph("⚠️ 未建立購買單據連結").alignment = WD_ALIGN_PARAGRAPH.CENTER
+            doc.add_paragraph("")
 
-    doc.add_paragraph("\n申報聲明：本人確認以上資料屬實，並依規定完成申報。")
     buf = io.BytesIO(); doc.save(buf); return buf.getvalue()
 
 # ================= 主程式 =================
 def main():
     apply_morandi_theme()
+    
+    # 🚀 精準修正：加入管理者 Bypass 機制
+    is_admin = st.session_state.get("authentication_status") and st.session_state.get("username") in ["admin"]
     url_token = st.query_params.get("token", None)
     
-    if not url_token: st.error("🚫 請透過專屬通知信內的連結進入系統。"); st.stop()
+    if not url_token: 
+        if is_admin:
+            st.success("👑 管理者檢視模式：可選擇全校表單進行預覽與下載。")
+            records = fetch_tracker_records()
+            if not records:
+                st.info("資料庫尚無發送紀錄。")
+                st.stop()
+            
+            options = {f"[{r.get('回覆狀態', '未回報')}] {r.get('系所', '')} - {r.get('實驗室老師', '')} ({r.get('氣體鋼瓶所在位置實驗室門牌', '')})": r.get('專屬金鑰(Token)', '') for r in records if r.get('專屬金鑰(Token)')}
+            selected_teacher = st.selectbox("🔍 請選擇要檢視的實驗室表單：", list(options.keys()))
+            url_token = options[selected_teacher]
+            
+            if not url_token: st.stop()
+            st.markdown("---")
+        else:
+            st.error("🚫 請透過專屬通知信內的連結進入系統。")
+            st.stop()
 
     if st.session_state.get("token") != url_token:
         st.session_state.clear(); st.session_state.token = url_token
@@ -248,7 +275,7 @@ def main():
     </div>
     """, unsafe_allow_html=True)
     
-    if is_readonly: st.success("✅ 貴實驗室已完成本期回報，目前為唯讀檢視模式。"); st.stop()
+    if is_readonly: st.success("✅ 該實驗室已完成本期回報，目前為唯讀檢視模式。"); st.stop()
     
     # 讀取暫存資料，完美還原「回去修改」狀態
     saved_d = st.session_state.get("form_data", {})
@@ -384,7 +411,6 @@ def main():
         inv_str = ', '.join([f"{i['鋼瓶氣體種類']} ({i['鋼瓶數量']}支)" for i in d['inv']]) if d['inv'] else '登記無現有庫存'
         status_color = '#B03A2E' if d['status']=='有購買' else '#27AE60'
         
-        # 🚀 精準修正：強制表格第一欄寬度 250px 並使用 white-space: nowrap 避免跑行
         preview_html = f"""
 <div style="background: #FDFBF7; border: 2px solid #9DB4AB; border-radius: 10px; padding: 25px; margin-bottom: 25px;">
 <h3 style="color: #2C3E50; margin-top: 0; border-bottom: 2px solid #EEEEEE; padding-bottom: 10px;">📋 申報基本資料</h3>
@@ -402,7 +428,6 @@ def main():
         if d['status'] == "有購買":
             st.markdown("#### 📄 購買佐證憑證審視清單")
             for idx, p in enumerate(d['pur']):
-                # 🚀 精準修正：將文字放大至 26px
                 st.markdown(f"""
 <div style="background-color: #F8F9F9; padding: 15px; border-radius: 6px; border-left: 5px solid #4A5D6E; margin-bottom: 15px; font-size: 26px;">
 <b>單據 {idx+1}：</b> 氣體種類: <b>{p['鋼瓶氣體種類']}</b> | 購買日期: <b>{p['購買日期']}</b> | 申報購買量: <span style='color:#B03A2E; font-weight:bold;'>{p['年度氣體鋼瓶購買量(公斤)']} 公斤</span>
@@ -411,14 +436,14 @@ def main():
                 
                 file_obj = p['file']
                 if file_obj:
-                    # 🚀 精準修正：使用 use_container_width=True 將圖片最大化顯示，不再受限於固定寬度
+                    # 🚀 精準修正：預覽寬度放大為 600px 確保清晰
                     if file_obj.type in ['image/jpeg', 'image/png']:
-                        st.image(file_obj, use_container_width=True, caption=f"單據 {idx+1} 影像畫面")
+                        st.image(file_obj, width=600, caption=f"單據 {idx+1} 影像畫面")
                     elif file_obj.type == 'application/pdf':
                         img_streams = get_pdf_preview_images(file_obj)
                         if img_streams:
                             for img_idx, img_stream in enumerate(img_streams):
-                                st.image(img_stream, use_container_width=True, caption=f"單據 {idx+1} PDF 第 {img_idx+1} 頁完整預覽 (系統自動擷取)")
+                                st.image(img_stream, width=600, caption=f"單據 {idx+1} PDF 第 {img_idx+1} 頁預覽 (系統自動擷取)")
                         else:
                             st.markdown(f"📄 **佐證單據 PDF 檔案已暫存** (檔名: {file_obj.name})")
                 st.markdown("<br>", unsafe_allow_html=True)
