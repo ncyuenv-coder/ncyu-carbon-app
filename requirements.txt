@@ -12,3 +12,4 @@ python-docx
 pymupdf
 Pillow
 requests
+xlsxwriter
