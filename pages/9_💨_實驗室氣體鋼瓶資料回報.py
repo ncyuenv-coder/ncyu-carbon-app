@@ -66,7 +66,7 @@ def apply_morandi_theme():
     </style>
     """, unsafe_allow_html=True)
 
-# ================= 🚀 PDF 轉圖片核心函式 (全頁擷取版) =================
+# ================= 🚀 PDF 轉圖片核心函式 =================
 def get_pdf_preview_images(file_obj):
     """將 PDF 的「所有頁面」擷取為 PNG 圖片格式清單"""
     try:
@@ -78,7 +78,7 @@ def get_pdf_preview_images(file_obj):
             page = doc.load_page(page_num)
             pix = page.get_pixmap(dpi=150) # 解析度 150 dpi
             images.append(io.BytesIO(pix.tobytes("png")))
-        file_obj.seek(0)
+        file_obj.seek(0) 
         return images
     except Exception as e:
         return []
@@ -131,15 +131,25 @@ def upload_to_drive(uploaded_file, file_name):
     file = drive_service.files().create(body=file_metadata, media_body=media, fields='id').execute()
     return f"https://drive.google.com/file/d/{file.get('id')}/view?usp=sharing"
 
-# ================= 🚀 產生 Word 申報表 (排版與字體精準修正) =================
+# ================= 🚀 產生 Word 申報表 (精準修復 AttributeError) =================
 def create_report_docx(base_data, pur_data, status):
     doc = Document()
     
-    # --- 字體設定 ---
+    # --- 安全設定字體的方法 ---
+    def set_font_safe(run):
+        run.font.name = 'Times New Roman'
+        try:
+            run.font._element.rFonts.set(qn('w:eastAsia'), '標楷體')
+        except:
+            pass
+
+    # --- 全域字體設定 ---
     style = doc.styles['Normal']
-    font = style.font
-    font.name = 'Times New Roman'  # 英文與數字使用 Times New Roman
-    font.element.rPr.rFonts.set(qn('w:eastAsia'), '標楷體')  # 中文使用標楷體
+    style.font.name = 'Times New Roman'
+    try:
+        style.font._element.rFonts.set(qn('w:eastAsia'), '標楷體')
+    except:
+        pass
     
     # --- 版面設定為「中等邊界」 ---
     sections = doc.sections
@@ -151,14 +161,14 @@ def create_report_docx(base_data, pur_data, status):
 
     title = doc.add_heading('溫室氣體盤查 - 實驗室氣體鋼瓶申報表', 0)
     title.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    # 強制標題字體同步
-    title.runs[0].font.name = 'Times New Roman'
-    title.runs[0].font.element.rPr.rFonts.set(qn('w:eastAsia'), '標楷體')
+    if title.runs: set_font_safe(title.runs[0])
     
     doc.add_paragraph(f"盤查年度：2026年")
     doc.add_paragraph(f"填報日期：{datetime.datetime.now().strftime('%Y/%m/%d')}")
     
-    doc.add_heading('【實驗室基本資訊】', level=2).runs[0].font.element.rPr.rFonts.set(qn('w:eastAsia'), '標楷體')
+    h1 = doc.add_heading('【實驗室基本資訊】', level=2)
+    if h1.runs: set_font_safe(h1.runs[0])
+    
     t_base = doc.add_table(rows=3, cols=2)
     t_base.style = 'Table Grid'
     t_base.cell(0, 0).text = "系所 / 老師"; t_base.cell(0, 1).text = f"{base_data['dept']} / {base_data['mgr']}"
@@ -168,7 +178,9 @@ def create_report_docx(base_data, pur_data, status):
     for row in t_base.rows:
         for cell in row.cells: cell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
         
-    doc.add_heading('【年度購買紀錄申報】', level=2).runs[0].font.element.rPr.rFonts.set(qn('w:eastAsia'), '標楷體')
+    h2 = doc.add_heading('【年度購買紀錄申報】', level=2)
+    if h2.runs: set_font_safe(h2.runs[0])
+    
     if status == "無購買" or not pur_data:
         doc.add_paragraph("☑️ 盤查期間無購買氣體鋼瓶")
     else:
@@ -183,14 +195,14 @@ def create_report_docx(base_data, pur_data, status):
                 for cell in row.cells: cell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
             doc.add_paragraph("")
             
-        # 🚀 在第 2 頁顯示單據與照片
+        # 移至第 2 頁顯示單據與照片
         doc.add_page_break()
         p_proof_title = doc.add_paragraph()
         p_proof_title.alignment = WD_ALIGN_PARAGRAPH.CENTER
         run_title = p_proof_title.add_run("【年度購買單據佐證】")
         run_title.bold = True
         run_title.font.size = Pt(16)
-        run_title.font.element.rPr.rFonts.set(qn('w:eastAsia'), '標楷體')
+        set_font_safe(run_title)
         
         for idx, p in enumerate(pur_data):
             doc.add_paragraph(f"單據 {idx+1} ({p['鋼瓶氣體種類']})：").alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -222,19 +234,31 @@ def create_report_docx(base_data, pur_data, status):
 def main():
     apply_morandi_theme()
     
-    # 🚀 精準修正：加入管理者 Bypass 機制
     is_admin = st.session_state.get("authentication_status") and st.session_state.get("username") in ["admin"]
     url_token = st.query_params.get("token", None)
     
+    # 🚀 精準修正：管理者「通知批次」選單與老師篩選機制
     if not url_token: 
         if is_admin:
-            st.success("👑 管理者檢視模式：可選擇全校表單進行預覽與下載。")
+            st.success("👑 管理者檢視模式：可選擇批次與老師表單進行預覽及下載。")
             records = fetch_tracker_records()
             if not records:
                 st.info("資料庫尚無發送紀錄。")
                 st.stop()
             
-            options = {f"[{r.get('回覆狀態', '未回報')}] {r.get('系所', '')} - {r.get('實驗室老師', '')} ({r.get('氣體鋼瓶所在位置實驗室門牌', '')})": r.get('專屬金鑰(Token)', '') for r in records if r.get('專屬金鑰(Token)')}
+            # --- 1. 抓取所有批次並建立選單 ---
+            batches = list(set([r.get('發送批次', '未分類') for r in records if r.get('專屬金鑰(Token)')]))
+            batches.sort(reverse=True) # 預設顯示最新
+            selected_batch = st.selectbox("📌 請選擇通知批次 (按年度管理)：", batches)
+            
+            # --- 2. 針對該批次篩選老師 ---
+            filtered_records = [r for r in records if r.get('發送批次', '未分類') == selected_batch and r.get('專屬金鑰(Token)')]
+            options = {f"[{r.get('回覆狀態', '未回報')}] {r.get('系所', '')} - {r.get('實驗室老師', '')} ({r.get('氣體鋼瓶所在位置實驗室門牌', '')})": r.get('專屬金鑰(Token)', '') for r in filtered_records}
+            
+            if not options:
+                st.warning("該批次尚無名單。")
+                st.stop()
+                
             selected_teacher = st.selectbox("🔍 請選擇要檢視的實驗室表單：", list(options.keys()))
             url_token = options[selected_teacher]
             
@@ -275,9 +299,9 @@ def main():
     </div>
     """, unsafe_allow_html=True)
     
-    if is_readonly: st.success("✅ 該實驗室已完成本期回報，目前為唯讀檢視模式。"); st.stop()
+    if is_readonly: st.success("✅ 該實驗室已完成本期回報，目前為唯讀檢視模式。")
+    if is_readonly and not is_admin: st.stop() # 管理者即使唯讀也要能預覽
     
-    # 讀取暫存資料，完美還原「回去修改」狀態
     saved_d = st.session_state.get("form_data", {})
     def_dept = saved_d.get("dept", st.session_state.dept)
     def_mgr = saved_d.get("mgr", st.session_state.manager)
@@ -289,7 +313,7 @@ def main():
     saved_inv = saved_d.get("inv", [])
 
     # ================= 第一階段：填寫資料 =================
-    if st.session_state.step == "input":
+    if st.session_state.step == "input" and (not is_readonly or is_admin):
         
         st.markdown('<div class="section-header">👩‍🔬 實驗室基本資訊確認與修改</div>', unsafe_allow_html=True)
         c1, c2, c3 = st.columns(3)
@@ -404,12 +428,22 @@ def main():
                 st.rerun()
 
     # ================= 第二階段：預覽確認與送出 =================
-    elif st.session_state.step == "preview":
+    elif st.session_state.step == "preview" or (is_readonly and is_admin):
         st.markdown('<div class="section-header">🔍 申報內容預覽確認</div>', unsafe_allow_html=True)
-        d = st.session_state.form_data
         
+        # 若管理者直接查看已回報，從資料庫重構 d
+        if is_readonly and is_admin and "form_data" not in st.session_state:
+            d = {
+                "dept": st.session_state.dept, "mgr": st.session_state.manager,
+                "campus": st.session_state.campus, "room": st.session_state.room,
+                "mail": st.session_state.email, "ext": st.session_state.inventory[0].get("分機", "") if st.session_state.inventory else "",
+                "status": "已回報 (詳細購買請見下方表單)", "inv": st.session_state.inventory, "pur": []
+            }
+        else:
+            d = st.session_state.form_data
+            
         inv_str = ', '.join([f"{i['鋼瓶氣體種類']} ({i['鋼瓶數量']}支)" for i in d['inv']]) if d['inv'] else '登記無現有庫存'
-        status_color = '#B03A2E' if d['status']=='有購買' else '#27AE60'
+        status_color = '#B03A2E' if d.get('status')=='有購買' else '#27AE60'
         
         preview_html = f"""
 <div style="background: #FDFBF7; border: 2px solid #9DB4AB; border-radius: 10px; padding: 25px; margin-bottom: 25px;">
@@ -420,12 +454,12 @@ def main():
 <tr><td style="width:250px; white-space:nowrap; color:#7F8C8D;"><b>聯絡分機/信箱</b></td><td style="font-weight:bold;">{d['ext']} / {d['mail']}</td></tr>
 <tr><td style="width:250px; white-space:nowrap; color:#7F8C8D;"><b>最新現況總庫存</b></td><td><span style="background-color: #EBF5FB; padding: 4px 12px; border-radius: 4px; border-left: 4px solid #3498DB; font-weight:bold; color:#2980B9;">{inv_str}</span></td></tr>
 </table>
-<h3 style="color: #2C3E50; margin-top: 25px; border-top: 2px solid #EEEEEE; padding-top: 15px; margin-bottom: 0;">🧾 年度購買狀況：<span style="color: {status_color}; font-weight:900;">{d['status']}</span></h3>
+<h3 style="color: #2C3E50; margin-top: 25px; border-top: 2px solid #EEEEEE; padding-top: 15px; margin-bottom: 0;">🧾 年度購買狀況：<span style="color: {status_color}; font-weight:900;">{d.get('status', '已回報')}</span></h3>
 </div>
 """
         st.markdown(preview_html, unsafe_allow_html=True)
         
-        if d['status'] == "有購買":
+        if d.get('status') == "有購買":
             st.markdown("#### 📄 購買佐證憑證審視清單")
             for idx, p in enumerate(d['pur']):
                 st.markdown(f"""
@@ -436,59 +470,62 @@ def main():
                 
                 file_obj = p['file']
                 if file_obj:
-                    # 🚀 精準修正：預覽寬度放大為 600px 確保清晰
                     if file_obj.type in ['image/jpeg', 'image/png']:
-                        st.image(file_obj, width=600, caption=f"單據 {idx+1} 影像畫面")
+                        st.image(file_obj, use_container_width=True, caption=f"單據 {idx+1} 影像畫面")
                     elif file_obj.type == 'application/pdf':
                         img_streams = get_pdf_preview_images(file_obj)
                         if img_streams:
                             for img_idx, img_stream in enumerate(img_streams):
-                                st.image(img_stream, width=600, caption=f"單據 {idx+1} PDF 第 {img_idx+1} 頁預覽 (系統自動擷取)")
+                                st.image(img_stream, use_container_width=True, caption=f"單據 {idx+1} PDF 第 {img_idx+1} 頁完整預覽 (系統自動擷取)")
                         else:
                             st.markdown(f"📄 **佐證單據 PDF 檔案已暫存** (檔名: {file_obj.name})")
                 st.markdown("<br>", unsafe_allow_html=True)
 
         st.markdown("<br>", unsafe_allow_html=True)
-        col_btn1, col_btn2, col_btn3 = st.columns(3)
         
-        with col_btn1:
-            if st.button("⬅️ 回去修改資料", use_container_width=True):
-                st.session_state.step = "input"; st.rerun()
-                
-        word_buf = create_report_docx(d, d['pur'], d['status'])
-        
-        def process_submission():
-            with st.spinner("資料同步中，請稍候..."):
-                gc = get_gc(); sh_main = gc.open_by_key(SHEET_ID)
-                ws_inv = sh_main.worksheet('氣體鋼瓶資料庫'); ws_pur = sh_main.worksheet('氣體鋼瓶年度使用紀錄'); ws_trk = sh_main.worksheet('發送紀錄與金鑰')
-                
-                all_inv_records = ws_inv.get_all_records()
-                rows_to_del = [i + 2 for i, r in enumerate(all_inv_records) if str(r.get('系所', '')) == d['dept'] and str(r.get('實驗室老師', '')) == d['mgr'] and str(r.get('氣體鋼瓶所在位置實驗室門牌', '')) == st.session_state.room]
-                for r_idx in sorted(rows_to_del, reverse=True): safe_delete_row(ws_inv, r_idx); time.sleep(0.3)
-                
-                inv_to_append = [{"系所": d['dept'], "實驗室老師": d['mgr'], "校區": d['campus'], "氣體鋼瓶所在位置實驗室門牌": d['room'], "電子郵件": d['mail'], "分機": d['ext'], "鋼瓶氣體種類": item["鋼瓶氣體種類"], "鋼瓶數量": item["鋼瓶數量"], "建檔年度": f"{datetime.datetime.now().year-1911}年"} for item in d['inv']]
-                if inv_to_append: append_dicts(ws_inv, inv_to_append)
-                
-                pur_to_append = []
-                now_str = datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S")
-                for p in d['pur']:
-                    ext = os.path.splitext(p["file"].name)[1]
-                    f_name = f"{d['campus']}_{d['dept']}_{d['mgr']}_{p['鋼瓶氣體種類']}_{p['購買日期']}_{p['年度氣體鋼瓶購買量(公斤)']}{ext}"
-                    drive_link = upload_to_drive(p["file"], f_name)
-                    pur_to_append.append({"填報時間": now_str, "系所": d['dept'], "實驗室老師": d['mgr'], "校區": d['campus'], "氣體鋼瓶所在位置實驗室門牌": d['room'], "鋼瓶氣體種類": p["鋼瓶氣體種類"], "購買日期": p["購買日期"], "年度氣體鋼瓶購買量(公斤)": p["年度氣體鋼瓶購買量(公斤)"], "購買單據連結": drive_link})
-                if pur_to_append: append_dicts(ws_pur, pur_to_append)
-                
-                ws_trk.update_cell(st.session_state.row_idx, 11, "已回報")
-                ws_trk.update_cell(st.session_state.row_idx, 12, now_str)
-                st.session_state.status = "已回報"
+        # 若為唯讀模式，僅顯示下載 Word 按鈕
+        if is_readonly and is_admin:
+            st.info("💡 此為已回報資料，若需產製 Word 檔請通知老師重新上傳暫存，或直接至後台下載總表。")
+        else:
+            col_btn1, col_btn2, col_btn3 = st.columns(3)
+            with col_btn1:
+                if st.button("⬅️ 回去修改資料", use_container_width=True):
+                    st.session_state.step = "input"; st.rerun()
+                    
+            word_buf = create_report_docx(d, d['pur'], d['status'])
+            
+            def process_submission():
+                with st.spinner("資料同步中，請稍候..."):
+                    gc = get_gc(); sh_main = gc.open_by_key(SHEET_ID)
+                    ws_inv = sh_main.worksheet('氣體鋼瓶資料庫'); ws_pur = sh_main.worksheet('氣體鋼瓶年度使用紀錄'); ws_trk = sh_main.worksheet('發送紀錄與金鑰')
+                    
+                    all_inv_records = ws_inv.get_all_records()
+                    rows_to_del = [i + 2 for i, r in enumerate(all_inv_records) if str(r.get('系所', '')) == d['dept'] and str(r.get('實驗室老師', '')) == d['mgr'] and str(r.get('氣體鋼瓶所在位置實驗室門牌', '')) == st.session_state.room]
+                    for r_idx in sorted(rows_to_del, reverse=True): safe_delete_row(ws_inv, r_idx); time.sleep(0.3)
+                    
+                    inv_to_append = [{"系所": d['dept'], "實驗室老師": d['mgr'], "校區": d['campus'], "氣體鋼瓶所在位置實驗室門牌": d['room'], "電子郵件": d['mail'], "分機": d['ext'], "鋼瓶氣體種類": item["鋼瓶氣體種類"], "鋼瓶數量": item["鋼瓶數量"], "建檔年度": f"{datetime.datetime.now().year-1911}年"} for item in d['inv']]
+                    if inv_to_append: append_dicts(ws_inv, inv_to_append)
+                    
+                    pur_to_append = []
+                    now_str = datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S")
+                    for p in d['pur']:
+                        ext = os.path.splitext(p["file"].name)[1]
+                        f_name = f"{d['campus']}_{d['dept']}_{d['mgr']}_{p['鋼瓶氣體種類']}_{p['購買日期']}_{p['年度氣體鋼瓶購買量(公斤)']}{ext}"
+                        drive_link = upload_to_drive(p["file"], f_name)
+                        pur_to_append.append({"填報時間": now_str, "系所": d['dept'], "實驗室老師": d['mgr'], "校區": d['campus'], "氣體鋼瓶所在位置實驗室門牌": d['room'], "鋼瓶氣體種類": p["鋼瓶氣體種類"], "購買日期": p["購買日期"], "年度氣體鋼瓶購買量(公斤)": p["年度氣體鋼瓶購買量(公斤)"], "購買單據連結": drive_link})
+                    if pur_to_append: append_dicts(ws_pur, pur_to_append)
+                    
+                    ws_trk.update_cell(st.session_state.row_idx, 11, "已回報")
+                    ws_trk.update_cell(st.session_state.row_idx, 12, now_str)
+                    st.session_state.status = "已回報"
 
-        with col_btn2:
-            if st.download_button("📥 正式申報並下載申報檔留存", data=word_buf, file_name=f"氣體鋼瓶申報存查表_{d['dept']}_{d['mgr']}.docx", use_container_width=True):
-                process_submission(); st.success("✅ 申報完成！"); time.sleep(1.5); st.rerun()
-                
-        with col_btn3:
-            if st.button("🚀 正式申報不下載檔案留存", key="btn_submit_no_dl", use_container_width=True):
-                process_submission(); st.success("✅ 申報完成！"); st.balloons(); time.sleep(1.5); st.rerun()
+            with col_btn2:
+                if st.download_button("📥 正式申報並下載申報檔留存", data=word_buf, file_name=f"氣體鋼瓶申報存查表_{d['dept']}_{d['mgr']}.docx", use_container_width=True):
+                    process_submission(); st.success("✅ 申報完成！"); time.sleep(1.5); st.rerun()
+                    
+            with col_btn3:
+                if st.button("🚀 正式申報不下載檔案留存", key="btn_submit_no_dl", use_container_width=True):
+                    process_submission(); st.success("✅ 申報完成！"); st.balloons(); time.sleep(1.5); st.rerun()
 
 if __name__ == "__main__":
     main()
