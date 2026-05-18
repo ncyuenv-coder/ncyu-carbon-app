@@ -109,7 +109,7 @@ if "token" in query_params:
     gas_report = st.Page("pages/9_💨_實驗室氣體鋼瓶資料回報.py", title="氣體鋼瓶資料回報", icon="📃")
     
     # 直接執行路由，不經過登入判斷
-    pg = st.navigation([gas_report, toxic_report])
+    pg = st.navigation([gas_report])
     pg.run()
     st.stop() # 阻斷下方所有登入邏輯執行
 
