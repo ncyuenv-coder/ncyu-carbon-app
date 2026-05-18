@@ -45,8 +45,8 @@ if username != 'admin':
 # ================= 參數與色票設定 =================
 SHEET_ID = '1Hw4rXo4ww7O9YXTwoUJeWioO5ZzM_bivRcLLpOl26DY'
 
-# 🚀 真實填報系統網址 (解決 Page does not exist 錯誤：對齊 app.py 中的 title)
-BASE_FORM_URL = "https://ncyu-carbon-app-mduue5hffp7uknsskmjet9.streamlit.app/氣體鋼瓶資料回報"
+# 🚀 真實填報系統網址
+BASE_FORM_URL = "https://ncyu-carbon-app-mduue5hffp7uknsskmjet9.streamlit.app/實驗室氣體鋼瓶資料回報"
 
 GAS_TYPES = ["二氧化碳", "甲烷", "乙炔", "一氧化二氮(笑氣)"]
 CAMPUS_OPTS = ["蘭潭校區", "民雄校區", "新民校區", "林森校區"]
@@ -57,15 +57,36 @@ def apply_morandi_theme():
     <style>
         [data-testid="stAppViewContainer"] { background-color: #FDFBF7; color: #2C3E50; }
         [data-testid="stHeader"] { background-color: rgba(0,0,0,0); }
+        
+        /* 統計資訊卡 */
         .metric-card { background-color: #FFFFFF; padding: 0; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); text-align: center; overflow: hidden; border: 1px solid #9DB4AB; display: flex; flex-direction: column; height: 100%; }
         .metric-title { background-color: #5C6B73; color: #FFFFFF; padding: 12px 15px; font-size: 18px; font-weight: bold; margin: 0; letter-spacing: 1px; }
         .metric-value { font-size: 48px; font-weight: bold; color: #000000 !important; padding: 15px; margin: 0; flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px; flex-direction: column;}
-        .metric-value span { font-size: 20px !important; color: #5C6B73 !important; font-weight: normal; }
-        div[data-baseweb="tab-list"] button { background-color: #5C6B73 !important; border-radius: 8px 8px 0 0 !important; padding: 10px 25px !important; border: none !important; opacity: 0.8; }
+        
+        /* 頁籤設計 */
+        div[data-baseweb="tab-list"] button { background-color: #7F8C8D !important; border-radius: 8px 8px 0 0 !important; padding: 10px 25px !important; border: none !important; opacity: 0.8; }
         div[data-baseweb="tab-list"] button p { font-size: 20px !important; color: #FFFFFF !important; font-weight: 600 !important; }
-        div[data-baseweb="tab-list"] button[aria-selected="true"] { background-color: #3F4E4F !important; opacity: 1; border-bottom: 3px solid #9DB4AB !important; }
-        button[kind="primary"] { background-color: #27AE60 !important; color: #FFFFFF !important; border: none !important; font-weight: bold !important; font-size: 18px !important; padding: 10px 20px !important;}
-        button[kind="primary"]:hover { background-color: #1E8449 !important; }
+        div[data-baseweb="tab-list"] button[aria-selected="true"] { background-color: #5C6B73 !important; opacity: 1; border-bottom: 3px solid #9DB4AB !important; }
+        
+        /* 🟢 全域按鈕莫蘭迪化與放大1號字 */
+        div.stButton > button, div.stDownloadButton > button { 
+            background-color: #8A9A8A !important; 
+            color: #FFFFFF !important; 
+            border: none !important; 
+            font-weight: bold !important; 
+            font-size: 18px !important; 
+            padding: 12px 24px !important; 
+            border-radius: 8px !important; 
+        }
+        div.stButton > button:hover, div.stDownloadButton > button:hover { background-color: #707F70 !important; }
+        
+        button[kind="primary"] { background-color: #5C6B73 !important; }
+        button[kind="primary"]:hover { background-color: #4A565C !important; }
+        
+        /* 🟢 點擊展開欄 (Expander) 莫蘭迪深色化與文字放大 */
+        [data-testid="stExpander"] details summary { background-color: #5C6B73 !important; border-radius: 6px; padding: 12px 15px !important; }
+        [data-testid="stExpander"] details summary p { font-size: 20px !important; color: #FFFFFF !important; font-weight: bold !important; margin: 0 !important; }
+        [data-testid="stExpander"] details summary svg { color: #FFFFFF !important; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -128,7 +149,6 @@ def generate_styled_email_html(email_body_text, title="溫室氣體盤查 氣體
     html_content = email_body_text.replace("\n", "<br>")
     return f"<html><body style='font-family: Arial, sans-serif; line-height: 1.6; color: #333; font-size: 15px;'><div style='max-width: 600px; margin: 0 auto; border: 1px solid #ddd; border-radius: 10px; overflow: hidden;'><div style='background-color: #5C6B73; color: white; padding: 15px 20px; text-align: center;'><h2 style='margin: 0;'>{title}</h2></div><div style='padding: 20px;'>{html_content}</div></div></body></html>"
 
-# ================= 快取生成 Word 檔 (含圖片下載) =================
 @st.cache_data(ttl=600, show_spinner="產製佐證資料 Word 檔中 (包含單據圖片下載)...")
 def cached_create_proof_word(df_pur_dict):
     df_pur = pd.DataFrame(df_pur_dict)
@@ -193,8 +213,8 @@ def render_dashboard(df_inv, df_pur):
     tot_labs = df_inv['氣體鋼瓶所在位置實驗室門牌'].nunique() if not df_inv.empty else 0
     gas_counts = df_inv.groupby('鋼瓶氣體種類')['氣體鋼瓶所在位置實驗室門牌'].nunique().to_dict() if not df_inv.empty else {}
     
-    # 精準修改：分行顯示、字體放大1號(22px)、數字放大2號(34px)
-    gas_summary_html = "".join([f'<div style="margin: 5px 0;"><span style="font-size: 22px; color: #2C3E50;">{k}</span> <span style="font-size: 34px; font-weight: 900; color: #C0392B;">{v}</span> <span style="font-size: 22px; color: #2C3E50;">間</span></div>' for k, v in gas_counts.items()])
+    # 🟢 精準修改：僅針對不同項目才分行，確保單位在同一行不被切斷
+    gas_summary_html = "".join([f'<div style="margin: 5px 0;"><span style="font-size: 20px; color: #2C3E50;">{k}</span> <span style="font-size: 28px; font-weight: 900; color: #B03A2E;">{v}</span> <span style="font-size: 20px; color: #2C3E50;">間</span></div>' for k, v in gas_counts.items()])
     
     co2_kg = df_year[df_year['鋼瓶氣體種類'] == '二氧化碳']['年度氣體鋼瓶購買量(公斤)'].astype(float).sum() if not df_year.empty else 0
     acet_kg = df_year[df_year['鋼瓶氣體種類'] == '乙炔']['年度氣體鋼瓶購買量(公斤)'].astype(float).sum() if not df_year.empty else 0
@@ -207,7 +227,7 @@ def render_dashboard(df_inv, df_pur):
     
     st.markdown("---")
     
-    # 老師資訊卡 (還原截圖樣式)
+    # 🟢 老師資訊卡重構 (精準還原要求：上半部與下半部區塊設計)
     if not df_inv.empty:
         for dept in sorted(df_inv['系所'].astype(str).unique()):
             dept_inv = df_inv[df_inv['系所'] == dept]
@@ -220,46 +240,64 @@ def render_dashboard(df_inv, df_pur):
                     qty = row.get('鋼瓶數量', 1)
                     email = row.get('電子郵件', '-')
                     ext = row.get('分機', '-')
+                    campus = row.get('校區', '-')
                     
                     pur_record = pd.DataFrame()
                     if not df_year.empty: pur_record = df_year[(df_year['實驗室老師'] == mgr) & (df_year['氣體鋼瓶所在位置實驗室門牌'] == room) & (df_year['鋼瓶氣體種類'] == gas)]
                     
                     has_pur = not pur_record.empty and float(pur_record.iloc[0].get('年度氣體鋼瓶購買量(公斤)', 0)) > 0
-                    pur_date = pur_record.iloc[0].get('購買日期', '-') if has_pur else '-'
                     pur_qty = pur_record.iloc[0].get('年度氣體鋼瓶購買量(公斤)', '0.0') if has_pur else '0.0'
                     raw_link = pur_record.iloc[0].get('購買單據連結', '') if has_pur else ''
+                    report_count = 1 if has_pur else 0
                     
-                    link_html = f'<a href="{raw_link}" target="_blank" style="background-color: #3498DB; color: white; padding: 4px 12px; border-radius: 4px; text-decoration: none; font-weight: bold; font-size: 13px;">📎 購買單據連結</a>' if raw_link else '<span style="color: #999; font-size: 13px;">無單據</span>'
-                    status_color = "#C0392B" if not has_pur else "#27AE60"
+                    # 按鈕樣式與狀態
+                    link_html = f'<a href="{raw_link}" target="_blank" style="background-color: #8A9A8A; color: white; padding: 6px 14px; border-radius: 6px; text-decoration: none; font-weight: bold; font-size: 15px;">📎 購買單據連結佐證</a>' if raw_link else '<span style="background-color: #FADBD8; color: #922B21; padding: 6px 12px; border-radius: 6px; font-size: 15px; font-weight: bold;">⚠️ 尚未申報</span>'
                     
                     st.markdown(f"""
-                    <div style="border: 1px solid #DCE4E3; border-radius: 8px; overflow: hidden; margin-bottom: 20px; box-shadow: 0 3px 6px rgba(0,0,0,0.06); background: #FDFBF7;">
-                        <div style="background-color: #D5C6E0; padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #C4B5D0;">
-                            <div>
-                                <div style="font-size: 14px; color: #333; font-weight: 900; margin-bottom: 5px;">{gas} <span style="background-color: #FFFFFF; padding: 2px 8px; border-radius: 12px; font-size: 12px; margin-left: 8px; font-weight: normal; border: 1px solid #BCA9C9;">數量:{qty}</span></div>
-                                <div style="font-size: 20px; font-weight: 900; color: #000000;">{mgr} 老師</div>
+                    <div style="border: 1px solid #DCE4E3; border-radius: 10px; overflow: hidden; margin-bottom: 25px; box-shadow: 0 4px 8px rgba(0,0,0,0.05); background: #FDFBF7;">
+                        <div style="background-color: #D5C6E0; padding: 15px 25px; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #C4B5D0;">
+                            <div style="font-size: 22px; font-weight: 900; color: #000000;">
+                                {mgr} 老師
                             </div>
-                            <div style="text-align: right;">
-                                <div style="font-size: 22px; font-weight: 900; color: {status_color};">{pur_qty} <span style="font-size: 14px; font-weight: normal; color: #333;">公斤</span></div>
-                            </div>
-                        </div>
-                        <div style="display: flex; background-color: #FFFFFF; padding: 15px 0;">
-                            <div style="flex: 1; text-align: center; border-right: 1px solid #EEEEEE;">
-                                <div style="font-size: 13px; color: #7F8C8D; margin-bottom: 5px;">所屬部門</div>
-                                <div style="font-size: 15px; font-weight: bold; color: #2C3E50;">{dept}</div>
-                            </div>
-                            <div style="flex: 1; text-align: center; border-right: 1px solid #EEEEEE;">
-                                <div style="font-size: 13px; color: #7F8C8D; margin-bottom: 5px;">聯絡資訊</div>
-                                <div style="font-size: 15px; font-weight: bold; color: #2C3E50;">分機: {ext}</div>
-                            </div>
-                            <div style="flex: 1; text-align: center;">
-                                <div style="font-size: 13px; color: #7F8C8D; margin-bottom: 5px;">位置</div>
-                                <div style="font-size: 15px; font-weight: bold; color: #2C3E50;">{room}</div>
+                            <div style="text-align: right; display: flex; align-items: baseline; gap: 8px;">
+                                <span style="font-size: 20px; font-weight: 900; color: #000000;">{gas}</span>
+                                <span style="font-size: 28px; font-weight: 900; color: #B03A2E;">{pur_qty}</span> 
+                                <span style="font-size: 18px; color: #333;">公斤</span>
                             </div>
                         </div>
-                        <div style="background-color: #F8F9F9; padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #EEEEEE;">
-                            <div style="font-size: 14px; color: #555;">年度申報狀況：{'✅ 已申報 (購買日期: ' + pur_date + ')' if has_pur else '⚠️ 尚未申報 / 無購買'}</div>
-                            <div>{link_html}</div>
+                        
+                        <div style="background-color: #FFFFFF;">
+                            <div style="display: flex; padding: 20px 0; border-bottom: 1px solid #EEEEEE; flex-wrap: wrap;">
+                                <div style="flex: 1 1 16%; text-align: center; border-right: 1px solid #EEEEEE;">
+                                    <div style="font-size: 14px; color: #7F8C8D; margin-bottom: 6px;">校區</div>
+                                    <div style="font-size: 16px; font-weight: bold; color: #2C3E50;">{campus}</div>
+                                </div>
+                                <div style="flex: 1 1 16%; text-align: center; border-right: 1px solid #EEEEEE;">
+                                    <div style="font-size: 14px; color: #7F8C8D; margin-bottom: 6px;">所屬部門</div>
+                                    <div style="font-size: 16px; font-weight: bold; color: #2C3E50;">{dept}</div>
+                                </div>
+                                <div style="flex: 1 1 16%; text-align: center; border-right: 1px solid #EEEEEE;">
+                                    <div style="font-size: 14px; color: #7F8C8D; margin-bottom: 6px;">分機</div>
+                                    <div style="font-size: 16px; font-weight: bold; color: #2C3E50;">{ext}</div>
+                                </div>
+                                <div style="flex: 1 1 16%; text-align: center; border-right: 1px solid #EEEEEE;">
+                                    <div style="font-size: 14px; color: #7F8C8D; margin-bottom: 6px;">電子郵件</div>
+                                    <div style="font-size: 16px; font-weight: bold; color: #2C3E50; word-break: break-all;">{email}</div>
+                                </div>
+                                <div style="flex: 1 1 16%; text-align: center; border-right: 1px solid #EEEEEE;">
+                                    <div style="font-size: 14px; color: #7F8C8D; margin-bottom: 6px;">實驗室門牌</div>
+                                    <div style="font-size: 16px; font-weight: bold; color: #2C3E50;">{room}</div>
+                                </div>
+                                <div style="flex: 1 1 16%; text-align: center;">
+                                    <div style="font-size: 14px; color: #7F8C8D; margin-bottom: 6px;">鋼瓶數量</div>
+                                    <div style="font-size: 16px; font-weight: bold; color: #2C3E50;">{qty}</div>
+                                </div>
+                            </div>
+                            
+                            <div style="background-color: #F8F9F9; padding: 15px 25px; display: flex; justify-content: space-between; align-items: center;">
+                                <div style="font-size: 16px; color: #555;">年度申報次數：<b>{report_count}次</b></div>
+                                <div>{link_html}</div>
+                            </div>
                         </div>
                     </div>
                     """, unsafe_allow_html=True)
@@ -385,7 +423,6 @@ def main():
                                         if send_email_action(target, f"國立嘉義大學 {sel_batch} 未回報提醒", html_wrap): f_count += 1
                                     st.success(f"✅ {dept} 稽催發送完成 ({f_count} 封信)。")
 
-    # ================= Tab 3: 盤查範疇之氣體鋼瓶資料庫及年度購買量管理 =================
     with tab3:
         render_dashboard(df_inv, df_pur)
         
@@ -394,7 +431,6 @@ def main():
         
         if not df_pur.empty and not df_inv.empty:
             col_dl1, col_dl2 = st.columns(2)
-            # A. Excel 檔下載
             output = io.BytesIO()
             with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
                 df_inv.to_excel(writer, sheet_name='氣體鋼瓶資料庫(總庫存)', index=False)
@@ -402,12 +438,10 @@ def main():
             with col_dl1:
                 st.download_button("📥 下載年度使用紀錄 Excel 檔", data=output.getvalue(), file_name=f"氣體鋼瓶盤查清冊_{datetime.datetime.now().year}.xlsx", type="primary", use_container_width=True)
             
-            # B. 產製 Word 檔下載 (自動下載雲端圖片，搭配快取機制)
             with col_dl2:
                 word_bytes = cached_create_proof_word(df_pur.to_dict('records'))
                 st.download_button("📄 產製並下載年度購買單據佐證資料 (Word)", data=word_bytes, file_name=f"購買單據佐證資料_{datetime.datetime.now().year}.docx", type="primary", use_container_width=True)
 
-    # ================= Tab 4: 🛠️ 庫存資料管理 =================
     with tab4:
         st.markdown("### 🛠️ 氣體鋼瓶資料庫管理")
         m_tab1, m_tab2 = st.tabs(["➕ 新增實驗室與庫存", "🔄 現有庫存查詢與異動"])
@@ -455,7 +489,8 @@ def main():
                         st.success(f"✅ {a_mgr} 老師的庫存已建檔！")
                         st.session_state.reset_key += 1
                         time.sleep(1); load_data.clear(); st.rerun()
-                    else: st.error("請至少選擇一種氣體！")
+                    else:
+                        st.error("請至少選擇一種氣體！")
 
         with m_tab2:
             st.markdown("### 🔍 查詢與異動管理")
