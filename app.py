@@ -104,8 +104,8 @@ query_params = st.query_params
 if "token" in query_params:
     st.markdown('<style>[data-testid="stSidebar"], [data-testid="collapsedControl"], [data-testid="stHeader"] { display: none !important; }</style>', unsafe_allow_html=True)
     
-    # 🟢 修正：使用 default=True 讓 Streamlit 無視網址路徑直接渲染此頁，徹底解決 Page Not Found
-    gas_report = st.Page("pages/9_💨_實驗室氣體鋼瓶資料回報.py", title="實驗室氣體鋼瓶資料回報", icon="📃", default=True)
+    # 🟢 精準修正：強制作為根目錄預設頁面，徹底解決 Page not found
+    gas_report = st.Page("pages/9_💨_實驗室氣體鋼瓶資料回報.py", title="氣體鋼瓶資料回報", icon="📃", url_path="", default=True)
     
     pg = st.navigation([gas_report])
     pg.run()
