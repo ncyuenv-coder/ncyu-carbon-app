@@ -77,7 +77,7 @@ def get_pdf_preview_images(file_obj):
             page = doc.load_page(page_num)
             pix = page.get_pixmap(dpi=150) # 解析度 150 dpi
             images.append(io.BytesIO(pix.tobytes("png")))
-        file_obj.seek(0) # 讀完後將指標歸零，以免影響後續 Google Drive 上傳
+        file_obj.seek(0)
         return images
     except Exception as e:
         return []
@@ -173,19 +173,32 @@ def create_report_docx(base_data, pur_data, status):
                 for cell in row.cells: cell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
             
             doc.add_paragraph("")
+            
+            # 🚀 精準修正：於圖片上方加入【年度購買單據佐證】並水平置中
+            p_proof_title = doc.add_paragraph()
+            p_proof_title.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            run_title = p_proof_title.add_run("【年度購買單據佐證】")
+            run_title.bold = True
+            run_title.font.size = Pt(14)
+            
             file_obj = p['file']
             if file_obj:
                 if file_obj.type in ['image/jpeg', 'image/png']:
                     try:
                         file_obj.seek(0)
-                        doc.add_picture(io.BytesIO(file_obj.read()), width=Inches(5))
+                        # 🚀 精準修正：設定照片為水平中央置中
+                        p_img = doc.add_paragraph()
+                        p_img.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                        p_img.add_run().add_picture(io.BytesIO(file_obj.read()), width=Inches(5.5))
                     except Exception: doc.add_paragraph("⚠️ [圖片單據載入異常]")
                 elif file_obj.type == 'application/pdf':
-                    # 🚀 若為 PDF 檔，使用迴圈擷取「所有頁面」並插入 Word
                     img_streams = get_pdf_preview_images(file_obj)
                     if img_streams:
                         for img_idx, img_stream in enumerate(img_streams):
-                            doc.add_picture(img_stream, width=Inches(5))
+                            # 🚀 精準修正：設定 PDF 轉圖照片為水平中央置中
+                            p_img = doc.add_paragraph()
+                            p_img.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                            p_img.add_run().add_picture(img_stream, width=Inches(5.5))
                             if img_idx < len(img_streams) - 1:
                                 doc.add_paragraph("") # 圖片間加入小換行
                     else:
@@ -237,7 +250,7 @@ def main():
     
     if is_readonly: st.success("✅ 貴實驗室已完成本期回報，目前為唯讀檢視模式。"); st.stop()
     
-    # 🚀 讀取暫存資料，完美還原「回去修改」狀態
+    # 讀取暫存資料，完美還原「回去修改」狀態
     saved_d = st.session_state.get("form_data", {})
     def_dept = saved_d.get("dept", st.session_state.dept)
     def_mgr = saved_d.get("mgr", st.session_state.manager)
@@ -271,7 +284,6 @@ def main():
             st.markdown(f"**🔹 氣體鋼瓶種類分項現況 {idx+1}**", unsafe_allow_html=True)
             cc1, cc2 = st.columns(2)
             
-            # 優先使用暫存狀態，若無則使用原始庫存
             if idx < len(saved_inv):
                 g_type = saved_inv[idx]["鋼瓶氣體種類"]
                 g_qty = saved_inv[idx]["鋼瓶數量"]
@@ -372,14 +384,15 @@ def main():
         inv_str = ', '.join([f"{i['鋼瓶氣體種類']} ({i['鋼瓶數量']}支)" for i in d['inv']]) if d['inv'] else '登記無現有庫存'
         status_color = '#B03A2E' if d['status']=='有購買' else '#27AE60'
         
+        # 🚀 精準修正：強制表格第一欄寬度 250px 並使用 white-space: nowrap 避免跑行
         preview_html = f"""
 <div style="background: #FDFBF7; border: 2px solid #9DB4AB; border-radius: 10px; padding: 25px; margin-bottom: 25px;">
 <h3 style="color: #2C3E50; margin-top: 0; border-bottom: 2px solid #EEEEEE; padding-bottom: 10px;">📋 申報基本資料</h3>
 <table style="width:100%; font-size:18px; line-height:2.2; border-collapse: collapse;">
-<tr><td style="width:140px; color:#7F8C8D;"><b>填報單位/老師</b></td><td style="font-weight:bold;">{d['dept']} / {d['mgr']} 老師</td></tr>
-<tr><td style="color:#7F8C8D;"><b>校區/實驗門牌</b></td><td style="font-weight:bold;">{d['campus']} / {d['room']}</td></tr>
-<tr><td style="color:#7F8C8D;"><b>聯絡分機/信箱</b></td><td style="font-weight:bold;">{d['ext']} / {d['mail']}</td></tr>
-<tr><td style="color:#7F8C8D;"><b>最新現況總庫存</b></td><td><span style="background-color: #EBF5FB; padding: 4px 12px; border-radius: 4px; border-left: 4px solid #3498DB; font-weight:bold; color:#2980B9;">{inv_str}</span></td></tr>
+<tr><td style="width:250px; white-space:nowrap; color:#7F8C8D;"><b>填報單位/老師</b></td><td style="font-weight:bold;">{d['dept']} / {d['mgr']} 老師</td></tr>
+<tr><td style="width:250px; white-space:nowrap; color:#7F8C8D;"><b>校區/實驗門牌</b></td><td style="font-weight:bold;">{d['campus']} / {d['room']}</td></tr>
+<tr><td style="width:250px; white-space:nowrap; color:#7F8C8D;"><b>聯絡分機/信箱</b></td><td style="font-weight:bold;">{d['ext']} / {d['mail']}</td></tr>
+<tr><td style="width:250px; white-space:nowrap; color:#7F8C8D;"><b>最新現況總庫存</b></td><td><span style="background-color: #EBF5FB; padding: 4px 12px; border-radius: 4px; border-left: 4px solid #3498DB; font-weight:bold; color:#2980B9;">{inv_str}</span></td></tr>
 </table>
 <h3 style="color: #2C3E50; margin-top: 25px; border-top: 2px solid #EEEEEE; padding-top: 15px; margin-bottom: 0;">🧾 年度購買狀況：<span style="color: {status_color}; font-weight:900;">{d['status']}</span></h3>
 </div>
@@ -389,22 +402,23 @@ def main():
         if d['status'] == "有購買":
             st.markdown("#### 📄 購買佐證憑證審視清單")
             for idx, p in enumerate(d['pur']):
+                # 🚀 精準修正：將文字放大至 26px
                 st.markdown(f"""
-<div style="background-color: #F8F9F9; padding: 15px; border-radius: 6px; border-left: 5px solid #4A5D6E; margin-bottom: 15px; font-size: 18px;">
-<b>單據 {idx+1}：</b> 氣體種類: <b>{p['鋼瓶氣體種類']}</b> | 購買日期: {p['購買日期']} | 申報購買量: <span style='color:#B03A2E; font-weight:bold;'>{p['年度氣體鋼瓶購買量(公斤)']} 公斤</span>
+<div style="background-color: #F8F9F9; padding: 15px; border-radius: 6px; border-left: 5px solid #4A5D6E; margin-bottom: 15px; font-size: 26px;">
+<b>單據 {idx+1}：</b> 氣體種類: <b>{p['鋼瓶氣體種類']}</b> | 購買日期: <b>{p['購買日期']}</b> | 申報購買量: <span style='color:#B03A2E; font-weight:bold;'>{p['年度氣體鋼瓶購買量(公斤)']} 公斤</span>
 </div>
 """, unsafe_allow_html=True)
                 
                 file_obj = p['file']
                 if file_obj:
+                    # 🚀 精準修正：使用 use_container_width=True 將圖片最大化顯示，不再受限於固定寬度
                     if file_obj.type in ['image/jpeg', 'image/png']:
-                        st.image(file_obj, width=400, caption=f"單據 {idx+1} 影像畫面")
+                        st.image(file_obj, use_container_width=True, caption=f"單據 {idx+1} 影像畫面")
                     elif file_obj.type == 'application/pdf':
-                        # 🚀 若為 PDF 檔，使用迴圈將「每一頁」擷取為圖片顯示在網頁上
                         img_streams = get_pdf_preview_images(file_obj)
                         if img_streams:
                             for img_idx, img_stream in enumerate(img_streams):
-                                st.image(img_stream, width=400, caption=f"單據 {idx+1} PDF 第 {img_idx+1} 頁預覽 (系統自動擷取)")
+                                st.image(img_stream, use_container_width=True, caption=f"單據 {idx+1} PDF 第 {img_idx+1} 頁完整預覽 (系統自動擷取)")
                         else:
                             st.markdown(f"📄 **佐證單據 PDF 檔案已暫存** (檔名: {file_obj.name})")
                 st.markdown("<br>", unsafe_allow_html=True)
