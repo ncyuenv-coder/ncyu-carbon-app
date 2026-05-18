@@ -11,7 +11,6 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
-import plotly.express as px
 from gspread.utils import rowcol_to_a1
 import streamlit_authenticator as stauth
 from docx import Document
@@ -43,7 +42,8 @@ if username != 'admin':
     st.stop()
 
 SHEET_ID = '1Hw4rXo4ww7O9YXTwoUJeWioO5ZzM_bivRcLLpOl26DY'
-BASE_FORM_URL = "https://ncyu-carbon-app-mduue5hffp7uknsskmjet9.streamlit.app/實驗室氣體鋼瓶資料回報"
+# 🟢 精準修正：改為根目錄網址，配合 app.py 徹底解決 Page not found
+BASE_FORM_URL = "https://ncyu-carbon-app-mduue5hffp7uknsskmjet9.streamlit.app/"
 
 GAS_TYPES = ["二氧化碳", "甲烷", "乙炔", "一氧化二氮(笑氣)"]
 CAMPUS_OPTS = ["蘭潭校區", "民雄校區", "新民校區", "林森校區"]
@@ -55,32 +55,32 @@ def apply_morandi_theme():
         [data-testid="stAppViewContainer"] { background-color: #FDFBF7; color: #2C3E50; }
         [data-testid="stHeader"] { background-color: rgba(0,0,0,0); }
         
-        /* 統計資訊卡 */
+        /* 統計資訊卡：強制單行不換行 nowrap */
         .metric-card { background-color: #FFFFFF; padding: 0; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); text-align: center; overflow: hidden; border: 1px solid #9DB4AB; display: flex; flex-direction: column; height: 100%; }
         .metric-title { background-color: #5C6B73; color: #FFFFFF; padding: 12px 15px; font-size: 18px; font-weight: bold; margin: 0; letter-spacing: 1px; }
-        .metric-value { font-size: 48px; font-weight: bold; color: #000000 !important; padding: 15px; margin: 0; flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px; flex-direction: column;}
+        .metric-value { font-size: 48px; font-weight: bold; color: #000000 !important; padding: 15px; margin: 0; flex: 1; display: flex; align-items: baseline; justify-content: center; gap: 8px; flex-direction: row; white-space: nowrap;}
         
         /* 頁籤設計 */
         div[data-baseweb="tab-list"] button { background-color: #7F8C8D !important; border-radius: 8px 8px 0 0 !important; padding: 10px 25px !important; border: none !important; opacity: 0.8; }
         div[data-baseweb="tab-list"] button p { font-size: 20px !important; color: #FFFFFF !important; font-weight: 600 !important; }
         div[data-baseweb="tab-list"] button[aria-selected="true"] { background-color: #5C6B73 !important; opacity: 1; border-bottom: 3px solid #9DB4AB !important; }
         
-        /* 全域按鈕莫蘭迪化與放大1號字 */
-        div.stButton > button, div.stDownloadButton > button { background-color: #8A9A8A !important; color: #FFFFFF !important; border: none !important; font-weight: bold !important; font-size: 20px !important; padding: 12px 24px !important; border-radius: 8px !important; }
+        /* 全域一般按鈕莫蘭迪化與放大 */
+        div.stButton > button, div.stDownloadButton > button { background-color: #8A9A8A !important; color: #FFFFFF !important; border: none !important; font-weight: bold !important; font-size: 18px !important; padding: 12px 24px !important; border-radius: 8px !important; }
         div.stButton > button:hover, div.stDownloadButton > button:hover { background-color: #707F70 !important; }
         button[kind="primary"] { background-color: #5C6B73 !important; }
         button[kind="primary"]:hover { background-color: #4A565C !important; }
         
-        /* 🚀 精準修正：Radio 測試/正式寄信按鈕莫蘭迪化 */
+        /* 測試/正式寄信模式 Radio 按鈕莫蘭迪化 */
         div.stRadio > div[role="radiogroup"] { display: flex; gap: 15px; }
         div.stRadio > div[role="radiogroup"] > label { background-color: #E4E9E5 !important; padding: 10px 20px !important; border-radius: 8px !important; border: 2px solid #C4CDC5 !important; cursor: pointer; }
         div.stRadio > div[role="radiogroup"] > label p { color: #2C3E50 !important; font-size: 18px !important; font-weight: bold !important; margin: 0; }
         div.stRadio > div[role="radiogroup"] > label[data-checked="true"] { background-color: #9DB4AB !important; border-color: #5C6B73 !important; }
         div.stRadio > div[role="radiogroup"] > label[data-checked="true"] p { color: #FFFFFF !important; }
-
-        /* 點擊展開欄 (Expander) 莫蘭迪深色化與文字放大 */
-        [data-testid="stExpander"] details summary { background-color: #5C6B73 !important; color: #FFFFFF !important; border-radius: 6px; padding: 12px 15px !important; }
-        [data-testid="stExpander"] details summary p { font-size: 22px !important; color: #FFFFFF !important; font-weight: bold !important; margin: 0 !important; }
+        
+        /* 點擊展開欄 (Expander) */
+        [data-testid="stExpander"] details summary { background-color: #5C6B73 !important; border-radius: 6px; padding: 12px 15px !important; }
+        [data-testid="stExpander"] details summary p { font-size: 20px !important; color: #FFFFFF !important; font-weight: bold !important; margin: 0 !important; }
         [data-testid="stExpander"] details summary svg { color: #FFFFFF !important; }
     </style>
     """, unsafe_allow_html=True)
@@ -191,11 +191,11 @@ def render_dashboard(df_inv, df_pur):
     tot_labs = df_inv['氣體鋼瓶所在位置實驗室門牌'].nunique() if not df_inv.empty else 0
     gas_counts = df_inv.groupby('鋼瓶氣體種類')['氣體鋼瓶所在位置實驗室門牌'].nunique().to_dict() if not df_inv.empty else {}
     
-    # 🚀 精準修改：加入 white-space: nowrap 保證單位不斷行
-    gas_summary_html = "".join([f'<div style="margin: 5px 0; white-space: nowrap;"><span style="font-size: 22px; color: #2C3E50;">{k}</span> <span style="font-size: 34px; font-weight: 900; color: #B03A2E;">{v}</span> <span style="font-size: 22px; color: #2C3E50;">間</span></div>' for k, v in gas_counts.items()])
+    gas_summary_html = "".join([f'<div style="margin: 5px 0; white-space: nowrap;"><span style="font-size: 20px; color: #2C3E50;">{k}</span> <span style="font-size: 28px; font-weight: 900; color: #B03A2E;">{v}</span> <span style="font-size: 20px; color: #2C3E50;">間</span></div>' for k, v in gas_counts.items()])
     
-    co2_kg = df_year[df_year['鋼瓶氣體種類'] == '二氧化碳']['年度氣體鋼瓶購買量(公斤)'].astype(float).sum() if not df_year.empty else 0
-    acet_kg = df_year[df_year['鋼瓶氣體種類'] == '乙炔']['年度氣體鋼瓶購買量(公斤)'].astype(float).sum() if not df_year.empty else 0
+    # 🟢 精準修正 ValueError：使用 pd.to_numeric 強制轉換避免空白字串報錯
+    co2_kg = pd.to_numeric(df_year[df_year['鋼瓶氣體種類'] == '二氧化碳']['年度氣體鋼瓶購買量(公斤)'], errors='coerce').fillna(0).sum() if not df_year.empty else 0
+    acet_kg = pd.to_numeric(df_year[df_year['鋼瓶氣體種類'] == '乙炔']['年度氣體鋼瓶購買量(公斤)'], errors='coerce').fillna(0).sum() if not df_year.empty else 0
     
     c1, c2, c3, c4 = st.columns(4)
     c1.markdown(f"""<div class="metric-card"><div class="metric-title">盤查範疇之氣體鋼瓶實驗室總數量</div><div class="metric-value"><span style="white-space: nowrap;"><span style="font-size: 48px; color: #000;">{tot_labs}</span> <span style="font-size: 20px;">間</span></span></div></div>""", unsafe_allow_html=True)
@@ -205,7 +205,6 @@ def render_dashboard(df_inv, df_pur):
     
     st.markdown("---")
     
-    # 🚀 精準修正：將 HTML 寫成「無換行字串」，徹底避免 Streamlit Markdown 誤判印出原始碼
     if not df_inv.empty:
         for dept in sorted(df_inv['系所'].astype(str).unique()):
             dept_inv = df_inv[df_inv['系所'] == dept]
@@ -218,7 +217,7 @@ def render_dashboard(df_inv, df_pur):
                     pur_record = pd.DataFrame()
                     if not df_year.empty: pur_record = df_year[(df_year['實驗室老師'] == mgr) & (df_year['氣體鋼瓶所在位置實驗室門牌'] == room) & (df_year['鋼瓶氣體種類'] == gas)]
                     
-                    has_pur = not pur_record.empty and float(pur_record.iloc[0].get('年度氣體鋼瓶購買量(公斤)', 0)) > 0
+                    has_pur = not pur_record.empty and pd.to_numeric(pur_record.iloc[0].get('年度氣體鋼瓶購買量(公斤)', 0), errors='coerce') > 0
                     pur_qty = pur_record.iloc[0].get('年度氣體鋼瓶購買量(公斤)', '0.0') if has_pur else '0.0'
                     raw_link = pur_record.iloc[0].get('購買單據連結', '') if has_pur else ''
                     report_count = 1 if has_pur else 0
@@ -253,16 +252,14 @@ def main():
             selected_teachers = st.multiselect("🎯 選擇特定發送對象 (若留空則全選批次發送)", all_teachers)
             if selected_teachers: labs = labs[labs['實驗室老師'].isin(selected_teachers)]; st.info(f"將針對選定的 {len(selected_teachers)} 位老師發送。")
 
-            with st.form("send_form"):
-                batch_name = st.text_input("📝 批次名稱", value=f"{now_year_roc}年度溫室氣體盤查範疇之氣體鋼瓶購買調查")
-                data_year_roc = st.text_input("📅 盤查年度", value=f"{now_year_roc-1}年度")
-                is_test_mode = st.radio("寄送模式", ["🧪 測試寄信模式", "🚀 正式寄信模式"], horizontal=True) == "🧪 測試寄信模式"
-                test_email = st.text_input("📩 測試接收信箱") if is_test_mode else ""
-                batch_subject = st.text_input("信件主旨", value="國立嘉義大學 {批次名稱}")
-                batch_body = st.text_area("信件內容", value="{老師名稱}老師 您好：\n\n為配合溫室氣體盤查作業，請協助檢視與更新貴實驗室之基本資料、氣體鋼瓶庫存及使用量，並上傳{年度}之購買佐證單據。\n\n📍 您所管理的實驗室專屬確認連結如下：\n{links}\n\n⚠️ 提醒：若您管理多間實驗室，請於「氣體鋼瓶所在位置實驗室門牌」欄位填寫多個位置。\n本信件由系統自動發送，請勿直接回覆。", height=220)
-                submit_btn = st.form_submit_button("🚀 產生金鑰並發送通知信", type="primary")
-                
-            if submit_btn:
+            batch_name = st.text_input("📝 批次名稱", value=f"{now_year_roc}年度溫室氣體盤查範疇之氣體鋼瓶購買調查")
+            data_year_roc = st.text_input("📅 盤查年度", value=f"{now_year_roc-1}年度")
+            is_test_mode = st.radio("寄送模式", ["🧪 測試寄信模式", "🚀 正式寄信模式"], horizontal=True) == "🧪 測試寄信模式"
+            test_email = st.text_input("📩 測試接收信箱") if is_test_mode else ""
+            batch_subject = st.text_input("信件主旨", value="國立嘉義大學 {批次名稱}")
+            batch_body = st.text_area("信件內容", value="{老師名稱}老師 您好：\n\n為配合溫室氣體盤查作業，請協助檢視與更新貴實驗室之基本資料、氣體鋼瓶庫存及使用量，並上傳{年度}之購買佐證單據。\n\n📍 您所管理的實驗室專屬確認連結如下：\n{links}\n\n⚠️ 提醒：若您管理多間實驗室，請於「氣體鋼瓶所在位置實驗室門牌」欄位填寫多個位置。\n本信件由系統自動發送，請勿直接回覆。", height=220)
+            
+            if st.button("🚀 產生金鑰並發送通知信", type="primary"):
                 if is_test_mode and not test_email: st.error("請輸入測試信箱！")
                 else:
                     my_bar = st.progress(0, text="處理中...")
@@ -362,10 +359,11 @@ def main():
 
     with tab4:
         st.markdown("### 🛠️ 氣體鋼瓶資料庫管理")
-        m_tab1, m_tab2 = st.tabs(["➕ 新增實驗室與庫存", "🔄 現有庫存查詢與異動"])
+        # 🟢 修正：捨棄嵌套 Tabs 改用 Radio 確保畫面絕不空白
+        manage_mode = st.radio("選擇管理模式", ["➕ 新增實驗室與庫存", "🔄 現有庫存查詢與異動"], horizontal=True)
         gc = get_gc(); ws_inv = gc.open_by_key(SHEET_ID).worksheet('氣體鋼瓶資料庫')
         
-        with m_tab1:
+        if manage_mode == "➕ 新增實驗室與庫存":
             st.markdown('<div class="basic-bg-marker"></div>', unsafe_allow_html=True)
             with st.container():
                 st.markdown('<div style="background-color: #8A9A8A; padding: 12px 20px; border-radius: 8px; margin-bottom: 20px;"><h3 style="color: #FFFFFF; margin: 0; font-weight: 600;">🏢 場所基本資料建立</h3></div>', unsafe_allow_html=True)
@@ -403,8 +401,7 @@ def main():
                         st.success(f"✅ {a_mgr} 老師的庫存已建檔！"); st.session_state.reset_key += 1; time.sleep(1); load_data.clear(); st.rerun()
                     else: st.error("請至少選擇一種氣體！")
 
-        with m_tab2:
-            st.markdown("### 🔍 查詢與異動管理")
+        elif manage_mode == "🔄 現有庫存查詢與異動":
             if df_inv.empty: st.info("目前資料庫為空。")
             else:
                 existing_depts = df_inv['系所'].astype(str).unique().tolist()
