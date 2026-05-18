@@ -1,4 +1,5 @@
 import streamlit as st
+import streamlit.components.v1 as components
 import pandas as pd
 import gspread
 import datetime
@@ -66,7 +67,7 @@ def apply_morandi_theme():
     </style>
     """, unsafe_allow_html=True)
 
-# ================= 🚀 PDF 轉圖片核心函式 =================
+# ================= 🚀 PDF 轉圖片核心函式 (全頁擷取版) =================
 def get_pdf_preview_images(file_obj):
     """將 PDF 的「所有頁面」擷取為 PNG 圖片格式清單"""
     try:
@@ -131,26 +132,26 @@ def upload_to_drive(uploaded_file, file_name):
     file = drive_service.files().create(body=file_metadata, media_body=media, fields='id').execute()
     return f"https://drive.google.com/file/d/{file.get('id')}/view?usp=sharing"
 
-# ================= 🚀 產生 Word 申報表 (精準修復 AttributeError) =================
+# ================= 🚀 產生 Word 申報表 (精準排版與字型修復) =================
 def create_report_docx(base_data, pur_data, status):
     doc = Document()
     
-    # --- 安全設定字體的方法 ---
-    def set_font_safe(run):
-        run.font.name = 'Times New Roman'
-        try:
-            run.font._element.rFonts.set(qn('w:eastAsia'), '標楷體')
-        except:
-            pass
+    # 🚀 安全字體設定掃描器 (確保每個角落都是標楷體與 Times New Roman)
+    def apply_font_to_all(document):
+        for p in document.paragraphs:
+            for run in p.runs:
+                run.font.name = 'Times New Roman'
+                try: run._element.rPr.rFonts.set(qn('w:eastAsia'), '標楷體')
+                except: pass
+        for table in document.tables:
+            for row in table.rows:
+                for cell in row.cells:
+                    for p in cell.paragraphs:
+                        for run in p.runs:
+                            run.font.name = 'Times New Roman'
+                            try: run._element.rPr.rFonts.set(qn('w:eastAsia'), '標楷體')
+                            except: pass
 
-    # --- 全域字體設定 ---
-    style = doc.styles['Normal']
-    style.font.name = 'Times New Roman'
-    try:
-        style.font._element.rFonts.set(qn('w:eastAsia'), '標楷體')
-    except:
-        pass
-    
     # --- 版面設定為「中等邊界」 ---
     sections = doc.sections
     for section in sections:
@@ -161,14 +162,11 @@ def create_report_docx(base_data, pur_data, status):
 
     title = doc.add_heading('溫室氣體盤查 - 實驗室氣體鋼瓶申報表', 0)
     title.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    if title.runs: set_font_safe(title.runs[0])
     
     doc.add_paragraph(f"盤查年度：2026年")
     doc.add_paragraph(f"填報日期：{datetime.datetime.now().strftime('%Y/%m/%d')}")
     
-    h1 = doc.add_heading('【實驗室基本資訊】', level=2)
-    if h1.runs: set_font_safe(h1.runs[0])
-    
+    doc.add_heading('【實驗室基本資訊】', level=2)
     t_base = doc.add_table(rows=3, cols=2)
     t_base.style = 'Table Grid'
     t_base.cell(0, 0).text = "系所 / 老師"; t_base.cell(0, 1).text = f"{base_data['dept']} / {base_data['mgr']}"
@@ -178,9 +176,7 @@ def create_report_docx(base_data, pur_data, status):
     for row in t_base.rows:
         for cell in row.cells: cell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
         
-    h2 = doc.add_heading('【年度購買紀錄申報】', level=2)
-    if h2.runs: set_font_safe(h2.runs[0])
-    
+    doc.add_heading('【年度購買紀錄申報】', level=2)
     if status == "無購買" or not pur_data:
         doc.add_paragraph("☑️ 盤查期間無購買氣體鋼瓶")
     else:
@@ -202,10 +198,12 @@ def create_report_docx(base_data, pur_data, status):
         run_title = p_proof_title.add_run("【年度購買單據佐證】")
         run_title.bold = True
         run_title.font.size = Pt(16)
-        set_font_safe(run_title)
         
         for idx, p in enumerate(pur_data):
-            doc.add_paragraph(f"單據 {idx+1} ({p['鋼瓶氣體種類']})：").alignment = WD_ALIGN_PARAGRAPH.CENTER
+            # 🚀 精準修正：符合規範的文字格式
+            desc_text = f"單據 {idx+1}： 氣體種類: {p['鋼瓶氣體種類']} | 購買日期: {p['購買日期']} | 申報購買量: {p['年度氣體鋼瓶購買量(公斤)']} 公斤"
+            doc.add_paragraph(desc_text).alignment = WD_ALIGN_PARAGRAPH.CENTER
+            
             file_obj = p['file']
             if file_obj:
                 if file_obj.type in ['image/jpeg', 'image/png']:
@@ -228,6 +226,8 @@ def create_report_docx(base_data, pur_data, status):
                 doc.add_paragraph("⚠️ 未建立購買單據連結").alignment = WD_ALIGN_PARAGRAPH.CENTER
             doc.add_paragraph("")
 
+    # 🚀 執行地毯式字體轉換
+    apply_font_to_all(doc)
     buf = io.BytesIO(); doc.save(buf); return buf.getvalue()
 
 # ================= 主程式 =================
@@ -237,7 +237,6 @@ def main():
     is_admin = st.session_state.get("authentication_status") and st.session_state.get("username") in ["admin"]
     url_token = st.query_params.get("token", None)
     
-    # 🚀 精準修正：管理者「通知批次」選單與老師篩選機制
     if not url_token: 
         if is_admin:
             st.success("👑 管理者檢視模式：可選擇批次與老師表單進行預覽及下載。")
@@ -246,12 +245,10 @@ def main():
                 st.info("資料庫尚無發送紀錄。")
                 st.stop()
             
-            # --- 1. 抓取所有批次並建立選單 ---
             batches = list(set([r.get('發送批次', '未分類') for r in records if r.get('專屬金鑰(Token)')]))
-            batches.sort(reverse=True) # 預設顯示最新
+            batches.sort(reverse=True)
             selected_batch = st.selectbox("📌 請選擇通知批次 (按年度管理)：", batches)
             
-            # --- 2. 針對該批次篩選老師 ---
             filtered_records = [r for r in records if r.get('發送批次', '未分類') == selected_batch and r.get('專屬金鑰(Token)')]
             options = {f"[{r.get('回覆狀態', '未回報')}] {r.get('系所', '')} - {r.get('實驗室老師', '')} ({r.get('氣體鋼瓶所在位置實驗室門牌', '')})": r.get('專屬金鑰(Token)', '') for r in filtered_records}
             
@@ -300,7 +297,7 @@ def main():
     """, unsafe_allow_html=True)
     
     if is_readonly: st.success("✅ 該實驗室已完成本期回報，目前為唯讀檢視模式。")
-    if is_readonly and not is_admin: st.stop() # 管理者即使唯讀也要能預覽
+    if is_readonly and not is_admin: st.stop() 
     
     saved_d = st.session_state.get("form_data", {})
     def_dept = saved_d.get("dept", st.session_state.dept)
@@ -429,9 +426,12 @@ def main():
 
     # ================= 第二階段：預覽確認與送出 =================
     elif st.session_state.step == "preview" or (is_readonly and is_admin):
+        
+        # 🚀 精準修正：預覽頁面置頂 JavaScript
+        components.html("<script>window.parent.document.querySelector('.main').scrollTo({top: 0, behavior: 'smooth'});</script>", height=0)
+        
         st.markdown('<div class="section-header">🔍 申報內容預覽確認</div>', unsafe_allow_html=True)
         
-        # 若管理者直接查看已回報，從資料庫重構 d
         if is_readonly and is_admin and "form_data" not in st.session_state:
             d = {
                 "dept": st.session_state.dept, "mgr": st.session_state.manager,
@@ -471,19 +471,18 @@ def main():
                 file_obj = p['file']
                 if file_obj:
                     if file_obj.type in ['image/jpeg', 'image/png']:
-                        st.image(file_obj, use_container_width=True, caption=f"單據 {idx+1} 影像畫面")
+                        st.image(file_obj, width=600, caption=f"單據 {idx+1} 影像畫面")
                     elif file_obj.type == 'application/pdf':
                         img_streams = get_pdf_preview_images(file_obj)
                         if img_streams:
                             for img_idx, img_stream in enumerate(img_streams):
-                                st.image(img_stream, use_container_width=True, caption=f"單據 {idx+1} PDF 第 {img_idx+1} 頁完整預覽 (系統自動擷取)")
+                                st.image(img_stream, width=600, caption=f"單據 {idx+1} PDF 第 {img_idx+1} 頁完整預覽 (系統自動擷取)")
                         else:
                             st.markdown(f"📄 **佐證單據 PDF 檔案已暫存** (檔名: {file_obj.name})")
                 st.markdown("<br>", unsafe_allow_html=True)
 
         st.markdown("<br>", unsafe_allow_html=True)
         
-        # 若為唯讀模式，僅顯示下載 Word 按鈕
         if is_readonly and is_admin:
             st.info("💡 此為已回報資料，若需產製 Word 檔請通知老師重新上傳暫存，或直接至後台下載總表。")
         else:
