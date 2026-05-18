@@ -19,7 +19,7 @@ st.markdown("""
         padding-bottom: 1rem !important; 
     }
     
-    /* 主標題樣式 (白底配黃底線，清爽樣式) */
+    /* 主標題樣式 */
     .main-header {
         font-size: 2rem; font-weight: 800; color: #2C3E50; text-align: center; 
         margin-bottom: 5px; padding: 12px; background-color: #FFFFFF; 
@@ -102,16 +102,14 @@ def clean_secrets(obj):
 # ==========================================================
 query_params = st.query_params
 if "token" in query_params:
-    # 老師點連結進來，強制隱藏側邊欄與標頭
     st.markdown('<style>[data-testid="stSidebar"], [data-testid="collapsedControl"], [data-testid="stHeader"] { display: none !important; }</style>', unsafe_allow_html=True)
     
-    # 精準修正：加入 url_path 以對接網址
-    gas_report = st.Page("pages/9_💨_實驗室氣體鋼瓶資料回報.py", title="氣體鋼瓶資料回報", icon="📃", url_path="實驗室氣體鋼瓶資料回報")
+    # 🟢 修正：使用 default=True 讓 Streamlit 無視網址路徑直接渲染此頁，徹底解決 Page Not Found
+    gas_report = st.Page("pages/9_💨_實驗室氣體鋼瓶資料回報.py", title="實驗室氣體鋼瓶資料回報", icon="📃", default=True)
     
-    # 直接執行路由，不經過登入判斷
     pg = st.navigation([gas_report])
     pg.run()
-    st.stop() # 阻斷下方所有登入邏輯執行
+    st.stop() 
 
 # ==========================================================
 # 下方為正常管理員登入邏輯 (無 Token 時才會執行)
@@ -122,7 +120,6 @@ try:
     cookie_cfg = st.secrets["cookie"]
     authenticator = stauth.Authenticate(credentials_login, cookie_cfg["name"], cookie_cfg["key"], cookie_cfg["expiry_days"])
     
-    # --- 登入前顯示清爽白底標題卡 ---
     if not st.session_state.get("authentication_status"):
         st.markdown('<div class="main-header" style="margin-bottom: 30px;">🏫 國立嘉義大學溫室氣體盤查填報系統<br><span style="font-size: 1.4rem; font-weight: 600; color: #5D6D7E;">National Chiayi University Greenhouse Gas Data Reporting System</span></div>', unsafe_allow_html=True)
 
@@ -139,7 +136,6 @@ if st.session_state.get("authentication_status"):
         authenticator.logout('登出系統', 'sidebar')
         st.markdown("---")
 
-    # 宣告所有實體檔案路徑
     home = st.Page(home_page, title="系統首頁", icon="🏠", default=True)
     fuel_report = st.Page("pages/1_⛽_燃油設備填報.py", title="燃油設備填報", icon="⛽")
     refrig_report = st.Page("pages/2_❄️_冷媒設備填報.py", title="冷媒設備填報", icon="❄️")
@@ -151,27 +147,22 @@ if st.session_state.get("authentication_status"):
     elec_report = st.Page("pages/6_⚡_全校電力填報.py", title="全校電力填報", icon="📃")
     elec_admin = st.Page("pages/7_⚡_全校電力管理.py", title="全校電力管理", icon="🖥️")
     
-    # 精準修正：加入 url_path 以對齊網址連結
-    gas_report = st.Page("pages/9_💨_實驗室氣體鋼瓶資料回報.py", title="氣體鋼瓶資料回報", icon="📃", url_path="實驗室氣體鋼瓶資料回報")
+    gas_report = st.Page("pages/9_💨_實驗室氣體鋼瓶資料回報.py", title="實驗室氣體鋼瓶資料回報", icon="📃")
     gas_admin = st.Page("pages/8_💨_實驗室氣體鋼瓶資料管理與追蹤.py", title="氣體鋼瓶管理與追蹤", icon="🖥️")
     
-    # 建立基礎選單
     pages_dict = {
         "": [home], 
         "📝 設備填報作業": [fuel_report, refrig_report]
     }
     
-    # 🔐 權限控管
     admin_users = ["admin"] 
     if current_username in admin_users:
         pages_dict["⚙️ 燃油與冷媒管理"] = [fuel_admin, refrig_admin, fuel_view]
         pages_dict["⚡ 全校電力管理"] = [elec_report, elec_admin]
         pages_dict["💨 氣體鋼瓶管理"] = [gas_report, gas_admin]
         
-    # 取得導覽列
     pg = st.navigation(pages_dict)
 
-    # 顯示線上人數燈號
     online_count = get_online_user_status()
     if online_count >= 11: 
         status_html = f"🔴 目前線上人數: {online_count} 人 (擁擠，建議稍候操作)"
@@ -180,7 +171,6 @@ if st.session_state.get("authentication_status"):
     else: 
         status_html = f"🟢 目前線上人數: {online_count} 人 (順暢)"
 
-    # 頁面標題邏輯
     if pg.title in ["系統首頁", "燃油設備填報", "冷媒設備填報"]:
         st.markdown('<div class="main-header">🏫 國立嘉義大學溫室氣體盤查填報系統<br><span style="font-size: 1.4rem; font-weight: 600; color: #5D6D7E;">National Chiayi University Greenhouse Gas Data Reporting System</span></div>', unsafe_allow_html=True)
         st.markdown(f"""<div style="text-align: right; margin-top: 15px; margin-bottom: 20px; font-size: 0.95rem; font-weight: 600; color: #4A4A4A;">{status_html}</div>""", unsafe_allow_html=True)
