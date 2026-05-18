@@ -19,6 +19,8 @@ SHEET_ID = '1Hw4rXo4ww7O9YXTwoUJeWioO5ZzM_bivRcLLpOl26DY'
 FOLDER_ID = '1cpj6l-zTgqLwphMFzLvvr53-Alf60idN'
 
 GAS_TYPES = ["二氧化碳", "甲烷", "乙炔", "一氧化二氮(笑氣)"]
+# 🚀 精準修正：補齊缺失的變數，徹底解決 NameError 與 Missing Submit Button 的骨牌錯誤
+CAMPUS_OPTS = ["蘭潭校區", "民雄校區", "新民校區", "林森校區"]
 
 # ================= 莫蘭迪風格 CSS & UI =================
 def apply_morandi_theme():

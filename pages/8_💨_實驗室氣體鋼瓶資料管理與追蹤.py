@@ -42,10 +42,7 @@ if username != 'admin':
     st.error("🚫 權限不足：此頁面僅供系統管理員使用。")
     st.stop()
 
-# ================= 參數與色票設定 =================
 SHEET_ID = '1Hw4rXo4ww7O9YXTwoUJeWioO5ZzM_bivRcLLpOl26DY'
-
-# 🚀 真實填報系統網址
 BASE_FORM_URL = "https://ncyu-carbon-app-mduue5hffp7uknsskmjet9.streamlit.app/實驗室氣體鋼瓶資料回報"
 
 GAS_TYPES = ["二氧化碳", "甲烷", "乙炔", "一氧化二氮(笑氣)"]
@@ -68,24 +65,22 @@ def apply_morandi_theme():
         div[data-baseweb="tab-list"] button p { font-size: 20px !important; color: #FFFFFF !important; font-weight: 600 !important; }
         div[data-baseweb="tab-list"] button[aria-selected="true"] { background-color: #5C6B73 !important; opacity: 1; border-bottom: 3px solid #9DB4AB !important; }
         
-        /* 🟢 全域按鈕莫蘭迪化與放大1號字 */
-        div.stButton > button, div.stDownloadButton > button { 
-            background-color: #8A9A8A !important; 
-            color: #FFFFFF !important; 
-            border: none !important; 
-            font-weight: bold !important; 
-            font-size: 18px !important; 
-            padding: 12px 24px !important; 
-            border-radius: 8px !important; 
-        }
+        /* 全域按鈕莫蘭迪化與放大1號字 */
+        div.stButton > button, div.stDownloadButton > button { background-color: #8A9A8A !important; color: #FFFFFF !important; border: none !important; font-weight: bold !important; font-size: 20px !important; padding: 12px 24px !important; border-radius: 8px !important; }
         div.stButton > button:hover, div.stDownloadButton > button:hover { background-color: #707F70 !important; }
-        
         button[kind="primary"] { background-color: #5C6B73 !important; }
         button[kind="primary"]:hover { background-color: #4A565C !important; }
         
-        /* 🟢 點擊展開欄 (Expander) 莫蘭迪深色化與文字放大 */
-        [data-testid="stExpander"] details summary { background-color: #5C6B73 !important; border-radius: 6px; padding: 12px 15px !important; }
-        [data-testid="stExpander"] details summary p { font-size: 20px !important; color: #FFFFFF !important; font-weight: bold !important; margin: 0 !important; }
+        /* 🚀 精準修正：Radio 測試/正式寄信按鈕莫蘭迪化 */
+        div.stRadio > div[role="radiogroup"] { display: flex; gap: 15px; }
+        div.stRadio > div[role="radiogroup"] > label { background-color: #E4E9E5 !important; padding: 10px 20px !important; border-radius: 8px !important; border: 2px solid #C4CDC5 !important; cursor: pointer; }
+        div.stRadio > div[role="radiogroup"] > label p { color: #2C3E50 !important; font-size: 18px !important; font-weight: bold !important; margin: 0; }
+        div.stRadio > div[role="radiogroup"] > label[data-checked="true"] { background-color: #9DB4AB !important; border-color: #5C6B73 !important; }
+        div.stRadio > div[role="radiogroup"] > label[data-checked="true"] p { color: #FFFFFF !important; }
+
+        /* 點擊展開欄 (Expander) 莫蘭迪深色化與文字放大 */
+        [data-testid="stExpander"] details summary { background-color: #5C6B73 !important; color: #FFFFFF !important; border-radius: 6px; padding: 12px 15px !important; }
+        [data-testid="stExpander"] details summary p { font-size: 22px !important; color: #FFFFFF !important; font-weight: bold !important; margin: 0 !important; }
         [data-testid="stExpander"] details summary svg { color: #FFFFFF !important; }
     </style>
     """, unsafe_allow_html=True)
@@ -132,17 +127,11 @@ def batch_update_safe(worksheet, updates): worksheet.batch_update(updates)
 
 def send_email_action(to_email, subject, html_body):
     try:
-        sender_email = st.secrets["smtp"]["email"]
-        app_password = st.secrets["smtp"]["password"]
-        smtp_server = st.secrets["smtp"]["server"]
-        smtp_port = st.secrets["smtp"]["port"]
-        msg = MIMEMultipart('alternative')
-        msg['Subject'] = subject; msg['From'] = sender_email; msg['To'] = to_email
+        sender_email = st.secrets["smtp"]["email"]; app_password = st.secrets["smtp"]["password"]; smtp_server = st.secrets["smtp"]["server"]; smtp_port = st.secrets["smtp"]["port"]
+        msg = MIMEMultipart('alternative'); msg['Subject'] = subject; msg['From'] = sender_email; msg['To'] = to_email
         msg.attach(MIMEText(html_body, 'html'))
-        server = smtplib.SMTP(smtp_server, smtp_port)
-        server.starttls(); server.login(sender_email, app_password)
-        server.send_message(msg); server.quit()
-        return True
+        server = smtplib.SMTP(smtp_server, smtp_port); server.starttls(); server.login(sender_email, app_password)
+        server.send_message(msg); server.quit(); return True
     except Exception as e: return False
 
 def generate_styled_email_html(email_body_text, title="溫室氣體盤查 氣體鋼瓶通知"):
@@ -152,13 +141,8 @@ def generate_styled_email_html(email_body_text, title="溫室氣體盤查 氣體
 @st.cache_data(ttl=600, show_spinner="產製佐證資料 Word 檔中 (包含單據圖片下載)...")
 def cached_create_proof_word(df_pur_dict):
     df_pur = pd.DataFrame(df_pur_dict)
-    doc = Document()
-    doc.add_heading('年度氣體鋼瓶購買單據佐證資料', 0)
-    
-    try: 
-        creds = get_credentials()
-        drive_service = build('drive', 'v3', credentials=creds)
-        can_dl = True
+    doc = Document(); doc.add_heading('年度氣體鋼瓶購買單據佐證資料', 0)
+    try: creds = get_credentials(); drive_service = build('drive', 'v3', credentials=creds); can_dl = True
     except: can_dl = False
         
     for idx, row in df_pur.iterrows():
@@ -167,7 +151,6 @@ def cached_create_proof_word(df_pur_dict):
         p.add_run(f"氣體種類：{row.get('鋼瓶氣體種類', '')}\n").bold = True
         p.add_run(f"購買日期：{row.get('購買日期', '')}\n")
         p.add_run(f"購買量：{row.get('年度氣體鋼瓶購買量(公斤)', '')} kg\n")
-        
         link = str(row.get('購買單據連結', ''))
         
         if link and 'drive.google.com' in link and can_dl:
@@ -181,18 +164,14 @@ def cached_create_proof_word(df_pur_dict):
                         request = drive_service.files().get_media(fileId=file_id)
                         img_stream = io.BytesIO(request.execute())
                         doc.add_picture(img_stream, width=Inches(5))
-                    else:
-                        doc.add_paragraph(f"📎 附檔非圖片格式 ({meta.get('name', '未命名')})，請點擊下方連結檢視：\n{link}")
-                except Exception: doc.add_paragraph(f"📎 圖片讀取限制，請直接點擊連結檢視：\n{link}")
+                    else: doc.add_paragraph(f"📎 附檔非圖片格式 ({meta.get('name', '未命名')})，請點擊下方連結檢視：\n{link}")
+                except Exception: doc.add_paragraph(f"📎 圖片讀取限制，請點擊連結檢視：\n{link}")
         elif link: doc.add_paragraph(f"📎 單據連結：\n{link}")
         else: doc.add_paragraph("⚠️ 無購買單據連結")
         doc.add_page_break()
         
-    buf = io.BytesIO()
-    doc.save(buf)
-    return buf.getvalue()
+    buf = io.BytesIO(); doc.save(buf); return buf.getvalue()
 
-# ================= 視覺化圖表與資訊卡渲染 =================
 @st.fragment
 def render_dashboard(df_inv, df_pur):
     st.markdown("<br>", unsafe_allow_html=True)
@@ -209,38 +188,32 @@ def render_dashboard(df_inv, df_pur):
     
     df_year = df_pur[df_pur['年份'] == sel_year] if not df_pur.empty else pd.DataFrame()
     
-    # 統計資訊
     tot_labs = df_inv['氣體鋼瓶所在位置實驗室門牌'].nunique() if not df_inv.empty else 0
     gas_counts = df_inv.groupby('鋼瓶氣體種類')['氣體鋼瓶所在位置實驗室門牌'].nunique().to_dict() if not df_inv.empty else {}
     
-    # 🟢 精準修改：僅針對不同項目才分行，確保單位在同一行不被切斷
-    gas_summary_html = "".join([f'<div style="margin: 5px 0;"><span style="font-size: 20px; color: #2C3E50;">{k}</span> <span style="font-size: 28px; font-weight: 900; color: #B03A2E;">{v}</span> <span style="font-size: 20px; color: #2C3E50;">間</span></div>' for k, v in gas_counts.items()])
+    # 🚀 精準修改：加入 white-space: nowrap 保證單位不斷行
+    gas_summary_html = "".join([f'<div style="margin: 5px 0; white-space: nowrap;"><span style="font-size: 22px; color: #2C3E50;">{k}</span> <span style="font-size: 34px; font-weight: 900; color: #B03A2E;">{v}</span> <span style="font-size: 22px; color: #2C3E50;">間</span></div>' for k, v in gas_counts.items()])
     
     co2_kg = df_year[df_year['鋼瓶氣體種類'] == '二氧化碳']['年度氣體鋼瓶購買量(公斤)'].astype(float).sum() if not df_year.empty else 0
     acet_kg = df_year[df_year['鋼瓶氣體種類'] == '乙炔']['年度氣體鋼瓶購買量(公斤)'].astype(float).sum() if not df_year.empty else 0
     
     c1, c2, c3, c4 = st.columns(4)
-    c1.markdown(f"""<div class="metric-card"><div class="metric-title">盤查範疇之氣體鋼瓶實驗室總數量</div><div class="metric-value"><span style="font-size: 48px; color: #000;">{tot_labs}</span> <span style="font-size: 20px;">間</span></div></div>""", unsafe_allow_html=True)
+    c1.markdown(f"""<div class="metric-card"><div class="metric-title">盤查範疇之氣體鋼瓶實驗室總數量</div><div class="metric-value"><span style="white-space: nowrap;"><span style="font-size: 48px; color: #000;">{tot_labs}</span> <span style="font-size: 20px;">間</span></span></div></div>""", unsafe_allow_html=True)
     c2.markdown(f"""<div class="metric-card"><div class="metric-title">盤查範疇之氣體鋼瓶種類及實驗室數量</div><div style="padding: 15px; text-align: center; flex: 1; display: flex; flex-direction: column; justify-content: center;">{gas_summary_html}</div></div>""", unsafe_allow_html=True)
-    c3.markdown(f"""<div class="metric-card"><div class="metric-title">二氧化碳鋼瓶年度購買量</div><div class="metric-value"><span style="font-size: 48px; color: #000;">{co2_kg:,.2f}</span> <span style="font-size: 20px;">公斤</span></div></div>""", unsafe_allow_html=True)
-    c4.markdown(f"""<div class="metric-card"><div class="metric-title">乙炔鋼瓶年度購買量</div><div class="metric-value"><span style="font-size: 48px; color: #000;">{acet_kg:,.2f}</span> <span style="font-size: 20px;">公斤</span></div></div>""", unsafe_allow_html=True)
+    c3.markdown(f"""<div class="metric-card"><div class="metric-title">二氧化碳鋼瓶年度購買量</div><div class="metric-value"><span style="white-space: nowrap;"><span style="font-size: 48px; color: #000;">{co2_kg:,.2f}</span> <span style="font-size: 20px;">公斤</span></span></div></div>""", unsafe_allow_html=True)
+    c4.markdown(f"""<div class="metric-card"><div class="metric-title">乙炔鋼瓶年度購買量</div><div class="metric-value"><span style="white-space: nowrap;"><span style="font-size: 48px; color: #000;">{acet_kg:,.2f}</span> <span style="font-size: 20px;">公斤</span></span></div></div>""", unsafe_allow_html=True)
     
     st.markdown("---")
     
-    # 🟢 老師資訊卡重構 (精準還原要求：上半部與下半部區塊設計)
+    # 🚀 精準修正：將 HTML 寫成「無換行字串」，徹底避免 Streamlit Markdown 誤判印出原始碼
     if not df_inv.empty:
         for dept in sorted(df_inv['系所'].astype(str).unique()):
             dept_inv = df_inv[df_inv['系所'] == dept]
             with st.expander(f"📁 {dept} (共 {dept_inv['氣體鋼瓶所在位置實驗室門牌'].nunique()} 間實驗室)"):
                 st.markdown("<br>", unsafe_allow_html=True)
                 for idx, row in dept_inv.iterrows():
-                    mgr = row.get('實驗室老師', '')
-                    room = row.get('氣體鋼瓶所在位置實驗室門牌', '')
-                    gas = row.get('鋼瓶氣體種類', '')
-                    qty = row.get('鋼瓶數量', 1)
-                    email = row.get('電子郵件', '-')
-                    ext = row.get('分機', '-')
-                    campus = row.get('校區', '-')
+                    mgr = row.get('實驗室老師', ''); room = row.get('氣體鋼瓶所在位置實驗室門牌', ''); gas = row.get('鋼瓶氣體種類', '')
+                    qty = row.get('鋼瓶數量', 1); email = row.get('電子郵件', '-'); ext = row.get('分機', '-'); campus = row.get('校區', '-')
                     
                     pur_record = pd.DataFrame()
                     if not df_year.empty: pur_record = df_year[(df_year['實驗室老師'] == mgr) & (df_year['氣體鋼瓶所在位置實驗室門牌'] == room) & (df_year['鋼瓶氣體種類'] == gas)]
@@ -250,57 +223,9 @@ def render_dashboard(df_inv, df_pur):
                     raw_link = pur_record.iloc[0].get('購買單據連結', '') if has_pur else ''
                     report_count = 1 if has_pur else 0
                     
-                    # 按鈕樣式與狀態
                     link_html = f'<a href="{raw_link}" target="_blank" style="background-color: #8A9A8A; color: white; padding: 6px 14px; border-radius: 6px; text-decoration: none; font-weight: bold; font-size: 15px;">📎 購買單據連結佐證</a>' if raw_link else '<span style="background-color: #FADBD8; color: #922B21; padding: 6px 12px; border-radius: 6px; font-size: 15px; font-weight: bold;">⚠️ 尚未申報</span>'
                     
-                    st.markdown(f"""
-                    <div style="border: 1px solid #DCE4E3; border-radius: 10px; overflow: hidden; margin-bottom: 25px; box-shadow: 0 4px 8px rgba(0,0,0,0.05); background: #FDFBF7;">
-                        <div style="background-color: #D5C6E0; padding: 15px 25px; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #C4B5D0;">
-                            <div style="font-size: 22px; font-weight: 900; color: #000000;">
-                                {mgr} 老師
-                            </div>
-                            <div style="text-align: right; display: flex; align-items: baseline; gap: 8px;">
-                                <span style="font-size: 20px; font-weight: 900; color: #000000;">{gas}</span>
-                                <span style="font-size: 28px; font-weight: 900; color: #B03A2E;">{pur_qty}</span> 
-                                <span style="font-size: 18px; color: #333;">公斤</span>
-                            </div>
-                        </div>
-                        
-                        <div style="background-color: #FFFFFF;">
-                            <div style="display: flex; padding: 20px 0; border-bottom: 1px solid #EEEEEE; flex-wrap: wrap;">
-                                <div style="flex: 1 1 16%; text-align: center; border-right: 1px solid #EEEEEE;">
-                                    <div style="font-size: 14px; color: #7F8C8D; margin-bottom: 6px;">校區</div>
-                                    <div style="font-size: 16px; font-weight: bold; color: #2C3E50;">{campus}</div>
-                                </div>
-                                <div style="flex: 1 1 16%; text-align: center; border-right: 1px solid #EEEEEE;">
-                                    <div style="font-size: 14px; color: #7F8C8D; margin-bottom: 6px;">所屬部門</div>
-                                    <div style="font-size: 16px; font-weight: bold; color: #2C3E50;">{dept}</div>
-                                </div>
-                                <div style="flex: 1 1 16%; text-align: center; border-right: 1px solid #EEEEEE;">
-                                    <div style="font-size: 14px; color: #7F8C8D; margin-bottom: 6px;">分機</div>
-                                    <div style="font-size: 16px; font-weight: bold; color: #2C3E50;">{ext}</div>
-                                </div>
-                                <div style="flex: 1 1 16%; text-align: center; border-right: 1px solid #EEEEEE;">
-                                    <div style="font-size: 14px; color: #7F8C8D; margin-bottom: 6px;">電子郵件</div>
-                                    <div style="font-size: 16px; font-weight: bold; color: #2C3E50; word-break: break-all;">{email}</div>
-                                </div>
-                                <div style="flex: 1 1 16%; text-align: center; border-right: 1px solid #EEEEEE;">
-                                    <div style="font-size: 14px; color: #7F8C8D; margin-bottom: 6px;">實驗室門牌</div>
-                                    <div style="font-size: 16px; font-weight: bold; color: #2C3E50;">{room}</div>
-                                </div>
-                                <div style="flex: 1 1 16%; text-align: center;">
-                                    <div style="font-size: 14px; color: #7F8C8D; margin-bottom: 6px;">鋼瓶數量</div>
-                                    <div style="font-size: 16px; font-weight: bold; color: #2C3E50;">{qty}</div>
-                                </div>
-                            </div>
-                            
-                            <div style="background-color: #F8F9F9; padding: 15px 25px; display: flex; justify-content: space-between; align-items: center;">
-                                <div style="font-size: 16px; color: #555;">年度申報次數：<b>{report_count}次</b></div>
-                                <div>{link_html}</div>
-                            </div>
-                        </div>
-                    </div>
-                    """, unsafe_allow_html=True)
+                    st.markdown(f"""<div style="border: 1px solid #DCE4E3; border-radius: 10px; overflow: hidden; margin-bottom: 25px; box-shadow: 0 4px 8px rgba(0,0,0,0.05); background: #FDFBF7;"><div style="background-color: #D5C6E0; padding: 15px 25px; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #C4B5D0;"><div style="font-size: 22px; font-weight: 900; color: #000000;">{mgr} 老師</div><div style="text-align: right; display: flex; align-items: baseline; gap: 8px; white-space: nowrap;"><span style="font-size: 20px; font-weight: 900; color: #000000;">{gas}</span><span style="font-size: 28px; font-weight: 900; color: #B03A2E;">{pur_qty}</span><span style="font-size: 18px; color: #333;">公斤</span></div></div><div style="background-color: #FFFFFF;"><div style="display: flex; padding: 20px 0; border-bottom: 1px solid #EEEEEE; flex-wrap: wrap;"><div style="flex: 1 1 16%; text-align: center; border-right: 1px solid #EEEEEE;"><div style="font-size: 14px; color: #7F8C8D; margin-bottom: 6px;">校區</div><div style="font-size: 16px; font-weight: bold; color: #2C3E50;">{campus}</div></div><div style="flex: 1 1 16%; text-align: center; border-right: 1px solid #EEEEEE;"><div style="font-size: 14px; color: #7F8C8D; margin-bottom: 6px;">所屬部門</div><div style="font-size: 16px; font-weight: bold; color: #2C3E50;">{dept}</div></div><div style="flex: 1 1 16%; text-align: center; border-right: 1px solid #EEEEEE;"><div style="font-size: 14px; color: #7F8C8D; margin-bottom: 6px;">分機</div><div style="font-size: 16px; font-weight: bold; color: #2C3E50;">{ext}</div></div><div style="flex: 1 1 16%; text-align: center; border-right: 1px solid #EEEEEE;"><div style="font-size: 14px; color: #7F8C8D; margin-bottom: 6px;">電子郵件</div><div style="font-size: 16px; font-weight: bold; color: #2C3E50; word-break: break-all;">{email}</div></div><div style="flex: 1 1 16%; text-align: center; border-right: 1px solid #EEEEEE;"><div style="font-size: 14px; color: #7F8C8D; margin-bottom: 6px;">實驗室門牌</div><div style="font-size: 16px; font-weight: bold; color: #2C3E50;">{room}</div></div><div style="flex: 1 1 16%; text-align: center;"><div style="font-size: 14px; color: #7F8C8D; margin-bottom: 6px;">鋼瓶數量</div><div style="font-size: 16px; font-weight: bold; color: #2C3E50;">{qty}</div></div></div><div style="background-color: #F8F9F9; padding: 15px 25px; display: flex; justify-content: space-between; align-items: center;"><div style="font-size: 16px; color: #555;">年度申報次數：<b>{report_count}次</b></div><div>{link_html}</div></div></div></div>""", unsafe_allow_html=True)
 
 # ================= 主程式 =================
 def main():
@@ -325,10 +250,8 @@ def main():
         else:
             labs = df_inv[['系所', '實驗室老師', '電子郵件', '氣體鋼瓶所在位置實驗室門牌', '校區']].drop_duplicates()
             all_teachers = labs['實驗室老師'].unique().tolist()
-            selected_teachers = st.multiselect("🎯 選擇特定發送對象 (若留空則全選批次發送)", all_teachers, help="可輸入關鍵字搜尋特定老師，適合單獨補寄")
-            if selected_teachers:
-                labs = labs[labs['實驗室老師'].isin(selected_teachers)]
-                st.info(f"將針對選定的 {len(selected_teachers)} 位老師進行發送。")
+            selected_teachers = st.multiselect("🎯 選擇特定發送對象 (若留空則全選批次發送)", all_teachers)
+            if selected_teachers: labs = labs[labs['實驗室老師'].isin(selected_teachers)]; st.info(f"將針對選定的 {len(selected_teachers)} 位老師發送。")
 
             with st.form("send_form"):
                 batch_name = st.text_input("📝 批次名稱", value=f"{now_year_roc}年度溫室氣體盤查範疇之氣體鋼瓶購買調查")
@@ -344,8 +267,7 @@ def main():
                 else:
                     my_bar = st.progress(0, text="處理中...")
                     grouped = labs.groupby(['系所', '實驗室老師', '電子郵件'])
-                    all_appends, success_count = [], 0
-                    total_groups = len(grouped)
+                    all_appends, success_count, total_groups = [], 0, len(grouped)
                     now_time = datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S")
                     
                     for idx, ((dept, mgr, email), group) in enumerate(grouped):
@@ -367,7 +289,6 @@ def main():
                             for record in all_appends[-len(group):]: record[8] = "發送成功"
                         else:
                             for record in all_appends[-len(group):]: record[8] = "發送失敗"
-                        
                         my_bar.progress((idx+1)/total_groups, text=f"發送中 ({idx+1}/{total_groups})")
                     
                     safe_append_rows(get_gc().open_by_key(SHEET_ID).worksheet('發送紀錄與金鑰'), all_appends)
@@ -385,9 +306,9 @@ def main():
             
             st.markdown(f"""
             <div style="display: flex; gap: 20px; margin-bottom: 25px;">
-                <div class="metric-card" style="flex: 1;"><div class="metric-title">應回報總數</div><div class="metric-value" style="font-size: 36px; padding: 10px;">{len(df_cur)} <span style="font-size: 16px;">間</span></div></div>
-                <div class="metric-card" style="flex: 1; border-color: #F39C12;"><div class="metric-title" style="background-color: #F39C12;">尚未回報</div><div class="metric-value" style="font-size: 36px; padding: 10px;">{len(pending)} <span style="font-size: 16px;">間</span></div></div>
-                <div class="metric-card" style="flex: 1; border-color: #27AE60;"><div class="metric-title" style="background-color: #27AE60;">已回報完成</div><div class="metric-value" style="font-size: 36px; padding: 10px;">{len(replied)} <span style="font-size: 16px;">間</span></div></div>
+                <div class="metric-card" style="flex: 1;"><div class="metric-title">應回報總數</div><div class="metric-value"><span style="white-space: nowrap;"><span style="font-size: 36px;">{len(df_cur)}</span><span style="font-size: 16px;">間</span></span></div></div>
+                <div class="metric-card" style="flex: 1; border-color: #F39C12;"><div class="metric-title" style="background-color: #F39C12;">尚未回報</div><div class="metric-value"><span style="white-space: nowrap;"><span style="font-size: 36px;">{len(pending)}</span><span style="font-size: 16px;">間</span></span></div></div>
+                <div class="metric-card" style="flex: 1; border-color: #27AE60;"><div class="metric-title" style="background-color: #27AE60;">已回報完成</div><div class="metric-value"><span style="white-space: nowrap;"><span style="font-size: 36px;">{len(replied)}</span><span style="font-size: 16px;">間</span></span></div></div>
             </div>
             """, unsafe_allow_html=True)
             
@@ -425,7 +346,6 @@ def main():
 
     with tab3:
         render_dashboard(df_inv, df_pur)
-        
         st.markdown("<br><hr>", unsafe_allow_html=True)
         st.markdown("### 📁 溫室氣體盤查範疇之氣體鋼瓶購買統計")
         
@@ -435,9 +355,7 @@ def main():
             with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
                 df_inv.to_excel(writer, sheet_name='氣體鋼瓶資料庫(總庫存)', index=False)
                 df_pur.to_excel(writer, sheet_name='氣體鋼瓶年度使用紀錄', index=False)
-            with col_dl1:
-                st.download_button("📥 下載年度使用紀錄 Excel 檔", data=output.getvalue(), file_name=f"氣體鋼瓶盤查清冊_{datetime.datetime.now().year}.xlsx", type="primary", use_container_width=True)
-            
+            with col_dl1: st.download_button("📥 下載年度使用紀錄 Excel 檔", data=output.getvalue(), file_name=f"氣體鋼瓶盤查清冊_{datetime.datetime.now().year}.xlsx", type="primary", use_container_width=True)
             with col_dl2:
                 word_bytes = cached_create_proof_word(df_pur.to_dict('records'))
                 st.download_button("📄 產製並下載年度購買單據佐證資料 (Word)", data=word_bytes, file_name=f"購買單據佐證資料_{datetime.datetime.now().year}.docx", type="primary", use_container_width=True)
@@ -445,8 +363,7 @@ def main():
     with tab4:
         st.markdown("### 🛠️ 氣體鋼瓶資料庫管理")
         m_tab1, m_tab2 = st.tabs(["➕ 新增實驗室與庫存", "🔄 現有庫存查詢與異動"])
-        gc = get_gc()
-        ws_inv = gc.open_by_key(SHEET_ID).worksheet('氣體鋼瓶資料庫')
+        gc = get_gc(); ws_inv = gc.open_by_key(SHEET_ID).worksheet('氣體鋼瓶資料庫')
         
         with m_tab1:
             st.markdown('<div class="basic-bg-marker"></div>', unsafe_allow_html=True)
@@ -465,7 +382,6 @@ def main():
             with st.container():
                 st.markdown('<div style="background-color: #A393B3; padding: 12px 20px; border-radius: 8px; margin-bottom: 20px;"><h3 style="color: #FFFFFF; margin: 0; font-weight: 600;">💨 氣體鋼瓶初始庫存</h3></div>', unsafe_allow_html=True)
                 num_gases = st.number_input("🧪 此場所氣體種類數量", min_value=1, max_value=5, value=1, step=1, key=f"a_num_{rk}")
-                
                 gas_entries = []
                 for i in range(int(num_gases)):
                     st.markdown(f"#### 🔹 第 {i+1} 項氣體")
@@ -477,20 +393,15 @@ def main():
                     st.markdown("<hr style='border-top: 1px dashed #B8A9C9; margin: 15px 0;'>", unsafe_allow_html=True)
             
             if st.button("🚀 確認新增建檔", type="primary", use_container_width=True):
-                if not a_dept or not a_mgr or not a_room:
-                    st.error("請確實填寫系所、老師與門牌！")
+                if not a_dept or not a_mgr or not a_room: st.error("請確實填寫系所、老師與門牌！")
                 else:
                     rows_to_append = []
                     for entry in gas_entries:
-                        if entry["gas"] != "請選擇":
-                            rows_to_append.append([a_dept, a_mgr, a_campus, a_room, a_mail, a_ext, entry["gas"], entry["qty"], entry["year"]])
+                        if entry["gas"] != "請選擇": rows_to_append.append([a_dept, a_mgr, a_campus, a_room, a_mail, a_ext, entry["gas"], entry["qty"], entry["year"]])
                     if rows_to_append:
                         safe_append_rows(ws_inv, rows_to_append)
-                        st.success(f"✅ {a_mgr} 老師的庫存已建檔！")
-                        st.session_state.reset_key += 1
-                        time.sleep(1); load_data.clear(); st.rerun()
-                    else:
-                        st.error("請至少選擇一種氣體！")
+                        st.success(f"✅ {a_mgr} 老師的庫存已建檔！"); st.session_state.reset_key += 1; time.sleep(1); load_data.clear(); st.rerun()
+                    else: st.error("請至少選擇一種氣體！")
 
         with m_tab2:
             st.markdown("### 🔍 查詢與異動管理")
@@ -499,15 +410,11 @@ def main():
                 existing_depts = df_inv['系所'].astype(str).unique().tolist()
                 f_col1, f_col2 = st.columns(2)
                 with f_col1: sel_dept = st.selectbox("1. 篩選系所", existing_depts)
-                
                 dept_labs = df_inv[df_inv['系所'] == sel_dept]
                 lab_opts = dept_labs.apply(lambda x: f"{x['實驗室老師']}({x['氣體鋼瓶所在位置實驗室門牌']})", axis=1).unique().tolist()
-                
                 with f_col2: sel_lab_opt = st.selectbox("2. 篩選老師與門牌", lab_opts)
                 
-                mgr_sel = sel_lab_opt.split("(")[0]
-                room_sel = sel_lab_opt.split("(")[1].replace(")", "")
-                
+                mgr_sel = sel_lab_opt.split("(")[0]; room_sel = sel_lab_opt.split("(")[1].replace(")", "")
                 target_df = df_inv[(df_inv['系所'] == sel_dept) & (df_inv['實驗室老師'] == mgr_sel) & (df_inv['氣體鋼瓶所在位置實驗室門牌'] == room_sel)]
                 
                 if not target_df.empty:
@@ -519,29 +426,21 @@ def main():
                     with ce2: e_ext = st.text_input("修改分機", value=str(base_row['分機']), key=f"e_e_{mgr_sel}_{room_sel}")
                     
                     st.markdown("#### 🧪 現有氣體庫存編輯")
-                    collected_updates = []
-                    all_rows = ws_inv.get_all_records()
-                    
+                    collected_updates = []; all_rows = ws_inv.get_all_records()
                     for idx, row in target_df.iterrows():
                         gas_name = row['鋼瓶氣體種類']
                         orig_idx = next((i + 2 for i, r in enumerate(all_rows) if str(r['系所'])==sel_dept and str(r['實驗室老師'])==mgr_sel and str(r['氣體鋼瓶所在位置實驗室門牌'])==room_sel and str(r['鋼瓶氣體種類'])==gas_name), -1)
-                        
-                        st.markdown(f"<div style='padding: 25px; border-radius: 10px; border: 1px solid #DCE4E3; margin-bottom: 20px; background-color: #F0F4F8;'>", unsafe_allow_html=True)
-                        st.markdown(f"<div style='color: #6C7A89; font-size: 20px; font-weight: bold; border-bottom: 2px solid #E4E9E5; padding-bottom: 8px; margin-bottom: 15px;'>🔹 {gas_name}</div>", unsafe_allow_html=True)
+                        st.markdown(f"<div style='padding: 25px; border-radius: 10px; border: 1px solid #DCE4E3; margin-bottom: 20px; background-color: #F0F4F8;'><div style='color: #6C7A89; font-size: 20px; font-weight: bold; border-bottom: 2px solid #E4E9E5; padding-bottom: 8px; margin-bottom: 15px;'>🔹 {gas_name}</div>", unsafe_allow_html=True)
                         uc1, uc2, uc3 = st.columns([1, 1, 2])
                         with uc1: u_qty = st.number_input("鋼瓶數量", value=int(row['鋼瓶數量']), min_value=0, key=f"uq_{idx}_{mgr_sel}_{room_sel}")
-                        with uc3:
-                            st.markdown("<br>", unsafe_allow_html=True)
-                            del_flag = st.checkbox("🗑️ 刪除此項氣體", key=f"del_{idx}_{mgr_sel}_{room_sel}")
+                        with uc3: st.markdown("<br>", unsafe_allow_html=True); del_flag = st.checkbox("🗑️ 刪除此項氣體", key=f"del_{idx}_{mgr_sel}_{room_sel}")
                         st.markdown("</div>", unsafe_allow_html=True)
-                        
                         collected_updates.append({"orig_idx": orig_idx, "gas": gas_name, "qty": u_qty, "delete": del_flag})
                         
                     st.markdown("<br>", unsafe_allow_html=True)
                     if st.button("💾 儲存所有異動", type="primary", use_container_width=True):
                         with st.spinner("同步至雲端資料庫中..."):
-                            batch_data = []
-                            rows_to_delete = []
+                            batch_data = []; rows_to_delete = []
                             for u in collected_updates:
                                 if u["orig_idx"] != -1:
                                     if u["delete"]: rows_to_delete.append(u["orig_idx"])
@@ -549,13 +448,9 @@ def main():
                                         batch_data.append({'range': f"E{u['orig_idx']}", 'values': [[e_mail]]})
                                         batch_data.append({'range': f"F{u['orig_idx']}", 'values': [[e_ext]]})
                                         batch_data.append({'range': f"H{u['orig_idx']}", 'values': [[u["qty"]]]})
-                                        
                             if batch_data: batch_update_safe(ws_inv, batch_data)
                             for r_idx in sorted(rows_to_delete, reverse=True): safe_delete_row(ws_inv, r_idx)
-                                
-                            st.success("✅ 實驗室資料與庫存已成功更新！")
-                            st.session_state.reset_key += 1
-                            time.sleep(1); load_data.clear(); st.rerun()
+                            st.success("✅ 實驗室資料與庫存已成功更新！"); st.session_state.reset_key += 1; time.sleep(1); load_data.clear(); st.rerun()
 
 if __name__ == "__main__":
     main()
