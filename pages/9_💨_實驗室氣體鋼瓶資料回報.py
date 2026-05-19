@@ -385,7 +385,7 @@ def main():
         with c3: e_campus = st.selectbox("校區", CAMPUS_OPTS, index=CAMPUS_OPTS.index(def_campus) if def_campus in CAMPUS_OPTS else 0)
         
         c4, c5, c6 = st.columns(3)
-        with c4: e_room = st.text_input("實驗室門牌位置", value=def_room, help="若有多個位置可一併填寫，如A32-101")
+        with c4: e_room = st.text_input("實驗室門牌位置", value=def_room, help="若有多個位置可一併填寫，如A32-101、A32-103、A32-105")
         with c5: e_mail = st.text_input("電子郵件", value=def_mail)
         with c6: e_ext = st.text_input("聯絡分機", value=def_ext)
         
