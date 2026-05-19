@@ -9,7 +9,7 @@ streamlit-authenticator
 plotly
 openpyxl
 python-docx
-pymupdf
 Pillow
 requests
+PyMuPDF
 xlsxwriter
