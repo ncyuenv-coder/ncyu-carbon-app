@@ -122,7 +122,6 @@ def fetch_pur_records():
     try: return get_gc().open_by_key(SHEET_ID).worksheet('氣體鋼瓶年度使用紀錄').get_all_records()
     except: return []
 
-# 🚀 雲端 Drive 動態下載快取機制 (確保唯讀模式也能精準擷取 PDF)
 @st.cache_data(ttl=600, show_spinner=False)
 def get_drive_file_bytes_cached(file_url):
     try:
@@ -157,7 +156,7 @@ def upload_to_drive(uploaded_file, file_name):
     file = drive_service.files().create(body=file_metadata, media_body=media, fields='id').execute()
     return f"https://drive.google.com/file/d/{file.get('id')}/view?usp=sharing"
 
-# ================= 🚀 產生 Word 申報表 (精準調整表格與字體) =================
+# ================= 🚀 產生 Word 申報表 =================
 def create_report_docx(base_data, pur_data, status):
     doc = Document()
     
@@ -183,6 +182,8 @@ def create_report_docx(base_data, pur_data, status):
 
     title = doc.add_heading('溫室氣體盤查 - 實驗室氣體鋼瓶年度購買申報', 0)
     title.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    if title.runs:
+        title.runs[0].font.size = Pt(24) 
     
     doc.add_heading('【實驗室基本資訊】', level=2)
     t_base = doc.add_table(rows=8, cols=2)
@@ -197,16 +198,17 @@ def create_report_docx(base_data, pur_data, status):
     inv_gases = []; inv_qtys = []
     if base_data.get('inv'):
         for i in base_data['inv']:
-            inv_gases.append(i['鋼瓶氣體種類']); inv_qtys.append(str(i['鋼瓶數量']))
+            inv_gases.append(i['鋼瓶氣體種類'])
+            inv_qtys.append(str(i['鋼瓶數量']) + " 支")
+            
     t_base.cell(6, 0).text = "盤查範疇之氣體鋼瓶種類"
     t_base.cell(6, 1).text = "、".join(inv_gases) if inv_gases else "無"
     t_base.cell(7, 0).text = "盤查範疇之氣體鋼瓶數量"
-    t_base.cell(7, 1).text = "、".join(inv_qtys) if inv_qtys else "0"
+    t_base.cell(7, 1).text = "、".join(inv_qtys) if inv_qtys else "0 支"
     
     for row in t_base.rows:
         for cell in row.cells: cell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
         
-    doc.add_paragraph("")
     doc.add_heading('【年度購買紀錄申報】', level=2)
     
     if status == "無購買" or not pur_data:
@@ -237,7 +239,6 @@ def create_report_docx(base_data, pur_data, status):
             file_obj = p.get('file')
             file_url = p.get('file_url') 
             
-            # 🚀 若系統中僅有 URL (例如唯讀模式)，自動從雲端下載檔案流以支援 Word 擷圖
             if not file_obj and file_url:
                 f_bytes, f_mime, f_name = get_drive_file_bytes_cached(file_url)
                 if f_bytes:
@@ -331,11 +332,11 @@ def main():
 
     is_readonly = (st.session_state.status == "已回報")
     
-    st.markdown(f"""
+    st.markdown('''
     <div class="title-box">
         <h2 style="margin: 0;">國立嘉義大學溫室氣體盤查範疇之氣體鋼瓶回報介面</h2>
     </div>
-    """, unsafe_allow_html=True)
+    ''', unsafe_allow_html=True)
     
     if is_readonly: 
         st.success("✅ 感謝老師完成盤查回報，下方為您申報的資料留存 (唯讀檢視模式)。")
@@ -385,7 +386,7 @@ def main():
         with c3: e_campus = st.selectbox("校區", CAMPUS_OPTS, index=CAMPUS_OPTS.index(def_campus) if def_campus in CAMPUS_OPTS else 0)
         
         c4, c5, c6 = st.columns(3)
-        with c4: e_room = st.text_input("實驗室門牌位置", value=def_room, help="若有多個位置可一併填寫，如A32-101")
+        with c4: e_room = st.text_input("實驗室門牌位置", value=def_room, help="若有多個位置可一併填寫，如A32-101、A32-103、A32-105")
         with c5: e_mail = st.text_input("電子郵件", value=def_mail)
         with c6: e_ext = st.text_input("聯絡分機", value=def_ext)
         
@@ -493,7 +494,7 @@ def main():
     # ================= 第二階段：預覽確認與送出 =================
     elif st.session_state.step == "preview":
         
-        components.html("""
+        components.html('''
         <script>
             setTimeout(function() {
                 var doc = window.parent.document;
@@ -505,7 +506,7 @@ def main():
                 doc.body.scrollTop = 0;
             }, 500);
         </script>
-        """, height=0)
+        ''', height=0)
         
         st.markdown('<div class="section-header">🔍 申報內容預覽確認</div>', unsafe_allow_html=True)
         d = st.session_state.form_data
@@ -513,7 +514,7 @@ def main():
         inv_str = ', '.join([f"{i['鋼瓶氣體種類']} ({i['鋼瓶數量']}支)" for i in d['inv']]) if d['inv'] else '登記無現有庫存'
         status_color = '#B03A2E' if d.get('status')=='有購買' else '#27AE60'
         
-        preview_html = f"""
+        preview_html = f'''
 <div style="background: #FDFBF7; border: 2px solid #9DB4AB; border-radius: 10px; padding: 25px; margin-bottom: 25px;">
 <h3 style="color: #2C3E50; margin-top: 0; border-bottom: 2px solid #EEEEEE; padding-bottom: 10px;">📋 申報基本資料</h3>
 <table style="width:100%; font-size:18px; line-height:2.2; border-collapse: collapse;">
@@ -524,22 +525,21 @@ def main():
 </table>
 <h3 style="color: #2C3E50; margin-top: 25px; border-top: 2px solid #EEEEEE; padding-top: 15px; margin-bottom: 0;">🧾 年度購買狀況：<span style="color: {status_color}; font-weight:900;">{d.get('status', '已回報')}</span></h3>
 </div>
-"""
+'''
         st.markdown(preview_html, unsafe_allow_html=True)
         
         if d.get('status') == "有購買":
             st.markdown("#### 📄 購買佐證憑證審視清單")
             for idx, p in enumerate(d['pur']):
-                st.markdown(f"""
+                st.markdown(f'''
 <div style="background-color: #F8F9F9; padding: 15px; border-radius: 6px; border-left: 5px solid #4A5D6E; margin-bottom: 15px; font-size: 26px;">
 <b>單據 {idx+1}：</b> 氣體種類: <b>{p['鋼瓶氣體種類']}</b> | 購買日期: <b>{p['購買日期']}</b> | 申報購買量: <span style='color:#B03A2E; font-weight:bold;'>{p['年度氣體鋼瓶購買量(公斤)']} 公斤</span>
 </div>
-""", unsafe_allow_html=True)
+''', unsafe_allow_html=True)
                 
                 file_obj = p.get('file')
                 file_url = p.get('file_url') 
                 
-                # 🚀 若系統中僅有 URL，自動從雲端下載檔案流支援截圖顯示
                 if not file_obj and file_url:
                     with st.spinner(f"正在雲端同步單據 {idx+1} 影像..."):
                         f_bytes, f_mime, f_name = get_drive_file_bytes_cached(file_url)
