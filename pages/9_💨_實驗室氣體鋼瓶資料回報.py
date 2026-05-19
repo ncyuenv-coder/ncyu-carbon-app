@@ -156,7 +156,7 @@ def upload_to_drive(uploaded_file, file_name):
     file = drive_service.files().create(body=file_metadata, media_body=media, fields='id').execute()
     return f"https://drive.google.com/file/d/{file.get('id')}/view?usp=sharing"
 
-# ================= 🚀 產生 Word 申報表 =================
+# ================= 產生 Word 申報表 =================
 def create_report_docx(base_data, pur_data, status):
     doc = Document()
     
@@ -332,8 +332,9 @@ def main():
 
     is_readonly = (st.session_state.status == "已回報")
     
+    # 🚀 標題埋入錨點，供預覽頁面 JavaScript 精準導航對焦
     st.markdown('''
-    <div class="title-box">
+    <div id="top-title" class="title-box">
         <h2 style="margin: 0;">國立嘉義大學溫室氣體盤查範疇之氣體鋼瓶回報介面</h2>
     </div>
     ''', unsafe_allow_html=True)
@@ -351,6 +352,9 @@ def main():
             
             pur_reconstructed = []
             for p in teacher_pur:
+                # 排除無購買時產生的空白紀錄
+                if p.get("年度有無購買") == "無購買":
+                    continue
                 pur_reconstructed.append({
                     "鋼瓶氣體種類": p.get("鋼瓶氣體種類", ""),
                     "購買日期": p.get("購買日期", ""),
@@ -386,7 +390,7 @@ def main():
         with c3: e_campus = st.selectbox("校區", CAMPUS_OPTS, index=CAMPUS_OPTS.index(def_campus) if def_campus in CAMPUS_OPTS else 0)
         
         c4, c5, c6 = st.columns(3)
-        with c4: e_room = st.text_input("實驗室門牌位置", value=def_room, help="若有多個位置可一併填寫，如A32-101、A32-103、A32-105")
+        with c4: e_room = st.text_input("實驗室門牌位置", value=def_room, help="若有多個位置可一併填寫，如A32-101")
         with c5: e_mail = st.text_input("電子郵件", value=def_mail)
         with c6: e_ext = st.text_input("聯絡分機", value=def_ext)
         
@@ -494,19 +498,20 @@ def main():
     # ================= 第二階段：預覽確認與送出 =================
     elif st.session_state.step == "preview":
         
-        components.html('''
+        # 🚀 精準修復：加入強制置頂腳本 (對焦頂部 ID)
+        components.html("""
         <script>
             setTimeout(function() {
                 var doc = window.parent.document;
-                var containers = doc.querySelectorAll('.main, [data-testid="stAppViewContainer"], [data-testid="stAppViewMain"]');
-                for (var i = 0; i < containers.length; i++) {
-                    containers[i].scrollTop = 0;
+                var target = doc.getElementById('top-title');
+                if (target) {
+                    target.scrollIntoView({behavior: 'smooth', block: 'start'});
+                } else {
+                    doc.documentElement.scrollTop = 0;
                 }
-                doc.documentElement.scrollTop = 0;
-                doc.body.scrollTop = 0;
-            }, 500);
+            }, 300);
         </script>
-        ''', height=0)
+        """, height=0)
         
         st.markdown('<div class="section-header">🔍 申報內容預覽確認</div>', unsafe_allow_html=True)
         d = st.session_state.form_data
@@ -514,7 +519,7 @@ def main():
         inv_str = ', '.join([f"{i['鋼瓶氣體種類']} ({i['鋼瓶數量']}支)" for i in d['inv']]) if d['inv'] else '登記無現有庫存'
         status_color = '#B03A2E' if d.get('status')=='有購買' else '#27AE60'
         
-        preview_html = f'''
+        preview_html = f"""
 <div style="background: #FDFBF7; border: 2px solid #9DB4AB; border-radius: 10px; padding: 25px; margin-bottom: 25px;">
 <h3 style="color: #2C3E50; margin-top: 0; border-bottom: 2px solid #EEEEEE; padding-bottom: 10px;">📋 申報基本資料</h3>
 <table style="width:100%; font-size:18px; line-height:2.2; border-collapse: collapse;">
@@ -525,17 +530,17 @@ def main():
 </table>
 <h3 style="color: #2C3E50; margin-top: 25px; border-top: 2px solid #EEEEEE; padding-top: 15px; margin-bottom: 0;">🧾 年度購買狀況：<span style="color: {status_color}; font-weight:900;">{d.get('status', '已回報')}</span></h3>
 </div>
-'''
+"""
         st.markdown(preview_html, unsafe_allow_html=True)
         
         if d.get('status') == "有購買":
             st.markdown("#### 📄 購買佐證憑證審視清單")
             for idx, p in enumerate(d['pur']):
-                st.markdown(f'''
+                st.markdown(f"""
 <div style="background-color: #F8F9F9; padding: 15px; border-radius: 6px; border-left: 5px solid #4A5D6E; margin-bottom: 15px; font-size: 26px;">
 <b>單據 {idx+1}：</b> 氣體種類: <b>{p['鋼瓶氣體種類']}</b> | 購買日期: <b>{p['購買日期']}</b> | 申報購買量: <span style='color:#B03A2E; font-weight:bold;'>{p['年度氣體鋼瓶購買量(公斤)']} 公斤</span>
 </div>
-''', unsafe_allow_html=True)
+""", unsafe_allow_html=True)
                 
                 file_obj = p.get('file')
                 file_url = p.get('file_url') 
@@ -591,11 +596,27 @@ def main():
                     
                     pur_to_append = []
                     now_str = datetime.datetime.now().strftime("%Y/%m/%d %H:%M:%S")
-                    for p in d['pur']:
-                        ext = os.path.splitext(p["file"].name)[1]
-                        f_name = f"{d['campus']}_{d['dept']}_{d['mgr']}_{p['鋼瓶氣體種類']}_{p['購買日期']}_{p['年度氣體鋼瓶購買量(公斤)']}{ext}"
-                        drive_link = upload_to_drive(p["file"], f_name)
-                        pur_to_append.append({"填報時間": now_str, "系所": d['dept'], "實驗室老師": d['mgr'], "校區": d['campus'], "氣體鋼瓶所在位置實驗室門牌": d['room'], "鋼瓶氣體種類": p["鋼瓶氣體種類"], "購買日期": p["購買日期"], "年度氣體鋼瓶購買量(公斤)": p["年度氣體鋼瓶購買量(公斤)"], "購買單據連結": drive_link})
+                    
+                    # 🚀 寫回「無購買」紀錄，徹底解決後台漏抓問題
+                    if d['status'] == "有購買":
+                        for p in d['pur']:
+                            ext = os.path.splitext(p["file"].name)[1]
+                            f_name = f"{d['campus']}_{d['dept']}_{d['mgr']}_{p['鋼瓶氣體種類']}_{p['購買日期']}_{p['年度氣體鋼瓶購買量(公斤)']}{ext}"
+                            drive_link = upload_to_drive(p["file"], f_name)
+                            pur_to_append.append({
+                                "填報時間": now_str, "系所": d['dept'], "實驗室老師": d['mgr'], "校區": d['campus'], 
+                                "氣體鋼瓶所在位置實驗室門牌": d['room'], "年度有無購買": "有購買", 
+                                "鋼瓶氣體種類": p["鋼瓶氣體種類"], "購買日期": p["購買日期"], 
+                                "年度氣體鋼瓶購買量(公斤)": p["年度氣體鋼瓶購買量(公斤)"], "購買單據連結": drive_link
+                            })
+                    else:
+                        pur_to_append.append({
+                            "填報時間": now_str, "系所": d['dept'], "實驗室老師": d['mgr'], "校區": d['campus'], 
+                            "氣體鋼瓶所在位置實驗室門牌": d['room'], "年度有無購買": "無購買", 
+                            "鋼瓶氣體種類": "-", "購買日期": "-", 
+                            "年度氣體鋼瓶購買量(公斤)": 0, "購買單據連結": "-"
+                        })
+                        
                     if pur_to_append: append_dicts(ws_pur, pur_to_append)
                     
                     ws_trk.update_cell(st.session_state.row_idx, 11, "已回報")
