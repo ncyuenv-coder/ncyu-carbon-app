@@ -14,8 +14,12 @@ from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from gspread.utils import rowcol_to_a1
 import streamlit_authenticator as stauth
+
+# Word 處理與排版所需套件
 from docx import Document
-from docx.shared import Inches, Pt
+from docx.shared import Inches, Pt, Cm
+from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.oxml.ns import qn
 
 # ================= 系統與全域參數設定 =================
 st.set_page_config(page_title="溫室氣體盤查範疇之氣體鋼瓶購買盤查與追蹤管理", page_icon="📢", layout="wide")
@@ -143,7 +147,26 @@ def generate_styled_email_html(email_body_text, title="溫室氣體盤查 氣體
 @st.cache_data(ttl=600, show_spinner="產製佐證資料 Word 檔中 (包含單據圖片/PDF下載)...")
 def cached_create_proof_word(df_pur_dict, current_year):
     df_pur = pd.DataFrame(df_pur_dict)
-    doc = Document(); doc.add_heading(f'{current_year}年度氣體鋼瓶購買單據佐證資料', 0)
+    doc = Document()
+    
+    # --- 樣式與邊界設定 ---
+    # 設定中等邊界 (上下2.54cm, 左右1.91cm)
+    for section in doc.sections:
+        section.top_margin = Cm(2.54)
+        section.bottom_margin = Cm(2.54)
+        section.left_margin = Cm(1.91)
+        section.right_margin = Cm(1.91)
+        
+    # 設定全域字型 (英數 Times New Roman, 中文 標楷體)
+    for style_name in ['Normal', 'Heading 1', 'Heading 2', 'Title']:
+        if style_name in doc.styles:
+            style = doc.styles[style_name]
+            style.font.name = 'Times New Roman'
+            style._element.rPr.rFonts.set(qn('w:eastAsia'), '標楷體')
+
+    # 表頭標題與水平置中
+    h = doc.add_heading(f'{current_year}年度氣體鋼瓶購買單據佐證資料', 0)
+    h.alignment = WD_ALIGN_PARAGRAPH.CENTER
     
     df_pur['校區'] = df_pur.get('校區', '未分類校區')
     df_pur['購買量_數值'] = pd.to_numeric(df_pur['年度氣體鋼瓶購買量(公斤)'], errors='coerce').fillna(0)
@@ -186,24 +209,30 @@ def cached_create_proof_word(df_pur_dict, current_year):
                 try:
                     meta = drive_service.files().get(fileId=file_id, fields='mimeType, name').execute()
                     mime = meta.get('mimeType', '')
-                    if mime.startswith('image/'):
-                        request = drive_service.files().get_media(fileId=file_id)
-                        img_stream = io.BytesIO(request.execute())
-                        doc.add_picture(img_stream, width=Inches(6.0))
-                    elif mime == 'application/pdf':
-                        try:
+                    
+                    if mime.startswith('image/') or mime == 'application/pdf':
+                        p_img = doc.add_paragraph()
+                        p_img.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                        run_img = p_img.add_run()
+                        
+                        if mime.startswith('image/'):
                             request = drive_service.files().get_media(fileId=file_id)
-                            pdf_stream = io.BytesIO(request.execute())
-                            doc_pdf = fitz.open(stream=pdf_stream, filetype="pdf")
-                            if len(doc_pdf) > 0:
-                                page = doc_pdf.load_page(0)
-                                pix = page.get_pixmap(dpi=150)
-                                img_stream = io.BytesIO(pix.tobytes("png"))
-                                doc.add_picture(img_stream, width=Inches(6.0))
-                            else:
-                                doc.add_paragraph("⚠️ PDF檔為空或無法讀取")
-                        except Exception as e:
-                            doc.add_paragraph(f"⚠️ PDF轉檔圖片失敗，請點擊連結檢視：\n{link}")
+                            img_stream = io.BytesIO(request.execute())
+                            run_img.add_picture(img_stream, width=Cm(15.0)) # 圖片預設置中寬度
+                        elif mime == 'application/pdf':
+                            try:
+                                request = drive_service.files().get_media(fileId=file_id)
+                                pdf_stream = io.BytesIO(request.execute())
+                                doc_pdf = fitz.open(stream=pdf_stream, filetype="pdf")
+                                if len(doc_pdf) > 0:
+                                    page = doc_pdf.load_page(0)
+                                    pix = page.get_pixmap(dpi=150)
+                                    img_stream = io.BytesIO(pix.tobytes("png"))
+                                    run_img.add_picture(img_stream, height=Cm(18.0)) # PDF統一高度 18 公分
+                                else:
+                                    doc.add_paragraph("⚠️ PDF檔為空或無法讀取")
+                            except Exception as e:
+                                doc.add_paragraph(f"⚠️ PDF轉檔圖片失敗，請點擊連結檢視：\n{link}")
                     else: doc.add_paragraph(f"📎 附檔非圖片/PDF格式 ({meta.get('name', '未命名')})，請點擊下方連結檢視：\n{link}")
                 except Exception: doc.add_paragraph(f"📎 檔案讀取限制，請點擊連結檢視：\n{link}")
         elif link: doc.add_paragraph(f"📎 單據連結：\n{link}")
@@ -249,7 +278,8 @@ def render_dashboard(df_inv, df_pur):
     if not df_inv.empty:
         for dept in sorted(df_inv['系所'].astype(str).unique()):
             dept_inv = df_inv[df_inv['系所'] == dept]
-            with st.expander(f"📁 {dept} (共 {dept_inv['氣體鋼瓶所在位置實驗室門牌'].nunique()} 間實驗室)"):
+            # 展開區塊加入橘色數量標記
+            with st.expander(f"📁 {dept} (共 :orange[{dept_inv['氣體鋼瓶所在位置實驗室門牌'].nunique()}] 間實驗室)"):
                 st.markdown("<br>", unsafe_allow_html=True)
                 for idx, row in dept_inv.iterrows():
                     mgr = row.get('實驗室老師', ''); room = row.get('氣體鋼瓶所在位置實驗室門牌', ''); gas = row.get('鋼瓶氣體種類', '')
@@ -298,7 +328,6 @@ def main():
             is_test_mode = st.radio("寄送模式", ["🧪 測試寄信模式", "🚀 正式寄信模式"], horizontal=True) == "🧪 測試寄信模式"
             test_email = st.text_input("📩 測試接收信箱") if is_test_mode else ""
             
-            # 使用新的信件預設內容
             batch_subject = st.text_input("信件主旨", value="【重要通知】國立嘉義大學{批次名稱}")
             default_body = """{老師名稱}老師 您好：
 
@@ -368,12 +397,12 @@ def main():
             </div>
             """, unsafe_allow_html=True)
             
-            st.markdown("### ✉️ 一鍵稽催通知")
+            st.markdown("### ✉️ 稽催通知作業")
             follow_mode = st.radio("稽催發送模式", ["🧪 測試寄信模式", "🚀 正式寄信模式"], horizontal=True) == "🧪 測試寄信模式"
             f_test_email = st.text_input("📩 稽催測試接收信箱") if follow_mode else ""
             
-            # 動態稽催信件編輯區
             st.markdown("#### 📝 編輯稽催信件")
+            f_data_year = st.text_input("盤查年度 (供信件中 {年度} 變數替換使用)", value=f"{now_year_roc-1}年度")
             f_default_subject = "【稽催提醒】國立嘉義大學 {年度} 碳盤查範疇氣體鋼瓶資料尚未回報，敬請於O月O日前限期填報"
             f_default_body = """{系所} {老師名稱} 老師 您好：
  
@@ -397,11 +426,34 @@ def main():
             f_body = st.text_area("稽催信件內容", value=f_default_body, height=350)
             
             f_all_teachers = pending['實驗室老師'].unique().tolist()
-            f_selected_teachers = st.multiselect("🎯 選擇特定稽催對象 (若留空則依系所批次稽催)", f_all_teachers)
+            f_selected_teachers = st.multiselect("🎯 選擇特定稽催對象 (若留空則依系所批次/或全域稽催)", f_all_teachers)
             if f_selected_teachers: pending = pending[pending['實驗室老師'].isin(f_selected_teachers)]
             
             st.markdown("---")
             if not pending.empty:
+                # 一鍵發送全部按鈕
+                if st.button("🚀 一鍵稽催全部尚未回報老師", type="primary", use_container_width=True):
+                    if follow_mode and not f_test_email: st.error("請輸入測試信箱！")
+                    else:
+                        my_bar_f = st.progress(0, text="全面稽催處理中...")
+                        grouped_all = pending.groupby(['系所', '實驗室老師', '電子郵件'])
+                        f_count = 0; total_f = len(grouped_all)
+                        
+                        for idx, ((dept, mgr, email), group) in enumerate(grouped_all):
+                            target = f_test_email if follow_mode else email
+                            display_mgr = re.sub(r'^[a-zA-Z0-9]+\s+', '', str(mgr))
+                            display_mgr = display_mgr.replace("老師", "").strip()
+                            links_html = "".join([f'<div style="margin-bottom: 8px; background-color: #FDFBF7; padding: 10px; border-left: 5px solid #F39C12;">門牌 <b>{r["氣體鋼瓶所在位置實驗室門牌"]}</b>：<a href="{r["專屬填報網址"]}" style="color: #3498DB; font-weight: bold;">點此補登</a></div>' for _, r in group.iterrows()])
+                            
+                            mail_content = f_body.replace("{系所}", dept).replace("{老師名稱}", display_mgr).replace("{年度}", f_data_year).replace("{專屬填報連結區塊}", links_html)
+                            html_wrap = generate_styled_email_html(mail_content, title="氣體鋼瓶盤查 稽催提醒")
+                            subject_content = f_subject.replace("{年度}", f_data_year)
+                            
+                            if send_email_action(target, subject_content, html_wrap): f_count += 1
+                            my_bar_f.progress((idx+1)/total_f, text=f"發送中 ({idx+1}/{total_f})")
+                        st.success(f"✅ 全面稽催發送完成 (共寄出 {f_count} 封信)。")
+
+                # 個別系所區塊
                 for dept in pending['系所'].unique():
                     dept_pending = pending[pending['系所'] == dept]
                     with st.expander(f"🏢 {dept} (未回報 {len(dept_pending)} 間)"):
@@ -412,7 +464,7 @@ def main():
                                 ext_info = df_inv[(df_inv['系所']==dept) & (df_inv['實驗室老師']==mgr)]['分機'].iloc[0] if not df_inv.empty and len(df_inv[(df_inv['系所']==dept) & (df_inv['實驗室老師']==mgr)]) > 0 else "無資料"
                                 st.write(f"- **{mgr}** 老師 (分機: {ext_info})")
                         with col_btn:
-                            if st.button(f"✉️ 稽催 {dept}", key=f"f_{dept}"):
+                            if st.button(f"✉️ 獨立稽催 {dept}", key=f"f_{dept}"):
                                 if follow_mode and not f_test_email: st.error("請輸入測試信箱！")
                                 else:
                                     f_count = 0
@@ -422,10 +474,9 @@ def main():
                                         display_mgr = display_mgr.replace("老師", "").strip()
                                         links_html = "".join([f'<div style="margin-bottom: 8px; background-color: #FDFBF7; padding: 10px; border-left: 5px solid #F39C12;">門牌 <b>{r["氣體鋼瓶所在位置實驗室門牌"]}</b>：<a href="{r["專屬填報網址"]}" style="color: #3498DB; font-weight: bold;">點此補登</a></div>' for _, r in group.iterrows()])
                                         
-                                        # 替換動態文案變數
-                                        mail_content = f_body.replace("{系所}", dept).replace("{老師名稱}", display_mgr).replace("{年度}", sel_batch).replace("{專屬填報連結區塊}", links_html)
+                                        mail_content = f_body.replace("{系所}", dept).replace("{老師名稱}", display_mgr).replace("{年度}", f_data_year).replace("{專屬填報連結區塊}", links_html)
                                         html_wrap = generate_styled_email_html(mail_content, title="氣體鋼瓶盤查 稽催提醒")
-                                        subject_content = f_subject.replace("{年度}", sel_batch)
+                                        subject_content = f_subject.replace("{年度}", f_data_year)
                                         
                                         if send_email_action(target, subject_content, html_wrap): f_count += 1
                                     st.success(f"✅ {dept} 稽催發送完成 ({f_count} 封信)。")
@@ -510,7 +561,6 @@ def main():
                     campus_val = base_row['校區']
                     st.markdown('<div style="background-color: #8A9A8A; padding: 12px 20px; border-radius: 8px; margin-bottom: 20px; margin-top: 20px;"><h3 style="color: #FFFFFF; margin: 0; font-weight: 600;">🏢 場所基本資料 (編輯)</h3></div>', unsafe_allow_html=True)
                     ce1, ce2, ce3 = st.columns(3)
-                    # 解鎖前四項基本資料，允許異動
                     with ce1: u_dept = st.text_input("系所", value=sel_dept, key="u_dept")
                     with ce2: u_camp = st.selectbox("校區", CAMPUS_OPTS, index=CAMPUS_OPTS.index(campus_val) if campus_val in CAMPUS_OPTS else 0, key="u_camp")
                     with ce3: u_room = st.text_input("氣體鋼瓶所在位置實驗室門牌", value=room_sel, key="u_room")
@@ -549,7 +599,6 @@ def main():
                                 if u["orig_idx"] != -1:
                                     if u["delete"]: rows_to_delete.append(u["orig_idx"])
                                     else:
-                                        # 寫入更新的基本資料與庫存
                                         batch_data.append({'range': f"A{u['orig_idx']}", 'values': [[str(u_dept)]]})
                                         batch_data.append({'range': f"B{u['orig_idx']}", 'values': [[str(u_mgr)]]})
                                         batch_data.append({'range': f"C{u['orig_idx']}", 'values': [[str(u_camp)]]})
@@ -559,7 +608,6 @@ def main():
                                         batch_data.append({'range': f"H{u['orig_idx']}", 'values': [[u["qty"]]]})
                             
                             if new_gas != "請選擇":
-                                # 新增資料時，一併使用更新後的系所、老師等基本資料
                                 rows_to_append.append([str(u_dept), str(u_mgr), str(u_camp), str(u_room), str(e_mail), str(e_ext), new_gas, new_qty, new_year])
 
                             if batch_data: batch_update_safe(ws_inv, batch_data)
