@@ -51,8 +51,8 @@ ADDRESS_ORDER = {
 st.markdown(f"""
     <style>
     /* 修復頁首色差 */
-    [data-testid="stHeader"] {{ background-color: transparent !important; }}
-    .stApp {{ font-family: "Microsoft JhengHei", sans-serif; background-color: #F4F1EA; }} /* 已將背景色修正為高質感米灰色 */
+    [data-testid="stHeader"] { background-color: transparent !important; }
+    .stApp { font-family: "Microsoft JhengHei", sans-serif; background-color: #F4F6F7; } /* 換成帶冷色調的灰白，完美襯托藍色UI */
     
     /* 1. 分頁標籤按鈕 (統一深色質感與橘色點綴) */
     div[data-testid="stTabs"] button[data-baseweb="tab"] {{
