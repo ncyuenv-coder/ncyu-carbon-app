@@ -593,7 +593,7 @@ def render_tab2_edit():
 # 3. 主程式邏輯佈署
 # =========================================================
 def main():
-    st.subheader("⚡ 全校電力填報系統")
+    st.markdown('<div style="font-size: 2.4rem; font-weight: 900; color: #2C3E50; margin-bottom: 20px;">⚡ 全校電力填報系統</div>', unsafe_allow_html=True)
 
     tab1, tab2 = st.tabs(["📤 資料填報", "✏️ 資料異動"])
 
