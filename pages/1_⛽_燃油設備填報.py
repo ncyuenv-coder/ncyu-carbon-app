@@ -108,7 +108,7 @@ st.markdown("""
 <style>
     /* --- 全域設定 --- */
     :root { color-scheme: light; --orange-bg: #E67E22; --orange-dark: #D35400; --text-main: #2C3E50; --text-sub: #566573; --morandi-red: #C0392B; --kpi-gas: #52BE80; --kpi-diesel: #F4D03F; --kpi-total: #5DADE2; --kpi-co2: #AF7AC5; --morandi-blue: #34495E; --deep-gray: #333333; }
-    [data-testid="stAppViewContainer"] { background-color: #F4F6F7; color: var(--text-main); }
+    [data-testid="stAppViewContainer"] { background-color: #EAEDED; color: var(--text-main); }
     [data-testid="stHeader"] { background-color: rgba(0,0,0,0); }
     [data-testid="stSidebar"] { background-color: #FFFFFF; border-right: 1px solid #BDC3C7; }
     div[data-baseweb="input"] > div, div[data-baseweb="base-input"] > input, textarea, input { background-color: #FFFFFF !important; border-color: #BDC3C7 !important; color: #000000 !important; font-size: 1.15rem !important; }
@@ -117,16 +117,8 @@ st.markdown("""
     div.stButton > button, button[kind="primary"], [data-testid="stFormSubmitButton"] > button { background-color: var(--orange-bg) !important; color: #FFFFFF !important; border: 2px solid var(--orange-dark) !important; border-radius: 12px !important; font-size: 1.3rem !important; font-weight: 800 !important; padding: 0.7rem 1.5rem !important; box-shadow: 0 4px 6px rgba(230, 126, 34, 0.3) !important; width: 100%; }
     div.stButton > button p { color: #FFFFFF !important; } 
     div.stButton > button:hover, [data-testid="stFormSubmitButton"] > button:hover { background-color: var(--orange-dark) !important; transform: translateY(-2px) !important; color: #FFFFFF !important; }
-    
-    /* 頁籤 Tab 客製化樣式：統一深色質感與橘色點綴 */
-    div[data-testid="stTabs"] button[data-baseweb="tab"] { background-color: #384959 !important; border-radius: 8px 8px 0 0 !important; padding: 12px 25px !important; border: none !important; margin-right: 4px !important; }
-    div[data-testid="stTabs"] button[data-baseweb="tab"] > div { font-size: 20px !important; color: #FFFFFF !important; font-weight: 600 !important; }
-    div[data-testid="stTabs"] button[data-baseweb="tab"][aria-selected="true"] { background-color: #1D2631 !important; border-top: 4px solid #F39C12 !important; border-bottom: none !important; }
-    div[data-testid="stTabs"] button[data-baseweb="tab"][aria-selected="true"] > div { color: #F39C12 !important; }
-
-    /* 表單標籤 (填報人姓名等) 統一放大與粗體 */
-    div[data-testid="stWidgetLabel"] p { font-size: 1.2rem !important; font-weight: 900 !important; color: #2C3E50 !important; }
-
+    button[data-baseweb="tab"] div p { font-size: 1.3rem !important; font-weight: 900 !important; color: var(--text-sub); }
+    button[data-baseweb="tab"][aria-selected="true"] div p { color: #E67E22 !important; border-bottom: 3px solid #E67E22; }
     div[data-testid="stCheckbox"] label p { font-size: 1.05rem !important; color: #1F618D !important; font-weight: 800 !important; }
     [data-testid="stFileUploaderDropzone"] { background-color: #D6EAF8 !important; border: 2px dashed #2E86C1 !important; padding: 20px; border-radius: 12px; }
     [data-testid="stFileUploaderDropzone"] div, span, small { color: #154360 !important; font-weight: bold !important; }
@@ -178,25 +170,6 @@ st.markdown("""
     div[data-testid="stExpander"] > details > summary svg { color: #FFFFFF !important; fill: #FFFFFF !important; }
     div[data-testid="stExpander"] > details > summary:hover { background-color: #1A252F !important; }
     div[data-testid="stExpanderDetails"] { padding: 20px; background-color: #E5E8E8 !important; border-top: 1px solid #BDC3C7; border-radius: 0 0 12px 12px; }
-
-    /* 左側欄登出按鈕專屬樣式 (含深橘紅邊框設計) */
-    [data-testid="stSidebar"] div.stButton > button {
-        background-color: #E67E22 !important; 
-        color: #FFFFFF !important; 
-        border: 2px solid #D35400 !important; 
-        font-weight: 600 !important; 
-        font-size: 18px !important; 
-        padding: 10px 32px !important; 
-        border-radius: 8px !important;
-        width: 100% !important; 
-        margin-top: 15px !important;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
-    }
-    [data-testid="stSidebar"] div.stButton > button:hover {
-        background-color: #D35400 !important; 
-        border: 2px solid #BA4A00 !important; 
-        transform: translateY(-2px);
-    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -240,6 +213,8 @@ except:
     for sid in keys_to_delete:
         del active_users[sid]
         
+    
+    st.markdown("---")
     if not HAS_FITZ:
         st.warning("⚠️ 系統未偵測到 `PyMuPDF` 套件，PDF 截圖預覽功能將停用 (仍可下載附件)。\n請管理者執行 `pip install PyMuPDF`。")
 
@@ -852,7 +827,7 @@ def render_user_interface():
     if 'multi_row_count' not in st.session_state: st.session_state['multi_row_count'] = 1
     if 'reset_counter' not in st.session_state: st.session_state['reset_counter'] = 0
 
-    st.markdown('<div style="font-size: 2.4rem; font-weight: 900; color: #2C3E50; margin-bottom: 20px;">⛽ 燃油設備填報專區</div>', unsafe_allow_html=True)
+    st.markdown("### ⛽ 燃油設備填報專區")
     tabs = st.tabs(["📝 新增填報", "📊 動態查詢看板", "📋 單位申報明細"])
     
     # --- Tab 1: 填報 ---
@@ -928,7 +903,7 @@ def render_user_interface():
                                     batch_inputs[idx] = vol
                             
                             st.markdown("---")
-                            st.markdown("<div style='color: #1A5276; font-size: 1.4rem; font-weight: bold; margin-bottom: 10px;'>📂 上傳中油加油明細 (只需一份)</div>", unsafe_allow_html=True)
+                            st.markdown("<div style='color: #1A5276; font-size: 1.05rem; font-weight: bold; margin-bottom: 10px;'>📂 上傳中油加油明細 (只需一份)</div>", unsafe_allow_html=True)
                             
                             is_proof_shared = False
                             if selected_dept != "總務處事務組":
@@ -998,22 +973,9 @@ def render_user_interface():
                     selected_device = col_d.selectbox("🚜 車輛/機具名稱", devices, index=None, placeholder="請選擇車輛...", key=dynamic_key)
                     
                     if selected_device:
-                                    filtered = df_equip_yr[df_equip_yr['設備名稱備註'] == selected_device]
-                                    if not filtered.empty:
-                                        row = filtered.iloc[0]
-                                        info_html = f"""
-<div class="device-info-box" style="padding:0; overflow:hidden; border: 1px solid #BDC3C7; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 20px;">
-    <div style="background-color: #5D6D7E; color: white; padding: 12px 20px; font-size: 1.4rem; font-weight: 900;">📋 燃油設備基本資料</div>
-    <div style="display: flex; justify-content: space-around; padding: 20px 10px; background-color: #FFFFFF; font-size: 1.1rem;">
-        <div style="text-align: center; border-right: 1px solid #EAEDED; flex: 1;"><strong>🏢 部門</strong><br><span style="color:#2C3E50; font-weight:800; font-size:1.2rem;">{row.get('設備所屬單位/部門', '-')}</span></div>
-        <div style="text-align: center; border-right: 1px solid #EAEDED; flex: 1;"><strong>👤 保管人</strong><br><span style="color:#2C3E50; font-weight:800; font-size:1.2rem;">{row.get('保管人', '-')}</span></div>
-        <div style="text-align: center; border-right: 1px solid #EAEDED; flex: 1;"><strong>📍 位置</strong><br><span style="color:#2C3E50; font-weight:800; font-size:1.2rem;">{row.get('設備詳細位置/樓層', '-')}</span></div>
-        <div style="text-align: center; border-right: 1px solid #EAEDED; flex: 1;"><strong>⛽ 燃料</strong><br><span style="color:#2C3E50; font-weight:800; font-size:1.2rem;">{row.get('原燃物料名稱', '-')}</span></div>
-        <div style="text-align: center; flex: 1;"><strong>📊 數量</strong><br><span style="color:#C0392B; font-weight:900; font-size:1.3rem;">{row.get('設備數量', '-')}</span></div>
-    </div>
-</div>
-"""
-                                        st.markdown(info_html, unsafe_allow_html=True)
+                        row = filtered[filtered['設備名稱備註'] == selected_device].iloc[0]
+                        info_html = f"""<div class="device-info-box"><div style="border-bottom: 1px solid #BDC3C7; padding-bottom: 10px; margin-bottom: 10px; font-weight: bold; font-size: 1.2rem; color: #5DADE2;">📋 設備詳細資料</div><div><strong>🏢 部門：</strong>{row.get('設備所屬單位/部門', '-')}</div><div><strong>👤 保管人：</strong>{row.get('保管人', '-')}</div><div><strong>🔢 財產編號：</strong>{row.get('校內財產編號', '-')}</div><div><strong>📍 位置：</strong>{row.get('設備詳細位置/樓層', '-')}</div><div><strong>⛽ 燃料：</strong>{row.get('原燃物料名稱', '-')}</div><div><strong>📊 數量：</strong>{row.get('設備數量', '-')}</div></div>"""
+                        st.markdown(info_html, unsafe_allow_html=True)
                         st.markdown("#### 步驟 2：填報設備加油資訊")
                         
                         st.write("") 
@@ -1052,7 +1014,7 @@ def render_user_interface():
                                 is_shared = st.checkbox("與其他設備共用加油單")
                                 st.write("")
                                 
-                                st.markdown("<div style='color: #1A5276; font-size: 1.4rem; font-weight: bold; margin-bottom: 10px;'>📂 上傳佐證資料</div>", unsafe_allow_html=True)
+                                st.markdown("<div style='color: #1A5276; font-size: 1.05rem; font-weight: bold; margin-bottom: 10px;'>📂 上傳佐證資料</div>", unsafe_allow_html=True)
                                 st.markdown("""* **A. 請依填報加油日期之順序上傳檔案。**\n* **B. 一次多筆申報時，可採單張油單逐一按時序上傳，或依時序彙整成一個檔案後統一上傳。**\n* **C. 支援 png, jpg, jpeg, pdf (單檔最多3MB，最多可上傳10個檔案)。**""")
                                 f_files = st.file_uploader("選擇檔案", type=['png', 'jpg', 'jpeg', 'pdf'], accept_multiple_files=True, label_visibility="collapsed")
                                 
