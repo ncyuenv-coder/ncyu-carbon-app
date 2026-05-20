@@ -222,7 +222,7 @@ def cached_create_proof_word(df_pur_dict, current_year):
                             request = drive_service.files().get_media(fileId=file_id)
                             img_bytes = request.execute()
                             try:
-                                # 1. 讀取並校正手機 EXIF 旋轉 (確保直橫判定絕對正確)
+                                # 1. 讀取並校正手機 EXIF 旋轉
                                 img = Image.open(io.BytesIO(img_bytes))
                                 img = ImageOps.exif_transpose(img)
                                 w, h = img.size
@@ -235,29 +235,21 @@ def cached_create_proof_word(df_pur_dict, current_year):
                                 img.save(corrected_bytes, format=img_format)
                                 corrected_bytes.seek(0)
                                 
-                                # 3. 計算圖片物理尺寸 (防呆：無 DPI 資訊則預設 96)
-                                dpi_x, dpi_y = img.info.get('dpi', (96, 96))
-                                if dpi_x == 0 or dpi_y == 0: dpi_x, dpi_y = 96, 96
-                                phys_h_cm = (h / dpi_y) * 2.54
-                                phys_w_cm = (w / dpi_x) * 2.54
-                                
-                                # 4. 嚴謹判斷直/橫式並限制高度 (同時防止寬度超過邊界 17cm)
-                                if h > w: # 直式照片
-                                    if phys_h_cm > 18.0:
-                                        target_w = 18.0 * (w / h)
-                                        if target_w > 17.0: run_img.add_picture(corrected_bytes, width=Cm(17.0))
-                                        else: run_img.add_picture(corrected_bytes, height=Cm(18.0))
+                                # 3. 暴力判定法：不看 DPI，直接看像素長寬比來決定高度
+                                if w >= h: 
+                                    # 橫式或正方形 -> 目標高度 10 公分
+                                    target_w = 10.0 * (w / h)
+                                    if target_w > 17.0: # 防止全景圖太寬超過 Word 邊界
+                                        run_img.add_picture(corrected_bytes, width=Cm(17.0))
                                     else:
-                                        if phys_w_cm > 17.0: run_img.add_picture(corrected_bytes, width=Cm(17.0))
-                                        else: run_img.add_picture(corrected_bytes)
-                                else: # 橫式或正方形照片
-                                    if phys_h_cm > 10.0:
-                                        target_w = 10.0 * (w / h)
-                                        if target_w > 17.0: run_img.add_picture(corrected_bytes, width=Cm(17.0))
-                                        else: run_img.add_picture(corrected_bytes, height=Cm(10.0))
+                                        run_img.add_picture(corrected_bytes, height=Cm(10.0))
+                                else: 
+                                    # 直式 -> 目標高度 18 公分
+                                    target_w = 18.0 * (w / h)
+                                    if target_w > 17.0:
+                                        run_img.add_picture(corrected_bytes, width=Cm(17.0))
                                     else:
-                                        if phys_w_cm > 17.0: run_img.add_picture(corrected_bytes, width=Cm(17.0))
-                                        else: run_img.add_picture(corrected_bytes)
+                                        run_img.add_picture(corrected_bytes, height=Cm(18.0))
                             except Exception as e:
                                 # 若處理失敗的備案：統一塞入預設寬度
                                 run_img.add_picture(io.BytesIO(img_bytes), width=Cm(15.0))
