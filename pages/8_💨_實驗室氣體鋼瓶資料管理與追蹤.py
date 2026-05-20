@@ -260,9 +260,18 @@ def cached_create_proof_word(df_pur_dict, current_year):
                                 doc_pdf = fitz.open(stream=pdf_stream, filetype="pdf")
                                 if len(doc_pdf) > 0:
                                     page = doc_pdf.load_page(0)
+                                    
+                                    # 1. 讀取 PDF 頁面的實際像素寬高，智慧判斷直橫式
+                                    rect = page.rect
+                                    if rect.width > rect.height:
+                                        pdf_height = Cm(10.0)  # 橫式 PDF 調整為 10 公分
+                                    else:
+                                        pdf_height = Cm(18.0)  # 直式 PDF 維持 18 公分
+                                        
+                                    # 2. 將 PDF 轉為圖片並帶入對應的高度設定
                                     pix = page.get_pixmap(dpi=150)
                                     img_stream = io.BytesIO(pix.tobytes("png"))
-                                    run_img.add_picture(img_stream, height=Cm(18.0)) # PDF統一高度 18 公分
+                                    run_img.add_picture(img_stream, height=pdf_height)
                                 else:
                                     doc.add_paragraph("⚠️ PDF檔為空或無法讀取")
                             except Exception as e:
