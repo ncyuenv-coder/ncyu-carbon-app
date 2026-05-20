@@ -8,6 +8,7 @@ import time
 import io
 import re
 import fitz  # PyMuPDF 用於將 PDF 轉為圖片
+from PIL import Image  # 新增：用於取得 JPG/PNG 的尺寸與比例
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from google.oauth2.credentials import Credentials
@@ -65,9 +66,11 @@ def apply_morandi_theme():
         .metric-value { font-size: 48px; font-weight: bold; color: #000000 !important; padding: 15px; margin: 0; flex: 1; display: flex; align-items: baseline; justify-content: center; gap: 8px; flex-direction: row; white-space: nowrap;}
         
         /* 頁籤設計 */
-        div[data-baseweb="tab-list"] button { background-color: #A3B1A9 !important; border-radius: 8px 8px 0 0 !important; padding: 10px 25px !important; border: none !important; opacity: 0.8; }
+        div[data-baseweb="tab-list"] { gap: 4px; }
+        div[data-baseweb="tab-list"] button { background-color: #3B4A5A !important; border-radius: 8px 8px 0 0 !important; padding: 12px 25px !important; border: none !important; opacity: 1; }
         div[data-baseweb="tab-list"] button p { font-size: 20px !important; color: #FFFFFF !important; font-weight: 600 !important; }
-        div[data-baseweb="tab-list"] button[aria-selected="true"] { background-color: #71837A !important; opacity: 1; border-bottom: 3px solid #D4A373 !important; }
+        div[data-baseweb="tab-list"] button[aria-selected="true"] { background-color: #1A252D !important; border-top: 4px solid #E67E22 !important; border-bottom: none !important; }
+        div[data-baseweb="tab-list"] button[aria-selected="true"] p { color: #E67E22 !important; }
         
         /* 全域一般按鈕莫蘭迪化與放大 */
         div.stButton > button { background-color: #8A9A8A !important; color: #FFFFFF !important; border: none !important; font-weight: bold !important; font-size: 18px !important; padding: 12px 24px !important; border-radius: 8px !important; }
@@ -217,8 +220,27 @@ def cached_create_proof_word(df_pur_dict, current_year):
                         
                         if mime.startswith('image/'):
                             request = drive_service.files().get_media(fileId=file_id)
-                            img_stream = io.BytesIO(request.execute())
-                            run_img.add_picture(img_stream, width=Cm(15.0)) # 圖片預設置中寬度
+                            img_bytes = request.execute()
+                            try:
+                                # 讀取圖片資訊並計算實際物理高度 (公分)
+                                img = Image.open(io.BytesIO(img_bytes))
+                                w, h = img.size
+                                dpi_y = img.info.get('dpi', (72, 72))[1]
+                                phys_h_cm = (h / dpi_y) * 2.54
+                                
+                                if h > w: # 直式照片
+                                    if phys_h_cm > 18.0:
+                                        run_img.add_picture(io.BytesIO(img_bytes), height=Cm(18.0))
+                                    else:
+                                        run_img.add_picture(io.BytesIO(img_bytes))
+                                else: # 橫式或正方形照片
+                                    if phys_h_cm > 10.0:
+                                        run_img.add_picture(io.BytesIO(img_bytes), height=Cm(10.0))
+                                    else:
+                                        run_img.add_picture(io.BytesIO(img_bytes))
+                            except Exception:
+                                # 若無法讀取尺寸，設定防呆寬度
+                                run_img.add_picture(io.BytesIO(img_bytes), width=Cm(15.0))
                         elif mime == 'application/pdf':
                             try:
                                 request = drive_service.files().get_media(fileId=file_id)
