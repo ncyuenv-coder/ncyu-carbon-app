@@ -65,9 +65,9 @@ def apply_morandi_theme():
         .metric-value { font-size: 48px; font-weight: bold; color: #000000 !important; padding: 15px; margin: 0; flex: 1; display: flex; align-items: baseline; justify-content: center; gap: 8px; flex-direction: row; white-space: nowrap;}
         
         /* 頁籤設計 */
-        div[data-baseweb="tab-list"] button { background-color: #7F8C8D !important; border-radius: 8px 8px 0 0 !important; padding: 10px 25px !important; border: none !important; opacity: 0.8; }
+        div[data-baseweb="tab-list"] button { background-color: #A3B1A9 !important; border-radius: 8px 8px 0 0 !important; padding: 10px 25px !important; border: none !important; opacity: 0.8; }
         div[data-baseweb="tab-list"] button p { font-size: 20px !important; color: #FFFFFF !important; font-weight: 600 !important; }
-        div[data-baseweb="tab-list"] button[aria-selected="true"] { background-color: #5C6B73 !important; opacity: 1; border-bottom: 3px solid #9DB4AB !important; }
+        div[data-baseweb="tab-list"] button[aria-selected="true"] { background-color: #71837A !important; opacity: 1; border-bottom: 3px solid #D4A373 !important; }
         
         /* 全域一般按鈕莫蘭迪化與放大 */
         div.stButton > button { background-color: #8A9A8A !important; color: #FFFFFF !important; border: none !important; font-weight: bold !important; font-size: 18px !important; padding: 12px 24px !important; border-radius: 8px !important; }
@@ -278,8 +278,8 @@ def render_dashboard(df_inv, df_pur):
     if not df_inv.empty:
         for dept in sorted(df_inv['系所'].astype(str).unique()):
             dept_inv = df_inv[df_inv['系所'] == dept]
-            # 展開區塊加入橘色數量標記
-            with st.expander(f"📁 {dept} (共 :orange[{dept_inv['氣體鋼瓶所在位置實驗室門牌'].nunique()}] 間實驗室)"):
+            # 展開區塊數量標記 (改為純淨白色顯示)
+            with st.expander(f"📁 {dept} (共 {dept_inv['氣體鋼瓶所在位置實驗室門牌'].nunique()} 間實驗室)"):
                 st.markdown("<br>", unsafe_allow_html=True)
                 for idx, row in dept_inv.iterrows():
                     mgr = row.get('實驗室老師', ''); room = row.get('氣體鋼瓶所在位置實驗室門牌', ''); gas = row.get('鋼瓶氣體種類', '')
@@ -331,15 +331,15 @@ def main():
             batch_subject = st.text_input("信件主旨", value="【重要通知】國立嘉義大學{批次名稱}")
             default_body = """{老師名稱}老師 您好：
 
-依據環境部「事業應盤查登錄溫室氣體排放量之排放源」，自115年起，本校須依規定，於每年4月30日前完成前一年度溫室氣體排放量盤查登錄作業。
-因實驗室氣體鋼瓶(二氧化碳、乙炔、甲烷、笑氣)屬法定盤查範疇，請協助於O年O月O日前檢視與更新貴實驗室之基本資料、氣體鋼瓶庫存及使用量，並上傳{年度}之購買佐證單據，謝謝。
+依據環境部「事業應盤查登錄溫室氣體排放量之排放源」，自115年起，本校依規定，須於每年4月30日前完成前一年度溫室氣體排放量盤查登錄作業。
+因實驗室氣體鋼瓶(二氧化碳、乙炔、甲烷、笑氣)屬法定盤查範疇，請老師協助於O年O月O日前檢視與更新貴實驗室之基本資料、氣體鋼瓶庫存及{年度}購買量，並上傳{年度}之購買佐證單據，謝謝。
 
 📍 請由實驗室專屬確認連結進入填報與登錄：
 {links}
  
 🔔補充說明：
-．盤查範疇的氣體鋼瓶若放置於多個實驗室，建請一併填寫，如A32-101、A32-103、A32-105。
-．填報過程中若有任何疑問，或需要系統操作上的協助，請隨時與環安中心(#7137)聯繫，我們將竭誠為您服務。
+．氣體鋼瓶若放置於多個實驗室，建請一併填寫，如A32-101、A32-103、A32-105。
+．若有任何疑問或需要協助，歡迎與環安中心(#7137)聯繫，我們將竭誠為您服務。
 
 敬祝
 教安 順心
@@ -403,20 +403,20 @@ def main():
             
             st.markdown("#### 📝 編輯稽催信件")
             f_data_year = st.text_input("盤查年度 (供信件中 {年度} 變數替換使用)", value=f"{now_year_roc-1}年度")
-            f_default_subject = "【稽催提醒】國立嘉義大學 {年度} 碳盤查範疇氣體鋼瓶資料尚未回報，敬請於O月O日前限期填報"
-            f_default_body = """{系所} {老師名稱} 老師 您好：
+            f_default_subject = "【稽催提醒】國立嘉義大學{年度}碳盤查範疇氣體鋼瓶資料尚未回報，敬請於O月O日前限期填報"
+            f_default_body = """{系所} {老師名稱}老師 您好：
  
 環安中心前已發送「溫室氣體盤查範疇之氣體鋼瓶購買調查」通知，經查尚未收到貴實驗室之回報資料。
  
-因全校溫室氣體盤查登錄作業時程緊迫，為避免延誤本校向環境部依法申報進度，衍生罰鍰問題，請老師協助於 O年O月O日 前，撥冗檢視並填報貴實驗室之氣體鋼瓶（二氧化碳、乙炔、甲烷、笑氣）庫存、盤查年度購買量，並上傳 {年度} 之購買佐證單據。
+因全校溫室氣體盤查登錄作業時程緊迫，為避免延誤向環境部依法申報進度而衍生罰鍰問題，請老師協助於O年O月O日前，撥冗檢視及填報貴實驗室之氣體鋼瓶（二氧化碳、乙炔、甲烷、笑氣）庫存、{年度}購買量，並上傳{年度}之購買佐證單據。
 
 📍 請由實驗室專屬確認連結進入填報與登錄：
 {專屬填報連結區塊}
  
 🔔 補充說明：
-．無使用亦需填報：若貴實驗室未購買或無使用上述四種列管氣體，亦請點擊連結進入系統勾選「無使用」，以利系統註記完案。
+．若貴實驗室未購買或無使用上述四種列管氣體，亦請點擊連結進入系統勾選「無使用」，以利系統註記。
 ．若您已於近日完成填報，請直接忽略此提醒信件。
-填報過程中若有任何疑問，或需要系統操作上的協助，請隨時與環安中心 (#7137) 聯繫。
+．若有任何疑問或需要協助，歡迎與環安中心 (#7137) 聯繫。
  
 敬祝
 教安 順心
@@ -528,7 +528,7 @@ def main():
                     gc1, gc2, gc3 = st.columns(3)
                     with gc1: a_gas = st.selectbox("鋼瓶氣體種類", ["請選擇"] + GAS_TYPES, key=f"a_gas_{i}_{rk}")
                     with gc2: a_qty = st.number_input("鋼瓶數量", min_value=1, step=1, key=f"a_qty_{i}_{rk}")
-                    with gc3: a_year = st.text_input("建檔年度", value=f"{now_year_roc}年", key=f"a_yr_{i}_{rk}")
+                    with gc3: a_year = st.text_input("建檔年度", value=f"{datetime.datetime.now().year}年", key=f"a_yr_{i}_{rk}")
                     gas_entries.append({"gas": a_gas, "qty": a_qty, "year": a_year})
                     st.markdown("<hr style='border-top: 1px dashed #B8A9C9; margin: 15px 0;'>", unsafe_allow_html=True)
             
@@ -589,7 +589,7 @@ def main():
                     
                     with ac1: new_gas = st.selectbox("選擇新增氣體", ["請選擇"] + available_gases, key=f"new_gas_{mgr_sel}_{room_sel}")
                     with ac2: new_qty = st.number_input("新增氣體數量", min_value=1, step=1, key=f"new_qty_{mgr_sel}_{room_sel}")
-                    with ac3: new_year = st.text_input("建檔年度", value=f"{now_year_roc}年", key=f"new_yr_{mgr_sel}_{room_sel}")
+                    with ac3: new_year = st.text_input("建檔年度", value=f"{datetime.datetime.now().year}年", key=f"new_yr_{mgr_sel}_{room_sel}")
                         
                     st.markdown("<br>", unsafe_allow_html=True)
                     if st.button("💾 儲存所有異動", type="primary", use_container_width=True):
