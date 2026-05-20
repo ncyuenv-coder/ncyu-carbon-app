@@ -234,10 +234,8 @@ def cached_create_proof_word(df_pur_dict, current_year):
                                     else:
                                         run_img.add_picture(io.BytesIO(img_bytes))
                                 else: # 橫式或正方形照片
-                                    if phys_h_cm > 10.0:
-                                        run_img.add_picture(io.BytesIO(img_bytes), height=Cm(10.0))
-                                    else:
-                                        run_img.add_picture(io.BytesIO(img_bytes))
+                                    # 捨棄不準確的物理尺寸判斷，強制預設高度為 10 公分 (Word會自動等比例縮放)
+                                    run_img.add_picture(io.BytesIO(img_bytes), height=Cm(10.0))
                             except Exception:
                                 # 若無法讀取尺寸，設定防呆寬度
                                 run_img.add_picture(io.BytesIO(img_bytes), width=Cm(15.0))
