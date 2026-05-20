@@ -162,6 +162,26 @@ st.markdown("""
     div[data-testid="stTabs"] button[data-baseweb="tab"][aria-selected="true"] > div {
         color: #F39C12 !important;
     }
+
+    /* ========================================================= */
+    /* 左側欄登出按鈕專屬樣式 (橘色滿版設計)                     */
+    /* ========================================================= */
+    [data-testid="stSidebar"] div.stButton > button {
+        background-color: #E67E22 !important; 
+        color: #FFFFFF !important; 
+        border: none !important; 
+        font-weight: 600 !important; 
+        font-size: 18px !important; 
+        padding: 10px 32px !important; 
+        border-radius: 8px !important;
+        width: 100% !important; 
+        margin-top: 15px !important;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
+    }
+    [data-testid="stSidebar"] div.stButton > button:hover {
+        background-color: #D35400 !important; 
+        transform: translateY(-2px);
+    }
     </style>
 """, unsafe_allow_html=True)
 
