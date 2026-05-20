@@ -84,8 +84,31 @@ st.markdown("""
     div.stButton > button, button[kind="primary"], [data-testid="stFormSubmitButton"] > button { background-color: var(--orange-bg) !important; color: #FFFFFF !important; border: 2px solid var(--orange-dark) !important; border-radius: 12px !important; font-size: 1.3rem !important; font-weight: 800 !important; padding: 0.7rem 1.5rem !important; box-shadow: 0 4px 6px rgba(230, 126, 34, 0.3) !important; width: 100%; }
     div.stButton > button p { color: #FFFFFF !important; } 
     div.stButton > button:hover, [data-testid="stFormSubmitButton"] > button:hover { background-color: var(--orange-dark) !important; transform: translateY(-2px) !important; color: #FFFFFF !important; }
-    button[data-baseweb="tab"] div p { font-size: 1.3rem !important; font-weight: 900 !important; color: var(--text-sub); }
-    button[data-baseweb="tab"][aria-selected="true"] div p { color: #E67E22 !important; border-bottom: 3px solid #E67E22; }
+    
+    /* ========================================================= */
+    /* 頁籤 Tab 客製化樣式：統一深色質感與橘色點綴  */
+    /* ========================================================= */
+    div[data-testid="stTabs"] button[data-baseweb="tab"] {
+        background-color: #384959 !important; 
+        border-radius: 8px 8px 0 0 !important;
+        padding: 12px 25px !important;
+        border: none !important;
+        margin-right: 4px !important;
+    }
+    div[data-testid="stTabs"] button[data-baseweb="tab"] > div {
+        font-size: 20px !important; 
+        color: #FFFFFF !important;
+        font-weight: 600 !important;
+    }
+    div[data-testid="stTabs"] button[data-baseweb="tab"][aria-selected="true"] {
+        background-color: #1D2631 !important; 
+        border-top: 4px solid #F39C12 !important;
+        border-bottom: none !important; 
+    }
+    div[data-testid="stTabs"] button[data-baseweb="tab"][aria-selected="true"] > div {
+        color: #F39C12 !important;
+    }
+
     div[data-testid="stCheckbox"] label p { font-size: 1.05rem !important; color: #1F618D !important; font-weight: 800 !important; }
     [data-testid="stFileUploaderDropzone"] { background-color: #D6EAF8 !important; border: 2px dashed #2E86C1 !important; padding: 20px; border-radius: 12px; }
     [data-testid="stFileUploaderDropzone"] div, span, small { color: #154360 !important; font-weight: bold !important; }
@@ -105,6 +128,27 @@ st.markdown("""
     .info-icon { margin-right: 12px; font-size: 1.2rem; width: 30px; text-align: center; }
     .info-label { font-weight: 700; margin-right: 10px; min-width: 160px; color: #2E4053; }
     .info-value { font-weight: 500; color: #17202A; flex: 1; line-height: 1.6; }
+
+    /* ========================================================= */
+    /* 左側欄登出按鈕專屬樣式 (含深橘紅邊框設計)                 */
+    /* ========================================================= */
+    [data-testid="stSidebar"] div.stButton > button {
+        background-color: #E67E22 !important; 
+        color: #FFFFFF !important; 
+        border: 2px solid #D35400 !important; 
+        font-weight: 600 !important; 
+        font-size: 18px !important; 
+        padding: 10px 32px !important; 
+        border-radius: 8px !important;
+        width: 100% !important; 
+        margin-top: 15px !important;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
+    }
+    [data-testid="stSidebar"] div.stButton > button:hover {
+        background-color: #D35400 !important; 
+        border: 2px solid #BA4A00 !important; 
+        transform: translateY(-2px);
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -132,9 +176,6 @@ try:
     authenticator = stauth.Authenticate(credentials_login, cookie_cfg["name"], cookie_cfg["key"], cookie_cfg["expiry_days"])
 except:
     pass
-
-    
-    st.markdown("---")
 
 # 3. 資料庫連線
 REF_SHEET_ID = "1p7GsW-nrjerXhnn3pNgZzu_CdIh1Yxsm-fLJDqQ6MqA"
@@ -522,7 +563,7 @@ def render_dashboard_fragment(df_records, gwp_map):
 # 5. 主程式 (前台填報與看板)
 # ==========================================
 def render_user_interface():
-    st.markdown("### ❄️ 冷媒填報專區")
+    st.markdown('<div style="font-size: 2.4rem; font-weight: 900; color: #2C3E50; margin-bottom: 20px;">❄️ 冷媒填報專區</div>', unsafe_allow_html=True)
     tabs = st.tabs(["📝 新增填報", "📋 申報動態查詢"])
 
     with tabs[0]:
