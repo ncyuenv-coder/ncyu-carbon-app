@@ -175,6 +175,27 @@ st.markdown("""
     .visual-table td { padding: 10px; border: 1px solid #EAEDED; color: #34495E; }
     
     .edit-card-header { font-size: 1.3rem; font-weight: 900; color: #2C3E50; border-bottom: 2px solid #E67E22; padding-bottom: 10px; margin-bottom: 15px; }
+
+    /* ========================================================= */
+    /* 左側欄登出按鈕專屬樣式 (含深橘紅邊框設計)                 */
+    /* ========================================================= */
+    [data-testid="stSidebar"] div.stButton > button {
+        background-color: #E67E22 !important; 
+        color: #FFFFFF !important; 
+        border: 2px solid #D35400 !important; 
+        font-weight: 600 !important; 
+        font-size: 18px !important; 
+        padding: 10px 32px !important; 
+        border-radius: 8px !important;
+        width: 100% !important; 
+        margin-top: 15px !important;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
+    }
+    [data-testid="stSidebar"] div.stButton > button:hover {
+        background-color: #D35400 !important; 
+        border: 2px solid #BA4A00 !important; 
+        transform: translateY(-2px);
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -870,7 +891,7 @@ def render_tab3_edit_records(df_records, rec_cols, ws_title):
 # 6. 主程式入口
 # ==========================================
 def main():
-    st.markdown('<div class="dashboard-main-title">🔍 燃油資料檢視與確認專區 <span style="font-size: 1.5rem; color: #5D6D7E; font-weight: 600;">(Data Verification & Audit Area)</span></div>', unsafe_allow_html=True)
+    st.markdown('<div style="font-size: 2.4rem; font-weight: 900; color: #2C3E50; margin-bottom: 20px;">⛽ 燃油資料檢視與確認專區 (Data Verification & Audit Area)</div>', unsafe_allow_html=True)
     
     admin_tabs = st.tabs([
         "🗄️ 燃油設備單位資料庫管理",
