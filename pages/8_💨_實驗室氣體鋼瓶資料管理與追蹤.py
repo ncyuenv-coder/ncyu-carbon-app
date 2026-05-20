@@ -7,6 +7,7 @@ import smtplib
 import time
 import io
 import re
+import fitz  # PyMuPDF 用於將 PDF 轉為圖片
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from google.oauth2.credentials import Credentials
@@ -67,7 +68,7 @@ def apply_morandi_theme():
         /* 全域一般按鈕莫蘭迪化與放大 */
         div.stButton > button { background-color: #8A9A8A !important; color: #FFFFFF !important; border: none !important; font-weight: bold !important; font-size: 18px !important; padding: 12px 24px !important; border-radius: 8px !important; }
         div.stButton > button:hover { background-color: #707F70 !important; }
-        div.stDownloadButton > button { background-color: #8A9A8A !important; color: #FFFFFF !important; border: none !important; font-weight: bold !important; font-size: 22px !important; padding: 12px 24px !important; border-radius: 8px !important; }
+        div.stDownloadButton > button { background-color: #8A9A8A !important; color: #FFFFFF !important; border: none !important; font-weight: bold !important; font-size: 24px !important; padding: 12px 24px !important; border-radius: 8px !important; }
         div.stDownloadButton > button:hover { background-color: #707F70 !important; }
         button[kind="primary"] { background-color: #5C6B73 !important; }
         button[kind="primary"]:hover { background-color: #4A565C !important; }
@@ -139,10 +140,10 @@ def generate_styled_email_html(email_body_text, title="溫室氣體盤查 氣體
     html_content = email_body_text.replace("\n", "<br>")
     return f"<html><body style='font-family: Arial, sans-serif; line-height: 1.6; color: #333; font-size: 15px;'><div style='max-width: 600px; margin: 0 auto; border: 1px solid #ddd; border-radius: 10px; overflow: hidden;'><div style='background-color: #5C6B73; color: white; padding: 15px 20px; text-align: center;'><h2 style='margin: 0;'>{title}</h2></div><div style='padding: 20px;'>{html_content}</div></div></body></html>"
 
-@st.cache_data(ttl=600, show_spinner="產製佐證資料 Word 檔中 (包含單據圖片下載)...")
+@st.cache_data(ttl=600, show_spinner="產製佐證資料 Word 檔中 (包含單據圖片/PDF下載)...")
 def cached_create_proof_word(df_pur_dict, current_year):
     df_pur = pd.DataFrame(df_pur_dict)
-    doc = Document(); doc.add_heading(f'{current_year}年度氣體鋼瓶購買單據佐證資料(範例)', 0)
+    doc = Document(); doc.add_heading(f'{current_year}年度氣體鋼瓶購買單據佐證資料', 0)
     
     df_pur['校區'] = df_pur.get('校區', '未分類校區')
     df_pur['購買量_數值'] = pd.to_numeric(df_pur['年度氣體鋼瓶購買量(公斤)'], errors='coerce').fillna(0)
@@ -189,8 +190,22 @@ def cached_create_proof_word(df_pur_dict, current_year):
                         request = drive_service.files().get_media(fileId=file_id)
                         img_stream = io.BytesIO(request.execute())
                         doc.add_picture(img_stream, width=Inches(6.0))
-                    else: doc.add_paragraph(f"📎 附檔非圖片格式 ({meta.get('name', '未命名')})，請點擊下方連結檢視：\n{link}")
-                except Exception: doc.add_paragraph(f"📎 圖片讀取限制，請點擊連結檢視：\n{link}")
+                    elif mime == 'application/pdf':
+                        try:
+                            request = drive_service.files().get_media(fileId=file_id)
+                            pdf_stream = io.BytesIO(request.execute())
+                            doc_pdf = fitz.open(stream=pdf_stream, filetype="pdf")
+                            if len(doc_pdf) > 0:
+                                page = doc_pdf.load_page(0)
+                                pix = page.get_pixmap(dpi=150)
+                                img_stream = io.BytesIO(pix.tobytes("png"))
+                                doc.add_picture(img_stream, width=Inches(6.0))
+                            else:
+                                doc.add_paragraph("⚠️ PDF檔為空或無法讀取")
+                        except Exception as e:
+                            doc.add_paragraph(f"⚠️ PDF轉檔圖片失敗，請點擊連結檢視：\n{link}")
+                    else: doc.add_paragraph(f"📎 附檔非圖片/PDF格式 ({meta.get('name', '未命名')})，請點擊下方連結檢視：\n{link}")
+                except Exception: doc.add_paragraph(f"📎 檔案讀取限制，請點擊連結檢視：\n{link}")
         elif link: doc.add_paragraph(f"📎 單據連結：\n{link}")
         else: doc.add_paragraph("⚠️ 無購買單據連結")
         doc.add_page_break()
@@ -216,17 +231,18 @@ def render_dashboard(df_inv, df_pur):
     tot_labs = df_inv['氣體鋼瓶所在位置實驗室門牌'].nunique() if not df_inv.empty else 0
     gas_counts = df_inv.groupby('鋼瓶氣體種類')['氣體鋼瓶所在位置實驗室門牌'].nunique().to_dict() if not df_inv.empty else {}
     
-    gas_summary_items = [f'<span style="font-size: 20px; font-weight: bold;">{k}</span> <span style="font-size: 48px; color: #000;">{v}</span> <span style="font-size: 20px;">間</span>' for k, v in gas_counts.items()]
+    # 莫蘭迪橘色 #C06C47
+    gas_summary_items = [f'<span style="font-size: 20px; font-weight: bold;">{k}</span> <span style="font-size: 48px; color: #C06C47;">{v}</span> <span style="font-size: 20px;">間</span>' for k, v in gas_counts.items()]
     gas_summary_html = ' <span style="font-size: 30px; color: #9DB4AB; margin: 0 15px;">｜</span> '.join(gas_summary_items)
     
     co2_kg = pd.to_numeric(df_year[df_year['鋼瓶氣體種類'] == '二氧化碳']['年度氣體鋼瓶購買量(公斤)'], errors='coerce').fillna(0).sum() if not df_year.empty else 0
     acet_kg = pd.to_numeric(df_year[df_year['鋼瓶氣體種類'] == '乙炔']['年度氣體鋼瓶購買量(公斤)'], errors='coerce').fillna(0).sum() if not df_year.empty else 0
     
     c1, c2, c3, c4 = st.columns(4)
-    c1.markdown(f"""<div class="metric-card"><div class="metric-title">盤查範疇之氣體鋼瓶實驗室總數量</div><div class="metric-value"><span style="white-space: nowrap;"><span style="font-size: 48px; color: #000;">{tot_labs}</span> <span style="font-size: 20px;">間</span></span></div></div>""", unsafe_allow_html=True)
+    c1.markdown(f"""<div class="metric-card"><div class="metric-title">盤查範疇之氣體鋼瓶實驗室總數量</div><div class="metric-value"><span style="white-space: nowrap;"><span style="font-size: 48px; color: #C06C47;">{tot_labs}</span> <span style="font-size: 20px;">間</span></span></div></div>""", unsafe_allow_html=True)
     c2.markdown(f"""<div class="metric-card"><div class="metric-title">盤查範疇之氣體鋼瓶種類及實驗室數量</div><div class="metric-value"><span style="white-space: nowrap;">{gas_summary_html}</span></div></div>""", unsafe_allow_html=True)
-    c3.markdown(f"""<div class="metric-card"><div class="metric-title">二氧化碳鋼瓶年度購買量</div><div class="metric-value"><span style="white-space: nowrap;"><span style="font-size: 48px; color: #000;">{co2_kg:,.2f}</span> <span style="font-size: 20px;">公斤</span></span></div></div>""", unsafe_allow_html=True)
-    c4.markdown(f"""<div class="metric-card"><div class="metric-title">乙炔鋼瓶年度購買量</div><div class="metric-value"><span style="white-space: nowrap;"><span style="font-size: 48px; color: #000;">{acet_kg:,.2f}</span> <span style="font-size: 20px;">公斤</span></span></div></div>""", unsafe_allow_html=True)
+    c3.markdown(f"""<div class="metric-card"><div class="metric-title">二氧化碳鋼瓶年度購買量</div><div class="metric-value"><span style="white-space: nowrap;"><span style="font-size: 48px; color: #C06C47;">{co2_kg:,.2f}</span> <span style="font-size: 20px;">公斤</span></span></div></div>""", unsafe_allow_html=True)
+    c4.markdown(f"""<div class="metric-card"><div class="metric-title">乙炔鋼瓶年度購買量</div><div class="metric-value"><span style="white-space: nowrap;"><span style="font-size: 48px; color: #C06C47;">{acet_kg:,.2f}</span> <span style="font-size: 20px;">公斤</span></span></div></div>""", unsafe_allow_html=True)
     
     st.markdown("---")
     
@@ -281,8 +297,26 @@ def main():
             data_year_roc = st.text_input("📅 盤查年度", value=f"{now_year_roc-1}年度")
             is_test_mode = st.radio("寄送模式", ["🧪 測試寄信模式", "🚀 正式寄信模式"], horizontal=True) == "🧪 測試寄信模式"
             test_email = st.text_input("📩 測試接收信箱") if is_test_mode else ""
-            batch_subject = st.text_input("信件主旨", value="國立嘉義大學 {批次名稱}")
-            batch_body = st.text_area("信件內容", value="{老師名稱}老師 您好：\n\n為配合溫室氣體盤查作業，請協助檢視與更新貴實驗室之基本資料、氣體鋼瓶庫存及使用量，並上傳{年度}之購買佐證單據。\n\n📍 您所管理的實驗室專屬確認連結如下：\n{links}\n\n⚠️ 提醒：若老師將盤查範疇之鋼瓶放置多個位置，請一併填寫，如A32-101、A32-103、A32-105。\n本信件由系統自動發送，請勿直接回覆。", height=220)
+            
+            # 使用新的信件預設內容
+            batch_subject = st.text_input("信件主旨", value="【重要通知】國立嘉義大學{批次名稱}")
+            default_body = """{老師名稱}老師 您好：
+
+依據環境部「事業應盤查登錄溫室氣體排放量之排放源」，自115年起，本校須依規定，於每年4月30日前完成前一年度溫室氣體排放量盤查登錄作業。
+因實驗室氣體鋼瓶(二氧化碳、乙炔、甲烷、笑氣)屬法定盤查範疇，請協助於O年O月O日前檢視與更新貴實驗室之基本資料、氣體鋼瓶庫存及使用量，並上傳{年度}之購買佐證單據，謝謝。
+
+📍 請由實驗室專屬確認連結進入填報與登錄：
+{links}
+ 
+🔔補充說明：
+．盤查範疇的氣體鋼瓶若放置於多個實驗室，建請一併填寫，如A32-101、A32-103、A32-105。
+．填報過程中若有任何疑問，或需要系統操作上的協助，請隨時與環安中心(#7137)聯繫，我們將竭誠為您服務。
+
+敬祝
+教安 順心
+環安中心環保組 敬上
+(本信件由系統自動發送，請勿直接回覆)"""
+            batch_body = st.text_area("信件內容", value=default_body, height=350)
             
             if st.button("🚀 產生金鑰並發送通知信", type="primary"):
                 if is_test_mode and not test_email: st.error("請輸入測試信箱！")
@@ -338,10 +372,35 @@ def main():
             follow_mode = st.radio("稽催發送模式", ["🧪 測試寄信模式", "🚀 正式寄信模式"], horizontal=True) == "🧪 測試寄信模式"
             f_test_email = st.text_input("📩 稽催測試接收信箱") if follow_mode else ""
             
+            # 動態稽催信件編輯區
+            st.markdown("#### 📝 編輯稽催信件")
+            f_default_subject = "【稽催提醒】國立嘉義大學 {年度} 碳盤查範疇氣體鋼瓶資料尚未回報，敬請於O月O日前限期填報"
+            f_default_body = """{系所} {老師名稱} 老師 您好：
+ 
+環安中心前已發送「溫室氣體盤查範疇之氣體鋼瓶購買調查」通知，經查尚未收到貴實驗室之回報資料。
+ 
+因全校溫室氣體盤查登錄作業時程緊迫，為避免延誤本校向環境部依法申報進度，衍生罰鍰問題，請老師協助於 O年O月O日 前，撥冗檢視並填報貴實驗室之氣體鋼瓶（二氧化碳、乙炔、甲烷、笑氣）庫存、盤查年度購買量，並上傳 {年度} 之購買佐證單據。
+
+📍 請由實驗室專屬確認連結進入填報與登錄：
+{專屬填報連結區塊}
+ 
+🔔 補充說明：
+．無使用亦需填報：若貴實驗室未購買或無使用上述四種列管氣體，亦請點擊連結進入系統勾選「無使用」，以利系統註記完案。
+．若您已於近日完成填報，請直接忽略此提醒信件。
+填報過程中若有任何疑問，或需要系統操作上的協助，請隨時與環安中心 (#7137) 聯繫。
+ 
+敬祝
+教安 順心
+環安中心環保組 敬上
+(本信件由系統自動發送，請勿直接回覆)"""
+            f_subject = st.text_input("稽催信件主旨", value=f_default_subject)
+            f_body = st.text_area("稽催信件內容", value=f_default_body, height=350)
+            
             f_all_teachers = pending['實驗室老師'].unique().tolist()
             f_selected_teachers = st.multiselect("🎯 選擇特定稽催對象 (若留空則依系所批次稽催)", f_all_teachers)
             if f_selected_teachers: pending = pending[pending['實驗室老師'].isin(f_selected_teachers)]
             
+            st.markdown("---")
             if not pending.empty:
                 for dept in pending['系所'].unique():
                     dept_pending = pending[pending['系所'] == dept]
@@ -360,11 +419,15 @@ def main():
                                     for (mgr, email), group in grouped_pending:
                                         target = f_test_email if follow_mode else email
                                         display_mgr = re.sub(r'^[a-zA-Z0-9]+\s+', '', str(mgr))
-                                        display_mgr = f"{display_mgr} 老師" if "老師" not in display_mgr else display_mgr
+                                        display_mgr = display_mgr.replace("老師", "").strip()
                                         links_html = "".join([f'<div style="margin-bottom: 8px; background-color: #FDFBF7; padding: 10px; border-left: 5px solid #F39C12;">門牌 <b>{r["氣體鋼瓶所在位置實驗室門牌"]}</b>：<a href="{r["專屬填報網址"]}" style="color: #3498DB; font-weight: bold;">點此補登</a></div>' for _, r in group.iterrows()])
-                                        msg_body = f"{dept} {display_mgr} 您好：<br><br>為配合校內溫室氣體盤查作業，本系統前已發送氣體鋼瓶資料確認通知。<br>經查系統目前<b>尚未收到</b>您的庫存與購買盤查資料。<br><br>為避免影響全校盤查進度，敬請撥冗點擊下方專屬連結完成填報作業（若已填報請忽略此信）：<br><br>{links_html}<br>感謝您的配合與協助！"
-                                        html_wrap = generate_styled_email_html(msg_body, title="氣體鋼瓶盤查 稽催提醒")
-                                        if send_email_action(target, f"【稽催通知】國立嘉義大學 {sel_batch} 氣體鋼瓶資料尚未回報", html_wrap): f_count += 1
+                                        
+                                        # 替換動態文案變數
+                                        mail_content = f_body.replace("{系所}", dept).replace("{老師名稱}", display_mgr).replace("{年度}", sel_batch).replace("{專屬填報連結區塊}", links_html)
+                                        html_wrap = generate_styled_email_html(mail_content, title="氣體鋼瓶盤查 稽催提醒")
+                                        subject_content = f_subject.replace("{年度}", sel_batch)
+                                        
+                                        if send_email_action(target, subject_content, html_wrap): f_count += 1
                                     st.success(f"✅ {dept} 稽催發送完成 ({f_count} 封信)。")
 
     with tab3:
@@ -447,11 +510,12 @@ def main():
                     campus_val = base_row['校區']
                     st.markdown('<div style="background-color: #8A9A8A; padding: 12px 20px; border-radius: 8px; margin-bottom: 20px; margin-top: 20px;"><h3 style="color: #FFFFFF; margin: 0; font-weight: 600;">🏢 場所基本資料 (編輯)</h3></div>', unsafe_allow_html=True)
                     ce1, ce2, ce3 = st.columns(3)
-                    with ce1: st.text_input("系所", value=sel_dept, disabled=True, key="dis_dept")
-                    with ce2: st.text_input("校區", value=campus_val, disabled=True, key="dis_camp")
-                    with ce3: st.text_input("氣體鋼瓶所在位置實驗室門牌", value=room_sel, disabled=True, key="dis_room")
+                    # 解鎖前四項基本資料，允許異動
+                    with ce1: u_dept = st.text_input("系所", value=sel_dept, key="u_dept")
+                    with ce2: u_camp = st.selectbox("校區", CAMPUS_OPTS, index=CAMPUS_OPTS.index(campus_val) if campus_val in CAMPUS_OPTS else 0, key="u_camp")
+                    with ce3: u_room = st.text_input("氣體鋼瓶所在位置實驗室門牌", value=room_sel, key="u_room")
                     ce4, ce5, ce6 = st.columns(3)
-                    with ce4: st.text_input("實驗室老師", value=mgr_sel, disabled=True, key="dis_mgr")
+                    with ce4: u_mgr = st.text_input("實驗室老師", value=mgr_sel, key="u_mgr")
                     with ce5: e_mail = st.text_input("電子郵件", value=str(base_row['電子郵件']), key=f"e_m_{mgr_sel}_{room_sel}")
                     with ce6: e_ext = st.text_input("分機", value=str(base_row['分機']), key=f"e_e_{mgr_sel}_{room_sel}")
                     
@@ -485,12 +549,18 @@ def main():
                                 if u["orig_idx"] != -1:
                                     if u["delete"]: rows_to_delete.append(u["orig_idx"])
                                     else:
+                                        # 寫入更新的基本資料與庫存
+                                        batch_data.append({'range': f"A{u['orig_idx']}", 'values': [[str(u_dept)]]})
+                                        batch_data.append({'range': f"B{u['orig_idx']}", 'values': [[str(u_mgr)]]})
+                                        batch_data.append({'range': f"C{u['orig_idx']}", 'values': [[str(u_camp)]]})
+                                        batch_data.append({'range': f"D{u['orig_idx']}", 'values': [[str(u_room)]]})
                                         batch_data.append({'range': f"E{u['orig_idx']}", 'values': [[str(e_mail)]]})
                                         batch_data.append({'range': f"F{u['orig_idx']}", 'values': [[str(e_ext)]]})
                                         batch_data.append({'range': f"H{u['orig_idx']}", 'values': [[u["qty"]]]})
                             
                             if new_gas != "請選擇":
-                                rows_to_append.append([sel_dept, mgr_sel, campus_val, room_sel, str(e_mail), str(e_ext), new_gas, new_qty, new_year])
+                                # 新增資料時，一併使用更新後的系所、老師等基本資料
+                                rows_to_append.append([str(u_dept), str(u_mgr), str(u_camp), str(u_room), str(e_mail), str(e_ext), new_gas, new_qty, new_year])
 
                             if batch_data: batch_update_safe(ws_inv, batch_data)
                             for r_idx in sorted(rows_to_delete, reverse=True): safe_delete_row(ws_inv, r_idx)
