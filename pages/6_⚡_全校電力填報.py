@@ -140,24 +140,27 @@ st.markdown("""
     }
 
     /* ========================================================= */
-    /* 頁籤 Tab 客製化樣式：莫蘭迪深色調與放大字體    */
+    /* 頁籤 Tab 客製化樣式：統一深色質感與橘色點綴  */
     /* ========================================================= */
     div[data-testid="stTabs"] button[data-baseweb="tab"] {
-        background-color: #34495E !important; 
-        color: #BDC3C7 !important;            
-        border-radius: 8px 8px 0 0;
-        padding: 12px 24px;
-        border: none;
-        margin-right: 5px;
+        background-color: #384959 !important; 
+        border-radius: 8px 8px 0 0 !important;
+        padding: 12px 25px !important;
+        border: none !important;
+        margin-right: 4px !important;
     }
     div[data-testid="stTabs"] button[data-baseweb="tab"] > div {
-        font-size: 1.15rem !important; 
-        font-weight: 700 !important;
+        font-size: 20px !important; 
+        color: #FFFFFF !important;
+        font-weight: 600 !important;
     }
     div[data-testid="stTabs"] button[data-baseweb="tab"][aria-selected="true"] {
-        background-color: #4A6572 !important; 
-        color: #FFFFFF !important;            
-        border-bottom: 4px solid #E59866 !important; 
+        background-color: #1D2631 !important; 
+        border-top: 4px solid #F39C12 !important;
+        border-bottom: none !important; 
+    }
+    div[data-testid="stTabs"] button[data-baseweb="tab"][aria-selected="true"] > div {
+        color: #F39C12 !important;
     }
     </style>
 """, unsafe_allow_html=True)
