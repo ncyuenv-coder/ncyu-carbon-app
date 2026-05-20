@@ -222,25 +222,24 @@ def cached_create_proof_word(df_pur_dict, current_year):
                             request = drive_service.files().get_media(fileId=file_id)
                             img_bytes = request.execute()
                             try:
-                                # 1. 讀取圖片並處理手機 EXIF 旋轉問題 (避免橫式被誤判為直式)
+                                # 1. 讀取並校正手機 EXIF 旋轉 (確保直橫判定絕對正確)
                                 img = Image.open(io.BytesIO(img_bytes))
                                 img = ImageOps.exif_transpose(img)
                                 w, h = img.size
                                 
-                                # 2. 轉回 Bytes 供 Word 讀取，確保寫入 Word 時方向正確不側躺
+                                # 2. 轉為乾淨的 Bytes 給 Word
                                 corrected_bytes = io.BytesIO()
                                 img_format = img.format if img.format else 'JPEG'
-                                # 防呆：確保 RGBA 格式存成 JPEG 時不會報錯
                                 if img_format == 'JPEG' and img.mode in ('RGBA', 'P'):
                                     img = img.convert('RGB')
                                 img.save(corrected_bytes, format=img_format)
                                 corrected_bytes.seek(0)
-
-                                # 3. 計算實際物理高度 (公分)
+                                
+                                # 3. 計算原始物理高度 (若無 DPI 資訊，預設 72)
                                 dpi_y = img.info.get('dpi', (72, 72))[1]
                                 phys_h_cm = (h / dpi_y) * 2.54
                                 
-                                # 4. 依據真實長寬比設定 Word 圖片高度
+                                # 4. 判斷直式或橫式並限制高度
                                 if h > w: # 直式照片
                                     if phys_h_cm > 18.0:
                                         run_img.add_picture(corrected_bytes, height=Cm(18.0))
@@ -251,8 +250,8 @@ def cached_create_proof_word(df_pur_dict, current_year):
                                         run_img.add_picture(corrected_bytes, height=Cm(10.0))
                                     else:
                                         run_img.add_picture(corrected_bytes)
-                            except Exception:
-                                # 防呆機制
+                            except Exception as e:
+                                # 若處理失敗的備案：統一塞入預設寬度
                                 run_img.add_picture(io.BytesIO(img_bytes), width=Cm(15.0))
                         elif mime == 'application/pdf':
                             try:
@@ -345,7 +344,9 @@ def main():
     col_refresh = st.columns([8, 2])
     with col_refresh[1]:
         if st.button("🔄 強制刷新最新資料", use_container_width=True):
-            load_data.clear(); st.rerun()
+            load_data.clear()
+            cached_create_proof_word.clear() # 加上這行：強制清除舊 Word 檔暫存
+            st.rerun()
 
     tab1, tab2, tab3, tab4 = st.tabs(["📧 批次發送作業", "📊 回報進度追蹤與稽催", "📈 盤查範疇之氣體鋼瓶資料庫及年度購買量管理", "🛠️ 庫存資料管理"])
 
