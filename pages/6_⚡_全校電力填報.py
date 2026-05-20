@@ -164,12 +164,12 @@ st.markdown("""
     }
 
     /* ========================================================= */
-    /* 左側欄登出按鈕專屬樣式 (橘色滿版設計)                     */
+    /* 左側欄登出按鈕專屬樣式 (含深橘紅邊框設計)                 */
     /* ========================================================= */
     [data-testid="stSidebar"] div.stButton > button {
         background-color: #E67E22 !important; 
         color: #FFFFFF !important; 
-        border: none !important; 
+        border: 2px solid #D35400 !important; /* 加入深橘紅色邊框 */
         font-weight: 600 !important; 
         font-size: 18px !important; 
         padding: 10px 32px !important; 
@@ -180,6 +180,7 @@ st.markdown("""
     }
     [data-testid="stSidebar"] div.stButton > button:hover {
         background-color: #D35400 !important; 
+        border: 2px solid #BA4A00 !important; /* 懸停時邊框跟著變深 */
         transform: translateY(-2px);
     }
     </style>
