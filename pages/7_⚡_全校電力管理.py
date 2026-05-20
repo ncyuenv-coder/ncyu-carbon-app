@@ -55,26 +55,26 @@ st.markdown(f"""
     .stApp {{ font-family: "Microsoft JhengHei", sans-serif; background-color: #F8F9F9; }}
     
     /* 1. 分頁標籤按鈕 (統一深色質感與橘色點綴) */
-    div[data-testid="stTabs"] button[data-baseweb="tab"] {
+    div[data-testid="stTabs"] button[data-baseweb="tab"] {{
         background-color: #384959 !important; 
         border-radius: 8px 8px 0 0 !important;
         padding: 12px 25px !important;
         border: none !important;
         margin-right: 4px !important;
-    }
-    div[data-testid="stTabs"] button[data-baseweb="tab"] > div {
+    }}
+    div[data-testid="stTabs"] button[data-baseweb="tab"] > div {{
         font-size: 20px !important; 
         color: #FFFFFF !important;
         font-weight: 600 !important;
-    }
-    div[data-testid="stTabs"] button[data-baseweb="tab"][aria-selected="true"] {
+    }}
+    div[data-testid="stTabs"] button[data-baseweb="tab"][aria-selected="true"] {{
         background-color: #1D2631 !important; 
         border-top: 4px solid #F39C12 !important;
         border-bottom: none !important; 
-    }
-    div[data-testid="stTabs"] button[data-baseweb="tab"][aria-selected="true"] > div {
+    }}
+    div[data-testid="stTabs"] button[data-baseweb="tab"][aria-selected="true"] > div {{
         color: #F39C12 !important;
-    }
+    }}
 
     /* 2. 資訊卡片 (KPI) */
     .kpi-card {{
@@ -224,7 +224,7 @@ st.markdown(f"""
     /* ========================================================= */
     /* 左側欄登出按鈕專屬樣式 (含深橘紅邊框設計)                 */
     /* ========================================================= */
-    [data-testid="stSidebar"] div.stButton > button {
+    [data-testid="stSidebar"] div.stButton > button {{
         background-color: #E67E22 !important; 
         color: #FFFFFF !important; 
         border: 2px solid #D35400 !important; 
@@ -235,12 +235,12 @@ st.markdown(f"""
         width: 100% !important; 
         margin-top: 15px !important;
         box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
-    }
-    [data-testid="stSidebar"] div.stButton > button:hover {
+    }}
+    [data-testid="stSidebar"] div.stButton > button:hover {{
         background-color: #D35400 !important; 
         border: 2px solid #BA4A00 !important; 
         transform: translateY(-2px);
-    }
+    }}
     </style>
 """, unsafe_allow_html=True)
 
