@@ -8,7 +8,7 @@ import time
 import io
 import re
 import fitz  # PyMuPDF 用於將 PDF 轉為圖片
-from PIL import Image  # 新增：用於取得 JPG/PNG 的尺寸與比例
+from PIL import Image, ImageOps  # 新增：ImageOps 用於校正手機相機旋轉
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from google.oauth2.credentials import Credentials
@@ -222,22 +222,37 @@ def cached_create_proof_word(df_pur_dict, current_year):
                             request = drive_service.files().get_media(fileId=file_id)
                             img_bytes = request.execute()
                             try:
-                                # 讀取圖片資訊並計算實際物理高度 (公分)
+                                # 1. 讀取圖片並處理手機 EXIF 旋轉問題 (避免橫式被誤判為直式)
                                 img = Image.open(io.BytesIO(img_bytes))
+                                img = ImageOps.exif_transpose(img)
                                 w, h = img.size
+                                
+                                # 2. 轉回 Bytes 供 Word 讀取，確保寫入 Word 時方向正確不側躺
+                                corrected_bytes = io.BytesIO()
+                                img_format = img.format if img.format else 'JPEG'
+                                # 防呆：確保 RGBA 格式存成 JPEG 時不會報錯
+                                if img_format == 'JPEG' and img.mode in ('RGBA', 'P'):
+                                    img = img.convert('RGB')
+                                img.save(corrected_bytes, format=img_format)
+                                corrected_bytes.seek(0)
+
+                                # 3. 計算實際物理高度 (公分)
                                 dpi_y = img.info.get('dpi', (72, 72))[1]
                                 phys_h_cm = (h / dpi_y) * 2.54
                                 
+                                # 4. 依據真實長寬比設定 Word 圖片高度
                                 if h > w: # 直式照片
                                     if phys_h_cm > 18.0:
-                                        run_img.add_picture(io.BytesIO(img_bytes), height=Cm(18.0))
+                                        run_img.add_picture(corrected_bytes, height=Cm(18.0))
                                     else:
-                                        run_img.add_picture(io.BytesIO(img_bytes))
+                                        run_img.add_picture(corrected_bytes)
                                 else: # 橫式或正方形照片
-                                    # 捨棄不準確的物理尺寸判斷，強制預設高度為 10 公分 (Word會自動等比例縮放)
-                                    run_img.add_picture(io.BytesIO(img_bytes), height=Cm(10.0))
+                                    if phys_h_cm > 10.0:
+                                        run_img.add_picture(corrected_bytes, height=Cm(10.0))
+                                    else:
+                                        run_img.add_picture(corrected_bytes)
                             except Exception:
-                                # 若無法讀取尺寸，設定防呆寬度
+                                # 防呆機制
                                 run_img.add_picture(io.BytesIO(img_bytes), width=Cm(15.0))
                         elif mime == 'application/pdf':
                             try:
