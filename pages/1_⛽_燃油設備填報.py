@@ -998,8 +998,10 @@ def render_user_interface():
                     selected_device = col_d.selectbox("🚜 車輛/機具名稱", devices, index=None, placeholder="請選擇車輛...", key=dynamic_key)
                     
                     if selected_device:
-                        row = filtered[filtered['設備名稱備註'] == selected_device].iloc[0]
-info_html = f"""
+                                    filtered = df_equip_yr[df_equip_yr['設備名稱備註'] == selected_device]
+                                    if not filtered.empty:
+                                        row = filtered.iloc[0]
+                                        info_html = f"""
 <div class="device-info-box" style="padding:0; overflow:hidden; border: 1px solid #BDC3C7; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 20px;">
     <div style="background-color: #5D6D7E; color: white; padding: 12px 20px; font-size: 1.4rem; font-weight: 900;">📋 燃油設備基本資料</div>
     <div style="display: flex; justify-content: space-around; padding: 20px 10px; background-color: #FFFFFF; font-size: 1.1rem;">
@@ -1011,7 +1013,7 @@ info_html = f"""
     </div>
 </div>
 """
-st.markdown(info_html, unsafe_allow_html=True)
+                                        st.markdown(info_html, unsafe_allow_html=True)
                         st.markdown("#### 步驟 2：填報設備加油資訊")
                         
                         st.write("") 
