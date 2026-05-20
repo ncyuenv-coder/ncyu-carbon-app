@@ -235,21 +235,29 @@ def cached_create_proof_word(df_pur_dict, current_year):
                                 img.save(corrected_bytes, format=img_format)
                                 corrected_bytes.seek(0)
                                 
-                                # 3. 計算原始物理高度 (若無 DPI 資訊，預設 72)
-                                dpi_y = img.info.get('dpi', (72, 72))[1]
+                                # 3. 計算圖片物理尺寸 (防呆：無 DPI 資訊則預設 96)
+                                dpi_x, dpi_y = img.info.get('dpi', (96, 96))
+                                if dpi_x == 0 or dpi_y == 0: dpi_x, dpi_y = 96, 96
                                 phys_h_cm = (h / dpi_y) * 2.54
+                                phys_w_cm = (w / dpi_x) * 2.54
                                 
-                                # 4. 判斷直式或橫式並限制高度
+                                # 4. 嚴謹判斷直/橫式並限制高度 (同時防止寬度超過邊界 17cm)
                                 if h > w: # 直式照片
                                     if phys_h_cm > 18.0:
-                                        run_img.add_picture(corrected_bytes, height=Cm(18.0))
+                                        target_w = 18.0 * (w / h)
+                                        if target_w > 17.0: run_img.add_picture(corrected_bytes, width=Cm(17.0))
+                                        else: run_img.add_picture(corrected_bytes, height=Cm(18.0))
                                     else:
-                                        run_img.add_picture(corrected_bytes)
+                                        if phys_w_cm > 17.0: run_img.add_picture(corrected_bytes, width=Cm(17.0))
+                                        else: run_img.add_picture(corrected_bytes)
                                 else: # 橫式或正方形照片
                                     if phys_h_cm > 10.0:
-                                        run_img.add_picture(corrected_bytes, height=Cm(10.0))
+                                        target_w = 10.0 * (w / h)
+                                        if target_w > 17.0: run_img.add_picture(corrected_bytes, width=Cm(17.0))
+                                        else: run_img.add_picture(corrected_bytes, height=Cm(10.0))
                                     else:
-                                        run_img.add_picture(corrected_bytes)
+                                        if phys_w_cm > 17.0: run_img.add_picture(corrected_bytes, width=Cm(17.0))
+                                        else: run_img.add_picture(corrected_bytes)
                             except Exception as e:
                                 # 若處理失敗的備案：統一塞入預設寬度
                                 run_img.add_picture(io.BytesIO(img_bytes), width=Cm(15.0))
