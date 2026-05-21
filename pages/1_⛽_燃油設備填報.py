@@ -139,9 +139,10 @@ st.markdown("""
     div[data-testid="stCheckbox"] label p { font-size: 1.05rem !important; color: #1F618D !important; font-weight: 800 !important; }
     [data-testid="stFileUploaderDropzone"] { background-color: #D6EAF8 !important; border: 2px dashed #2E86C1 !important; padding: 20px; border-radius: 12px; }
     [data-testid="stFileUploaderDropzone"] div, span, small { color: #154360 !important; font-weight: bold !important; }
-    .stRadio div[role="radiogroup"] label { background-color: #D6EAF8 !important; border: 1px solid #AED6F1 !important; border-radius: 8px !important; padding: 8px 15px !important; margin-right: 10px !important; }
-    .stRadio div[role="radiogroup"] label p { font-size: 1.1rem !important; font-weight: normal !important; color: #1A5276 !important; }
-    .stRadio div[role="radiogroup"] label[data-checked="true"] { background-color: #1A5276 !important; border-color: #1A5276 !important; }
+    /* Radio 按鈕：未選取淺灰，選取莫蘭迪深灰，統一粗體 */
+    .stRadio div[role="radiogroup"] label { background-color: #F2F4F4 !important; border: 1px solid #BDC3C7 !important; border-radius: 8px !important; padding: 8px 15px !important; margin-right: 10px !important; transition: all 0.2s ease; }
+    .stRadio div[role="radiogroup"] label p { font-size: 1.15rem !important; font-weight: 900 !important; color: #566573 !important; }
+    .stRadio div[role="radiogroup"] label[data-checked="true"] { background-color: #5D6D7E !important; border-color: #34495E !important; box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important; }
     .stRadio div[role="radiogroup"] label[data-checked="true"] p { color: #FFFFFF !important; }
     .dev-card-v148 { background-color: #FFFFFF; border: 1px solid #BDC3C7; border-radius: 12px; overflow: hidden; box-shadow: 0 3px 6px rgba(0,0,0,0.08); margin-bottom: 20px; display: flex; flex-direction: column; }
     .dev-header { padding: 12px 15px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(0,0,0,0.1); }
@@ -178,7 +179,7 @@ st.markdown("""
     .kpi-sub { font-size: 0.9rem; color: #C0392B !important; font-weight: 700; background-color: rgba(192, 57, 43, 0.1); padding: 2px 10px; border-radius: 20px; display: inline-block; margin-top: 5px;}
     .device-info-box { background-color: #FFFFFF; border: 2px solid #5DADE2; border-radius: 10px; padding: 20px; margin-bottom: 20px; }
     .alert-box { background-color: #FCF3CF; border: 2px solid #F1C40F; padding: 15px; border-radius: 10px; margin-bottom: 20px; color: #9A7D0A !important; font-weight: bold; text-align: center; }
-    .privacy-box { background-color: #F8F9F9; border: 1px solid #BDC3C7; padding: 15px; border-radius: 10px; font-size: 0.9rem; color: #566573; margin-bottom: 10px; }
+    .privacy-box { background-color: #FFFFFF; border: 1px solid #BDC3C7; padding: 15px; border-radius: 10px; font-size: 0.95rem; color: #566573; margin-bottom: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.03); }
     .privacy-title { font-weight: bold; color: #2C3E50; margin-bottom: 5px; font-size: 1rem; }
     .dashboard-main-title { font-size: 1.8rem; font-weight: 900; text-align: center; color: #FFFFFF !important; margin-bottom: 20px; background-color: #5D6D7E; padding: 12px; border-radius: 10px; border: none; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
     div[data-testid="stExpander"] { border: 1px solid #BDC3C7; border-radius: 12px; overflow: hidden; margin-bottom: 15px; box-shadow: 0 3px 6px rgba(0,0,0,0.08); }
@@ -869,7 +870,7 @@ def render_user_interface():
     with tabs[0]:
         st.markdown('<div class="alert-box">📢 請「誠實申報」，以保障單位及自身權益！</div>', unsafe_allow_html=True)
         if not df_equip.empty:
-            st.markdown("#### 步驟 1：請選擇填報年度、單位及設備")
+            st.markdown("<div style='font-size: 1.4rem; font-weight: 900; color: #2C3E50; margin-bottom: 15px;'>步驟 1：請選擇填報年度、單位及設備</div>", unsafe_allow_html=True)
             
             if '設備檢視年度' in df_equip.columns:
                 equip_years = sorted(list(set([str(y).strip() for y in df_equip['設備檢視年度'].unique() if str(y).strip() not in ['', 'nan']])), reverse=True)
@@ -911,7 +912,8 @@ def render_user_interface():
                         if "汽油" in target_sub_cat: filtered_equip = filtered_equip[filtered_equip['原燃物料名稱'].str.contains("汽油")]
                         elif "柴油" in target_sub_cat: filtered_equip = filtered_equip[filtered_equip['原燃物料名稱'].str.contains("柴油")]
                         
-                        st.markdown("#### 步驟 2：批次填寫與上傳")
+                        # 第一個替換：
+                        st.markdown("<div style='font-size: 1.4rem; font-weight: 900; color: #2C3E50; margin-bottom: 15px; margin-top: 20px;'>步驟 2：批次填寫與上傳</div>", unsafe_allow_html=True)
                         with st.form("batch_form", clear_on_submit=True):
                             col_p1, col_p2 = st.columns(2)
                             p_name = col_p1.text_input("👤 填報人姓名 (必填)")
@@ -1010,8 +1012,8 @@ def render_user_interface():
                     if selected_device:
                         row = filtered[filtered['設備名稱備註'] == selected_device].iloc[0]
                         
-                        # 1. 獨立的資訊卡小標題
-                        st.markdown('<div style="font-size: 1.4rem; font-weight: 900; color: #2C3E50; margin-bottom: 12px; margin-top: 10px;">📋 燃油設備基本資料</div>', unsafe_allow_html=True)
+                        # 1. 獨立的資訊卡小標題 (字體縮小至 1.2rem 與表單標籤一致)
+                        st.markdown('<div style="font-size: 1.2rem; font-weight: 900; color: #2C3E50; margin-bottom: 12px; margin-top: 10px;">📋 燃油設備基本資料</div>', unsafe_allow_html=True)
                         
                         # 2. 表格區：標題改深灰底白字、數量統一為深黑字
                         info_html = (
@@ -1035,7 +1037,8 @@ def render_user_interface():
                             f'</div>'
                         )
                         st.markdown(info_html, unsafe_allow_html=True)
-                        st.markdown("#### 步驟 2：填報設備加油資訊")
+                        # 第二個替換：
+                        st.markdown("<div style='font-size: 1.4rem; font-weight: 900; color: #2C3E50; margin-bottom: 15px; margin-top: 20px;'>步驟 2：填報設備加油資訊</div>", unsafe_allow_html=True)
                         
                         st.write("") 
                         st.markdown('<p style="color:#566573; font-size:1rem; font-weight:bold; margin-bottom:-10px;">請選擇申報類型，並於填報前先設定申報筆數(至多10筆)</p>', unsafe_allow_html=True)
