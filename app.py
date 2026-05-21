@@ -50,6 +50,11 @@ st.markdown("""
         background-color: #E8F8F5; 
         border-radius: 5px; padding-left: 5px; margin-bottom: 5px;
     }
+
+    /* 強制側邊欄所有選單項目皆為粗體 */
+    [data-testid="stSidebarNav"] span {
+        font-weight: 800 !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -159,7 +164,7 @@ if st.session_state.get("authentication_status"):
     if current_username in admin_users:
         pages_dict["⚙️ 燃油與冷媒管理"] = [fuel_admin, refrig_admin, fuel_view]
         pages_dict["⚡ 全校電力管理"] = [elec_report, elec_admin]
-        pages_dict["💨 氣體鋼瓶管理"] = [gas_report, gas_admin]
+        pages_dict["💨 氣體鋼瓶管理"] = [gas_admin, gas_report]
         
     pg = st.navigation(pages_dict)
 
@@ -171,9 +176,11 @@ if st.session_state.get("authentication_status"):
     else: 
         status_html = f"🟢 目前線上人數: {online_count} 人 (順暢)"
 
-    if pg.title in ["系統首頁", "燃油設備填報", "冷媒設備填報"]:
+    if pg.title == "系統首頁":
         st.markdown('<div class="main-header">🏫 國立嘉義大學溫室氣體盤查填報系統<br><span style="font-size: 1.4rem; font-weight: 600; color: #5D6D7E;">National Chiayi University Greenhouse Gas Data Reporting System</span></div>', unsafe_allow_html=True)
         st.markdown(f"""<div style="text-align: right; margin-top: 15px; margin-bottom: 20px; font-size: 0.95rem; font-weight: 600; color: #4A4A4A;">{status_html}</div>""", unsafe_allow_html=True)
+    elif pg.title in ["燃油設備填報", "冷媒設備填報"]:
+        pass # 這兩個頁面已經在各自的檔案中渲染了專屬標題與人數，所以在此處隱藏
     else:
         st.markdown(f"""<div style="text-align: right; margin-top: 15px; margin-bottom: 20px; font-size: 0.95rem; font-weight: 600; color: #4A4A4A;">{status_html}</div>""", unsafe_allow_html=True)
 
