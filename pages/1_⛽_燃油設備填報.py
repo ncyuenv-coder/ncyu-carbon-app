@@ -139,11 +139,18 @@ st.markdown("""
     div[data-testid="stCheckbox"] label p { font-size: 1.05rem !important; color: #1F618D !important; font-weight: 800 !important; }
     [data-testid="stFileUploaderDropzone"] { background-color: #D6EAF8 !important; border: 2px dashed #2E86C1 !important; padding: 20px; border-radius: 12px; }
     [data-testid="stFileUploaderDropzone"] div, span, small { color: #154360 !important; font-weight: bold !important; }
-    /* Radio 按鈕：未選取淺灰，選取莫蘭迪深灰，統一粗體 */
+    /* Radio 按鈕：未選取淺灰，選取時使用高質感深灰色底色與純白字體 */
     .stRadio div[role="radiogroup"] label { background-color: #F2F4F4 !important; border: 1px solid #BDC3C7 !important; border-radius: 8px !important; padding: 8px 15px !important; margin-right: 10px !important; transition: all 0.2s ease; }
     .stRadio div[role="radiogroup"] label p { font-size: 1.15rem !important; font-weight: 900 !important; color: #566573 !important; }
-    .stRadio div[role="radiogroup"] label[data-checked="true"] { background-color: #5D6D7E !important; border-color: #34495E !important; box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important; }
+    .stRadio div[role="radiogroup"] label[data-checked="true"] { background-color: #34495E !important; border-color: #2C3E50 !important; box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important; }
     .stRadio div[role="radiogroup"] label[data-checked="true"] p { color: #FFFFFF !important; }
+
+    /* 終極覆蓋：強制將表單「確認送出」按鈕內部所有層級的文字顏色綁定為純白色 */
+    [data-testid="stFormSubmitButton"] button p,
+    [data-testid="stFormSubmitButton"] button span,
+    [data-testid="stFormSubmitButton"] button {
+        color: #FFFFFF !important;
+    }
     .dev-card-v148 { background-color: #FFFFFF; border: 1px solid #BDC3C7; border-radius: 12px; overflow: hidden; box-shadow: 0 3px 6px rgba(0,0,0,0.08); margin-bottom: 20px; display: flex; flex-direction: column; }
     .dev-header { padding: 12px 15px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(0,0,0,0.1); }
     .dev-header-left { display: flex; flex-direction: column; gap: 3px; }
@@ -863,7 +870,13 @@ def render_user_interface():
     if 'multi_row_count' not in st.session_state: st.session_state['multi_row_count'] = 1
     if 'reset_counter' not in st.session_state: st.session_state['reset_counter'] = 0
 
-    st.markdown('<div style="font-size: 2.4rem; font-weight: 900; color: #2C3E50; margin-bottom: 20px;">⛽ 燃油設備填報專區</div>', unsafe_allow_html=True)
+    # 縮小下邊距以利緊接下一行的線上人數
+    st.markdown('<div style="font-size: 2.4rem; font-weight: 900; color: #2C3E50; margin-bottom: 5px;">⛽ 燃油設備填報專區</div>', unsafe_allow_html=True)
+    
+    # 🟢 新增：智慧計算並在主標題下方渲染右對齊的綠色安全線上人數小字
+    user_count = len(active_users) if 'active_users' in locals() or 'active_users' in globals() else 1
+    st.markdown(f'<div style="text-align: right; color: #27AE60; font-weight: bold; font-size: 1.1rem; margin-bottom: 15px;">🟢 目前線上人數: {user_count} 人 (順暢)</div>', unsafe_allow_html=True)
+    
     tabs = st.tabs(["📝 新增填報", "📊 動態查詢看板", "📋 單位申報明細"])
     
     # --- Tab 1: 填報 ---
