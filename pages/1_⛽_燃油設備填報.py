@@ -124,8 +124,17 @@ st.markdown("""
     div[data-testid="stTabs"] button[data-baseweb="tab"][aria-selected="true"] { background-color: #1D2631 !important; border-top: 4px solid #F39C12 !important; border-bottom: none !important; }
     div[data-testid="stTabs"] button[data-baseweb="tab"][aria-selected="true"] > div { color: #F39C12 !important; }
 
-    /* 表單標籤 (填報人姓名等) 統一放大與粗體 (再放大1號字) */
-    div[data-testid="stWidgetLabel"] p { font-size: 1.35rem !important; font-weight: 900 !important; color: #2C3E50 !important; }
+    /* 終極表單標籤放大術：強制覆蓋 Streamlit 所有輸入框的預設字體 */
+    .stTextInput label p, 
+    .stNumberInput label p, 
+    .stDateInput label p, 
+    .stSelectbox label p, 
+    div[data-testid="stWidgetLabel"] p, 
+    div[data-testid="stWidgetLabel"] { 
+        font-size: 1.35rem !important; 
+        font-weight: 900 !important; 
+        color: #2C3E50 !important; 
+    }
 
     div[data-testid="stCheckbox"] label p { font-size: 1.05rem !important; color: #1F618D !important; font-weight: 800 !important; }
     [data-testid="stFileUploaderDropzone"] { background-color: #D6EAF8 !important; border: 2px dashed #2E86C1 !important; padding: 20px; border-radius: 12px; }
@@ -411,7 +420,8 @@ def render_dashboard_fragment(df_records, df_equip, record_units, available_year
                 gas_pct = (gas_sum / total_sum * 100) if total_sum > 0 else 0
                 diesel_pct = (diesel_sum / total_sum * 100) if total_sum > 0 else 0
                 
-                st.markdown(f"<div class='dashboard-main-title'>{query_dept} - {query_year}年度 能源使用與碳排統計</div>", unsafe_allow_html=True)
+                # 直接以 inline-style 綁定深灰底白字樣式，免疫系統框架覆蓋
+                st.markdown(f"<div style='font-size: 1.8rem; font-weight: 900; text-align: center; color: #FFFFFF; background-color: #5D6D7E; padding: 15px; border-radius: 12px; margin-bottom: 25px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);'>{query_dept} - {query_year}年度 能源使用與碳排統計</div>", unsafe_allow_html=True)
                 r1c1, r1c2 = st.columns(2)
                 with r1c1: st.markdown(f"""<div class="kpi-card kpi-gas"><div class="kpi-title">⛽ 汽油使用量</div><div class="kpi-value">{gas_sum:,.2f}<span class="kpi-unit"> 公升</span></div><div class="kpi-sub">佔比 {gas_pct:.2f}%</div></div>""", unsafe_allow_html=True)
                 with r1c2: st.markdown(f"""<div class="kpi-card kpi-diesel"><div class="kpi-title">🚛 柴油使用量</div><div class="kpi-value">{diesel_sum:,.2f}<span class="kpi-unit"> 公升</span></div><div class="kpi-sub">佔比 {diesel_pct:.2f}%</div></div>""", unsafe_allow_html=True)
