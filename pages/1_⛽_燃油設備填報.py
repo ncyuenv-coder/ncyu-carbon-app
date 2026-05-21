@@ -124,8 +124,8 @@ st.markdown("""
     div[data-testid="stTabs"] button[data-baseweb="tab"][aria-selected="true"] { background-color: #1D2631 !important; border-top: 4px solid #F39C12 !important; border-bottom: none !important; }
     div[data-testid="stTabs"] button[data-baseweb="tab"][aria-selected="true"] > div { color: #F39C12 !important; }
 
-    /* 表單標籤 (填報人姓名等) 統一放大與粗體 */
-    div[data-testid="stWidgetLabel"] p { font-size: 1.2rem !important; font-weight: 900 !important; color: #2C3E50 !important; }
+    /* 表單標籤 (填報人姓名等) 統一放大與粗體 (再放大1號字) */
+    div[data-testid="stWidgetLabel"] p { font-size: 1.35rem !important; font-weight: 900 !important; color: #2C3E50 !important; }
 
     div[data-testid="stCheckbox"] label p { font-size: 1.05rem !important; color: #1F618D !important; font-weight: 800 !important; }
     [data-testid="stFileUploaderDropzone"] { background-color: #D6EAF8 !important; border: 2px dashed #2E86C1 !important; padding: 20px; border-radius: 12px; }
@@ -171,7 +171,7 @@ st.markdown("""
     .alert-box { background-color: #FCF3CF; border: 2px solid #F1C40F; padding: 15px; border-radius: 10px; margin-bottom: 20px; color: #9A7D0A !important; font-weight: bold; text-align: center; }
     .privacy-box { background-color: #F8F9F9; border: 1px solid #BDC3C7; padding: 15px; border-radius: 10px; font-size: 0.9rem; color: #566573; margin-bottom: 10px; }
     .privacy-title { font-weight: bold; color: #2C3E50; margin-bottom: 5px; font-size: 1rem; }
-    .dashboard-main-title { font-size: 1.8rem; font-weight: 900; text-align: center; color: #2C3E50; margin-bottom: 20px; background-color: #F8F9F9; padding: 10px; border-radius: 10px; border: 1px solid #BDC3C7; }
+    .dashboard-main-title { font-size: 1.8rem; font-weight: 900; text-align: center; color: #FFFFFF !important; margin-bottom: 20px; background-color: #5D6D7E; padding: 12px; border-radius: 10px; border: none; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
     div[data-testid="stExpander"] { border: 1px solid #BDC3C7; border-radius: 12px; overflow: hidden; margin-bottom: 15px; box-shadow: 0 3px 6px rgba(0,0,0,0.08); }
     div[data-testid="stExpander"] > details > summary { background-color: #2C3E50 !important; padding: 12px 15px; }
     div[data-testid="stExpander"] > details > summary p { font-size: 1.35rem !important; font-weight: 900 !important; color: #FFFFFF !important; }
