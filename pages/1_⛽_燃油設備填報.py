@@ -1002,12 +1002,33 @@ def render_user_interface():
                         info_html = (
                             f'<div class="device-info-box" style="padding:0; overflow:hidden; border: 1px solid #BDC3C7; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 20px;">'
                             f'<div style="background-color: #5D6D7E; color: white; padding: 12px 20px; font-size: 1.4rem; font-weight: 900;">📋 燃油設備基本資料</div>'
-                            f'<div style="display: flex; justify-content: space-around; padding: 20px 10px; background-color: #FFFFFF; font-size: 1.1rem; align-items: stretch;">'
-                            f'<div style="text-align: center; border-right: 1px solid #EAEDED; flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center;"><strong style="color: #566573;">🏢 部門</strong><span style="color:#2C3E50; font-weight:800; font-size:1.2rem; margin-top: 4px;">{row.get("設備所屬單位/部門", "-")}</span></div>'
-                            f'<div style="text-align: center; border-right: 1px solid #EAEDED; flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center;"><strong style="color: #566573;">👤 保管人</strong><span style="color:#2C3E50; font-weight:800; font-size:1.2rem; margin-top: 4px;">{row.get("保管人", "-")}</span></div>'
-                            f'<div style="text-align: center; border-right: 1px solid #EAEDED; flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center;"><strong style="color: #566573;">📍 位置</strong><span style="color:#2C3E50; font-weight:800; font-size:1.2rem; margin-top: 4px;">{row.get("設備詳細位置/樓層", "-")}</span></div>'
-                            f'<div style="text-align: center; border-right: 1px solid #EAEDED; flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center;"><strong style="color: #566573;">⛽ 燃料</strong><span style="color:#2C3E50; font-weight:800; font-size:1.2rem; margin-top: 4px;">{row.get("原燃物料名稱", "-")}</span></div>'
-                            f'<div style="text-align: center; flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center;"><strong style="color: #566573;">📊 數量</strong><span style="color:#C0392B; font-weight:900; font-size:1.3rem; margin-top: 4px;">{row.get("設備數量", "-")}</span></div>'
+                            f'<div style="display: flex; justify-content: space-around; padding: 15px 10px; background-color: #FFFFFF; font-size: 1.1rem; align-items: stretch;">'
+                            
+                            f'<div style="border-right: 1px solid #EAEDED; flex: 1; display: flex; flex-direction: column; justify-content: center;">'
+                            f'<div style="display: flex; justify-content: center; align-items: center; min-height: 28px;"><strong style="color: #566573;">🏢 部門</strong></div>'
+                            f'<div style="display: flex; justify-content: center; align-items: center; min-height: 40px; margin-top: 4px;"><span style="color:#2C3E50; font-weight:800; font-size:1.2rem; text-align: center;">{row.get("設備所屬單位/部門", "-")}</span></div>'
+                            f'</div>'
+                            
+                            f'<div style="border-right: 1px solid #EAEDED; flex: 1; display: flex; flex-direction: column; justify-content: center;">'
+                            f'<div style="display: flex; justify-content: center; align-items: center; min-height: 28px;"><strong style="color: #566573;">👤 保管人</strong></div>'
+                            f'<div style="display: flex; justify-content: center; align-items: center; min-height: 40px; margin-top: 4px;"><span style="color:#2C3E50; font-weight:800; font-size:1.2rem; text-align: center;">{row.get("保管人", "-")}</span></div>'
+                            f'</div>'
+                            
+                            f'<div style="border-right: 1px solid #EAEDED; flex: 1; display: flex; flex-direction: column; justify-content: center;">'
+                            f'<div style="display: flex; justify-content: center; align-items: center; min-height: 28px;"><strong style="color: #566573;">📍 位置</strong></div>'
+                            f'<div style="display: flex; justify-content: center; align-items: center; min-height: 40px; margin-top: 4px;"><span style="color:#2C3E50; font-weight:800; font-size:1.2rem; text-align: center;">{row.get("設備詳細位置/樓層", "-")}</span></div>'
+                            f'</div>'
+                            
+                            f'<div style="border-right: 1px solid #EAEDED; flex: 1; display: flex; flex-direction: column; justify-content: center;">'
+                            f'<div style="display: flex; justify-content: center; align-items: center; min-height: 28px;"><strong style="color: #566573;">⛽ 燃料</strong></div>'
+                            f'<div style="display: flex; justify-content: center; align-items: center; min-height: 40px; margin-top: 4px;"><span style="color:#2C3E50; font-weight:800; font-size:1.2rem; text-align: center;">{row.get("原燃物料名稱", "-")}</span></div>'
+                            f'</div>'
+                            
+                            f'<div style="flex: 1; display: flex; flex-direction: column; justify-content: center;">'
+                            f'<div style="display: flex; justify-content: center; align-items: center; min-height: 28px;"><strong style="color: #566573;">📊 數量</strong></div>'
+                            f'<div style="display: flex; justify-content: center; align-items: center; min-height: 40px; margin-top: 4px;"><span style="color:#C0392B; font-weight:900; font-size:1.3rem; text-align: center;">{row.get("設備數量", "-")}</span></div>'
+                            f'</div>'
+                            
                             f'</div></div>'
                         )
                         st.markdown(info_html, unsafe_allow_html=True)
