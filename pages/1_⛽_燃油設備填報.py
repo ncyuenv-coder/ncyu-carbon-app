@@ -1000,26 +1000,26 @@ def render_user_interface():
                     if selected_device:
                         row = filtered[filtered['設備名稱備註'] == selected_device].iloc[0]
                         
-                        # 1. 將標題文字獨立拆出放在資訊卡上方作為小標題
+                        # 1. 獨立的資訊卡小標題
                         st.markdown('<div style="font-size: 1.4rem; font-weight: 900; color: #2C3E50; margin-bottom: 12px; margin-top: 10px;">📋 燃油設備基本資料</div>', unsafe_allow_html=True)
                         
-                        # 2. 利用標準 Table 完美達成標題列與內容列的水平、垂直絕對置中
+                        # 2. 表格區：標題改深灰底白字、數量統一為深黑字
                         info_html = (
                             f'<div style="border: 1px solid #BDC3C7; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 25px;">'
                             f'<table style="width: 100%; border-collapse: collapse; table-layout: fixed; margin: 0;">'
-                            f'<tr style="background-color: #F2F4F4; border-bottom: 1px solid #EAEDED;">'
-                            f'<th style="padding: 12px 10px; text-align: center; vertical-align: middle; color: #566573; font-size: 1.1rem; border-right: 1px solid #EAEDED; font-weight: 800;">🏢 部門</th>'
-                            f'<th style="padding: 12px 10px; text-align: center; vertical-align: middle; color: #566573; font-size: 1.1rem; border-right: 1px solid #EAEDED; font-weight: 800;">👤 保管人</th>'
-                            f'<th style="padding: 12px 10px; text-align: center; vertical-align: middle; color: #566573; font-size: 1.1rem; border-right: 1px solid #EAEDED; font-weight: 800;">📍 位置</th>'
-                            f'<th style="padding: 12px 10px; text-align: center; vertical-align: middle; color: #566573; font-size: 1.1rem; border-right: 1px solid #EAEDED; font-weight: 800;">⛽ 燃料</th>'
-                            f'<th style="padding: 12px 10px; text-align: center; vertical-align: middle; color: #566573; font-size: 1.1rem; font-weight: 800;">📊 數量</th>'
+                            f'<tr style="background-color: #5D6D7E;">'
+                            f'<th style="padding: 12px 10px; text-align: center; vertical-align: middle; color: #FFFFFF; font-size: 1.15rem; border-right: 1px solid #7F8C8D; font-weight: 800;">🏢 部門</th>'
+                            f'<th style="padding: 12px 10px; text-align: center; vertical-align: middle; color: #FFFFFF; font-size: 1.15rem; border-right: 1px solid #7F8C8D; font-weight: 800;">👤 保管人</th>'
+                            f'<th style="padding: 12px 10px; text-align: center; vertical-align: middle; color: #FFFFFF; font-size: 1.15rem; border-right: 1px solid #7F8C8D; font-weight: 800;">📍 位置</th>'
+                            f'<th style="padding: 12px 10px; text-align: center; vertical-align: middle; color: #FFFFFF; font-size: 1.15rem; border-right: 1px solid #7F8C8D; font-weight: 800;">⛽ 燃料</th>'
+                            f'<th style="padding: 12px 10px; text-align: center; vertical-align: middle; color: #FFFFFF; font-size: 1.15rem; font-weight: 800;">📊 數量</th>'
                             f'</tr>'
                             f'<tr style="background-color: #FFFFFF;">'
                             f'<td style="padding: 18px 10px; text-align: center; vertical-align: middle; color: #2C3E50; font-weight: 800; font-size: 1.15rem; border-right: 1px solid #EAEDED;">{row.get("設備所屬單位/部門", "-")}</td>'
                             f'<td style="padding: 18px 10px; text-align: center; vertical-align: middle; color: #2C3E50; font-weight: 800; font-size: 1.15rem; border-right: 1px solid #EAEDED;">{row.get("保管人", "-")}</td>'
                             f'<td style="padding: 18px 10px; text-align: center; vertical-align: middle; color: #2C3E50; font-weight: 800; font-size: 1.15rem; border-right: 1px solid #EAEDED;">{row.get("設備詳細位置/樓層", "-")}</td>'
                             f'<td style="padding: 18px 10px; text-align: center; vertical-align: middle; color: #2C3E50; font-weight: 800; font-size: 1.15rem; border-right: 1px solid #EAEDED;">{row.get("原燃物料名稱", "-")}</td>'
-                            f'<td style="padding: 18px 10px; text-align: center; vertical-align: middle; color: #C0392B; font-weight: 900; font-size: 1.3rem;">{row.get("設備數量", "-")}</td>'
+                            f'<td style="padding: 18px 10px; text-align: center; vertical-align: middle; color: #2C3E50; font-weight: 900; font-size: 1.3rem;">{row.get("設備數量", "-")}</td>'
                             f'</tr>'
                             f'</table>'
                             f'</div>'
