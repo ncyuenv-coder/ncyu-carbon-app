@@ -124,14 +124,14 @@ st.markdown("""
     div[data-testid="stTabs"] button[data-baseweb="tab"][aria-selected="true"] { background-color: #1D2631 !important; border-top: 4px solid #F39C12 !important; border-bottom: none !important; }
     div[data-testid="stTabs"] button[data-baseweb="tab"][aria-selected="true"] > div { color: #F39C12 !important; }
 
-    /* 終極表單標籤放大術：強制覆蓋 Streamlit 所有輸入框的預設字體 */
+    /* 終極表單標籤放大術：強制覆蓋 Streamlit 所有輸入框的預設字體 (微調縮小以達視覺平衡) */
     .stTextInput label p, 
     .stNumberInput label p, 
     .stDateInput label p, 
     .stSelectbox label p, 
     div[data-testid="stWidgetLabel"] p, 
     div[data-testid="stWidgetLabel"] { 
-        font-size: 1.35rem !important; 
+        font-size: 1.2rem !important; 
         font-weight: 900 !important; 
         color: #2C3E50 !important; 
     }
