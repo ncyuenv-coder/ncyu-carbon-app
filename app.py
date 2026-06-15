@@ -113,8 +113,17 @@ if "token" in query_params:
     gas_report = st.Page("pages/9_💨_實驗室氣體鋼瓶資料回報.py", title="氣體鋼瓶資料回報", icon="📃", url_path="", default=True)
     
     pg = st.navigation([gas_report])
-    pg.run()
-    st.stop() 
+    
+    # 【全域防護罩 1】免登入通道：攔截 API 紅色報錯，改為轉圈圈與友善提示
+    try:
+        with st.spinner("系統資料安全連線中，請稍候..."):
+            pg.run()
+    except Exception as e:
+        st.warning("⚠️ 系統正在載入最新資料或遇到短暫網路波動，為您重新連線中...")
+        time.sleep(1.5)
+        st.rerun()
+        
+    st.stop()
 
 # ==========================================================
 # 下方為正常管理員登入邏輯 (無 Token 時才會執行)
@@ -184,7 +193,14 @@ if st.session_state.get("authentication_status"):
     else:
         st.markdown(f"""<div style="text-align: right; margin-top: 15px; margin-bottom: 20px; font-size: 0.95rem; font-weight: 600; color: #4A4A4A;">{status_html}</div>""", unsafe_allow_html=True)
 
-    pg.run()
+    # 【全域防護罩 2】管理員通道：包裝子頁面執行，攔截報錯並加入轉圈圈緩衝
+    try:
+        with st.spinner("網頁與資料庫連線載入中，請稍候..."):
+            pg.run()
+    except Exception as e:
+        st.warning("⚠️ 系統讀取資料時遇到短暫網路延遲，正在為您自動重試...")
+        time.sleep(1.5)
+        st.rerun()
 
 elif st.session_state.get("authentication_status") is False:
     st.error('❌ 帳號或密碼錯誤，請重試')
