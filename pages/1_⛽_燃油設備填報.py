@@ -352,15 +352,15 @@ if not df_records.empty:
     raw_years = sorted(df_records['日期格式'].dt.year.dropna().astype(int).unique(), reverse=True)
     
     available_years_dash = [y for y in raw_years if y >= 2025]
-    if not available_years_dash: available_years_dash = [max(2025, datetime.now().year)]
+    if not available_years_dash: available_years_dash = [max(2025, get_taiwan_time().year)]
     
     available_years_details = [y for y in raw_years if y >= 2026]
-    if not available_years_details: available_years_details = [max(2026, datetime.now().year)]
+    if not available_years_details: available_years_details = [max(2026, get_taiwan_time().year)]
     
     record_units = sorted([str(x) for x in df_records['填報單位'].unique() if str(x) != 'nan'])
 else:
-    available_years_dash = [max(2025, datetime.now().year)]
-    available_years_details = [max(2026, datetime.now().year)]
+    available_years_dash = [max(2025, get_taiwan_time().year)]
+    available_years_details = [max(2026, get_taiwan_time().year)]
 
 # ==========================================
 # [圖片智慧快取機制]
@@ -915,8 +915,8 @@ def render_user_interface():
             if '設備檢視年度' in df_equip.columns:
                 equip_years = sorted(list(set([str(y).strip() for y in df_equip['設備檢視年度'].unique() if str(y).strip() not in ['', 'nan']])), reverse=True)
             else:
-                equip_years = [str(datetime.now().year)]
-            if not equip_years: equip_years = [str(datetime.now().year)]
+                equip_years = [str(get_taiwan_time().year)]
+            if not equip_years: equip_years = [str(get_taiwan_time().year)]
             
             col_y, col_u, col_d = st.columns(3)
             selected_year_str = col_y.selectbox("📅 填報年度", equip_years, index=0, key="year_selector")
@@ -965,7 +965,7 @@ def render_user_interface():
                             st.markdown("<div style='color: #566573; font-size: 0.95rem; margin-top: -10px; margin-bottom: 10px;'>電子郵件將用於通知申報使用，若貴單位有收件地址異動，請您直接修改。</div>", unsafe_allow_html=True)
                             
                             st.markdown("---")
-                            batch_date = st.date_input("📅 加油月份 (日期統一選擇該月份最終日)", datetime.today())
+                            batch_date = st.date_input("📅 加油月份 (日期統一選擇該月份最終日)", get_taiwan_time().date())
                             
                             st.markdown("<div style='font-size: 1.15rem; font-weight: bold; color: #2C3E50; margin-top: 15px; margin-bottom: 10px;'>⛽ 請填入各設備該月份之加油總量(公升)，若該月份無使用請填0：</div>", unsafe_allow_html=True)
                             batch_inputs = {}
@@ -1109,7 +1109,7 @@ def render_user_interface():
                                 
                                 for i in range(st.session_state['multi_row_count']):
                                     c_d, c_v = st.columns(2)
-                                    _date = c_d.date_input(f"📅 序號 {i+1}-加油日期", datetime.today(), key=f"d_{i}")
+                                    _date = c_d.date_input(f"📅 序號 {i+1}-加油日期", get_taiwan_time().date(), key=f"d_{i}")
                                     _vol = c_v.number_input(f"💧 序號 {i+1}-加油量(公升)", min_value=0.0, step=0.1, key=f"v_{i}")
                                     data_entries.append({"date": _date, "vol": _vol})
                                     
@@ -1127,8 +1127,9 @@ def render_user_interface():
                             else:
                                 st.info("ℹ️ 您選擇了「無使用」，請選擇無使用的期間。")
                                 c_s, c_e = st.columns(2)
-                                d_start = c_s.date_input("開始日期", datetime(datetime.now().year, 1, 1))
-                                d_end = c_e.date_input("結束日期", datetime.now())
+                                tw_now = get_taiwan_time()
+                                d_start = c_s.date_input("開始日期", datetime(tw_now.year, 1, 1))
+                                d_end = c_e.date_input("結束日期", tw_now.date())
                                 data_entries.append({"date": d_end, "vol": 0.0})
                                 
                                 st.markdown("<div style='color: #1A5276; font-size: 1.05rem; font-weight: bold; margin-top: 15px; margin-bottom: 5px;'>📝 備註</div>", unsafe_allow_html=True)
