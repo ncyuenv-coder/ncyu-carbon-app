@@ -908,6 +908,12 @@ def render_user_interface():
     
     # --- Tab 1: 填報 ---
     with tabs[0]:
+        # 加入狀態接收器：若偵測到剛送出成功，在此處觸發氣球與提示
+        if st.session_state.get('submit_success'):
+            st.success("✅ 申報成功！畫面已重置並清空上一筆選擇。")
+            st.balloons()
+            st.session_state['submit_success'] = False
+            
         st.markdown('<div class="alert-box">📢 請「誠實申報」，以保障單位及自身權益！</div>', unsafe_allow_html=True)
         if not df_equip.empty:
             st.markdown("<div style='font-size: 1.4rem; font-weight: 900; color: #2C3E50; margin-bottom: 15px;'>步驟 1：請選擇填報年度、單位及設備</div>", unsafe_allow_html=True)
@@ -1037,10 +1043,11 @@ def render_user_interface():
                                         
                                         if rows_to_append: 
                                             append_rows_with_retry(ws_record, rows_to_append)
-                                            st.success(f"✅ 批次申報成功！已寫入 {len(rows_to_append)} 筆紀錄。")
-                                            st.balloons()
+                                            # 改為寫入狀態並強制重繪，以達到頁面跳轉回頂部效果
+                                            st.session_state['submit_success'] = True
                                             st.session_state['reset_counter'] += 1
                                             st.cache_data.clear()
+                                            st.rerun()
                                         else: st.warning("系統錯誤：無法產生寫入資料。")
                                     except Exception as e: st.error(f"失敗: {e}")
                 else:
@@ -1179,20 +1186,22 @@ def render_user_interface():
                                             for e in data_entries: rows.append([now_str, selected_dept, p_name, p_ext, selected_device, str(row.get('校內財產編號','-')), str(row.get('原燃物料名稱','-')), card_str, str(e['date']), e['vol'], shared_str, note_input, final_link])
                                             if rows: 
                                                 append_rows_with_retry(ws_record, rows)
-                                                st.success("✅ 申報成功！")
-                                                st.balloons()
+                                                # 改為寫入狀態並強制重繪，以達到頁面跳轉回頂部效果
+                                                st.session_state['submit_success'] = True
                                                 st.session_state['reset_counter'] += 1
                                                 st.cache_data.clear()
+                                                st.rerun()
                                 elif report_mode == "無使用":
                                     if p_email and str(p_email).strip() != default_email:
                                         note_input += f" [Email異動: {str(p_email).strip()}]"
                                         
                                     rows = [[get_taiwan_time().strftime("%Y-%m-%d %H:%M:%S"), selected_dept, p_name, p_ext, selected_device, str(row.get('校內財產編號','-')), str(row.get('原燃物料名稱','-')), "-", str(data_entries[0]['date']), 0.0, "-", note_input, "無"]]
                                     append_rows_with_retry(ws_record, rows)
-                                    st.success("✅ 申報成功！")
-                                    st.balloons()
+                                    # 改為寫入狀態並強制重繪，以達到頁面跳轉回頂部效果
+                                    st.session_state['submit_success'] = True
                                     st.session_state['reset_counter'] += 1
                                     st.cache_data.clear()
+                                    st.rerun()
         else: st.warning("📭 目前資料庫尚無有效資料，請聯絡管理員。")
 
     # --- Tab 2: 看板 ---
