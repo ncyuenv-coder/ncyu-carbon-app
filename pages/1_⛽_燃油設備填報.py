@@ -935,6 +935,53 @@ def render_user_interface():
             privacy_html = """<div class="privacy-box"><div class="privacy-title">📜 個人資料蒐集、處理及利用告知聲明</div>1. <strong>蒐集機關</strong>：國立嘉義大學。<br>2. <strong>蒐集目的</strong>：進行本校公務車輛/機具之加油紀錄管理、校園溫室氣體（碳）盤查統計、稽核佐證資料蒐集及後續能源使用分析。<br>3. <strong>個資類別</strong>：填報人姓名、聯絡分機、電子郵件。<br>4. <strong>利用期間</strong>：姓名及聯絡資料保留至填報年度後第二年1月1日，期滿即進行「去識別化」刪除，其餘數據永久保存。<br>5. <strong>利用對象</strong>：本校教師、行政人員及碳盤查查驗人員。<br>6. <strong>您有權依個資法請求查詢、更正或刪除您的個資。如不提供，將無法完成填報。</strong><br></div>"""
             
             if selected_dept is not None:
+                
+                # ==========================================
+                # --- 新增：未提報提醒 (智慧摺疊面板) ---
+                # ==========================================
+                tw_now = get_taiwan_time()
+                sel_year_int = int(selected_year_str)
+                
+                # 設定應檢核的月份：若是今年，檢核 1 月到上個月 (若為 1 月則檢核 1 月)；若是歷史年份則檢核 1~12 月
+                if sel_year_int == tw_now.year:
+                    check_months = list(range(1, tw_now.month)) if tw_now.month > 1 else [1]
+                elif sel_year_int < tw_now.year:
+                    check_months = list(range(1, 13))
+                else:
+                    check_months = []
+
+                if check_months:
+                    # 篩選該單位該年度的填報紀錄
+                    df_dept_rec = df_records[(df_records['填報單位'] == selected_dept) & (df_records['日期格式'].dt.year == sel_year_int)]
+                    dept_equip = df_equip_yr[df_equip_yr['填報單位'] == selected_dept]
+                    
+                    missing_report = {}
+                    for _, row in dept_equip.iterrows():
+                        dev_name = row['設備名稱備註']
+                        # 找出該設備當年度的申報紀錄，並抓出已申報的月份集合
+                        dev_rec = df_dept_rec[df_dept_rec['設備名稱備註'] == dev_name]
+                        reported_months = set(dev_rec['日期格式'].dt.month.dropna().astype(int)) if not dev_rec.empty else set()
+                        
+                        # 比對應檢核月份與已申報月份
+                        missing = [m for m in check_months if m not in reported_months]
+                        if missing:
+                            missing_report[dev_name] = missing
+                            
+                    # 繪製 UI (Expander)
+                    if missing_report:
+                        with st.expander(f"🚨 【提醒】本單位 {selected_year_str} 年度尚有 {len(missing_report)} 項設備未完成填報 (點擊展開)", expanded=False):
+                            st.markdown(f"<div style='color: #C0392B; font-weight: bold; margin-bottom: 10px;'>以下為系統偵測 {check_months[0]} 月至 {check_months[-1]} 月期間，尚缺漏申報紀錄的設備：</div>", unsafe_allow_html=True)
+                            for dev, m_list in missing_report.items():
+                                m_str = "、".join([f"{m}月" for m in m_list])
+                                if len(m_list) == len(check_months):
+                                    st.markdown(f"* 🔸 **{dev}**：<span style='color: #D35400; font-weight: 800;'>尚未申報 (缺漏 {check_months[0]}~{check_months[-1]}月)</span>", unsafe_allow_html=True)
+                                else:
+                                    st.markdown(f"* 🔸 **{dev}**：<span style='color: #2874A6; font-weight: 800;'>缺漏月份 [{m_str}]</span>", unsafe_allow_html=True)
+                    else:
+                        with st.expander(f"✅ 【狀態】本單位 {selected_year_str} 年度 1 至 {check_months[-1]} 月皆已依規定完成申報！", expanded=False):
+                            st.success("感謝您的配合，目前無缺漏紀錄。")
+                # ==========================================
+
                 if selected_dept in VIP_UNITS:
                     st.info(f"💡 您選擇了 **{selected_dept}**，系統已自動切換為「油卡批次申報模式」。")
                     sub_categories = []
