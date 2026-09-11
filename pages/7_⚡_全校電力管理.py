@@ -465,13 +465,17 @@ def plot_horizontal_ranking(df, category_col, value_col, total_value, title, hei
         
     return fig
 
-def plot_yoy_line_custom(df, year_curr, year_prev, group_col=None, group_val=None, metric="usage"):
+def plot_yoy_line_custom(df, year_curr, year_prev, valid_months=None, group_col=None, group_val=None, metric="usage"):
     if metric == "cost":
         col_name = '電費金額(元)'; unit_label = "元 (NTD)"
         color_curr = COLORS['chart_cost_green']; title_suffix = "電費 (Cost)"
     else:
         col_name = '用電量(度數)'; unit_label = "度 (kWh)"
         color_curr = COLORS['chart_usage_blue']; title_suffix = "用電量 (Usage)"
+
+    # 若未指定，預設為 1~12 月
+    if valid_months is None:
+        valid_months = list(range(1, 13))
 
     df_c = df[df['統計年度'] == year_curr]
     df_p = df[df['統計年度'] == year_prev]
@@ -480,14 +484,15 @@ def plot_yoy_line_custom(df, year_curr, year_prev, group_col=None, group_val=Non
         df_c = df_c[df_c[group_col] == group_val]
         df_p = df_p[df_p[group_col] == group_val]
         
-    df_c_g = df_c.groupby('統計月份')[col_name].sum().reindex(range(1,13), fill_value=0)
-    df_p_g = df_p.groupby('統計月份')[col_name].sum().reindex(range(1,13), fill_value=0)
+    # 嚴格限制僅 reindex 到 valid_months
+    df_c_g = df_c.groupby('統計月份')[col_name].sum().reindex(valid_months, fill_value=0)
+    df_p_g = df_p.groupby('統計月份')[col_name].sum().reindex(valid_months, fill_value=0)
     
     fig = go.Figure()
     
     # 🔥 加入 <b> 標籤使圖例文字加粗
     fig.add_trace(go.Scatter(
-        x=list(range(1,13)), y=df_p_g, name=f"<b>{year_prev}年</b>",
+        x=valid_months, y=df_p_g, name=f"<b>{year_prev}年</b>",
         mode='lines+markers', 
         line=dict(color=COLORS['line_prev_year'], width=3, dash='solid'),
         marker=dict(size=8, opacity=0.8),
@@ -639,11 +644,11 @@ def render_equipment_management_fragment(df, years, default_idx):
                 addr = row['用電地址']
                 mid = row['電號']
                 
-                curr_months = df_curr[(df_curr['電號'] == mid)]['統計月份'].unique()
                 kwh_curr = df_curr[(df_curr['電號'] == mid)]['用電量(度數)'].sum()
                 co2_curr = df_curr[(df_curr['電號'] == mid)]['碳排放量'].sum()
                 
-                df_prev_match = df_prev[(df_prev['電號'] == mid) & (df_prev['統計月份'].isin(curr_months))]
+                # 統一使用全域月份 months_curr 確保同期比較基準一致
+                df_prev_match = df_prev[(df_prev['電號'] == mid) & (df_prev['統計月份'].isin(months_curr))]
                 kwh_prev_period = df_prev_match['用電量(度數)'].sum()
                 co2_prev_period = df_prev_match['碳排放量'].sum()
                 
@@ -687,12 +692,12 @@ def render_equipment_management_fragment(df, years, default_idx):
     c1, c2 = st.columns(2)
     with c1:
         st.markdown('<div class="chart-box">', unsafe_allow_html=True)
-        fig_yoy_usage = plot_yoy_line_custom(target_df, selected_year, selected_year-1, metric="usage")
+        fig_yoy_usage = plot_yoy_line_custom(target_df, selected_year, selected_year-1, valid_months=months_curr, metric="usage")
         st.plotly_chart(fig_yoy_usage, use_container_width=True)
         st.markdown('</div>', unsafe_allow_html=True)
     with c2:
         st.markdown('<div class="chart-box">', unsafe_allow_html=True)
-        fig_yoy_cost = plot_yoy_line_custom(target_df, selected_year, selected_year-1, metric="cost")
+        fig_yoy_cost = plot_yoy_line_custom(target_df, selected_year, selected_year-1, valid_months=months_curr, metric="cost")
         st.plotly_chart(fig_yoy_cost, use_container_width=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
@@ -816,11 +821,11 @@ def render_dashboard_fragment(df, years, default_idx):
     # =========================================================
     # 新增：全校節能成效資訊卡 (置頂綜整)
     # =========================================================
-    curr_months_all = df_curr['統計月份'].unique()
     kwh_curr_all = df_curr['用電量(度數)'].sum()
     co2_curr_all = df_curr['碳排放量'].sum()
     
-    df_prev_match_all = df_prev[df_prev['統計月份'].isin(curr_months_all)]
+    # 統一使用全域月份 months_curr 確保同期比較基準一致
+    df_prev_match_all = df_prev[df_prev['統計月份'].isin(months_curr)]
     kwh_prev_all = df_prev_match_all['用電量(度數)'].sum()
     co2_prev_all = df_prev_match_all['碳排放量'].sum()
     
@@ -851,11 +856,11 @@ def render_dashboard_fragment(df, years, default_idx):
     campuses = ["蘭潭校區", "民雄校區", "新民校區", "林森校區"]
     
     for i, c in enumerate(campuses):
-        curr_months = df_curr[df_curr['校區'] == c]['統計月份'].unique()
         kwh_curr = df_curr[df_curr['校區'] == c]['用電量(度數)'].sum()
         co2_curr = df_curr[df_curr['校區'] == c]['碳排放量'].sum()
         
-        df_prev_match = df_prev[(df_prev['校區'] == c) & (df_prev['統計月份'].isin(curr_months))]
+        # 統一使用全域月份 months_curr 確保同期比較基準一致
+        df_prev_match = df_prev[(df_prev['校區'] == c) & (df_prev['統計月份'].isin(months_curr))]
         kwh_prev_p = df_prev_match['用電量(度數)'].sum()
         co2_prev_p = df_prev_match['碳排放量'].sum()
         
@@ -893,12 +898,12 @@ def render_dashboard_fragment(df, years, default_idx):
     c1, c2 = st.columns(2)
     with c1:
         st.markdown('<div class="chart-box">', unsafe_allow_html=True)
-        fig_dash_yoy_u = plot_yoy_line_custom(target_d, selected_year, selected_year-1, metric="usage")
+        fig_dash_yoy_u = plot_yoy_line_custom(target_d, selected_year, selected_year-1, valid_months=months_curr, metric="usage")
         st.plotly_chart(fig_dash_yoy_u, use_container_width=True)
         st.markdown('</div>', unsafe_allow_html=True)
     with c2:
         st.markdown('<div class="chart-box">', unsafe_allow_html=True)
-        fig_dash_yoy_c = plot_yoy_line_custom(target_d, selected_year, selected_year-1, metric="cost")
+        fig_dash_yoy_c = plot_yoy_line_custom(target_d, selected_year, selected_year-1, valid_months=months_curr, metric="cost")
         st.plotly_chart(fig_dash_yoy_c, use_container_width=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
