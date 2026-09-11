@@ -624,14 +624,18 @@ def render_equipment_management_fragment(df, years, default_idx):
     
     st.markdown("---")
     
-    # 3. 近2年比較 (導入電號覆蓋率自動過濾不完整月份)
+    # 3. 近2年比較 (依據整月計費基準地址，決定同期比較月份)
+    # 🔥 請將 "蘭潭教學行政區" 替換為您每月固定整月計費的高壓主表地址
+    REFERENCE_ADDRESS = "蘭潭教學行政區" 
+    
     if not df_curr.empty:
-        # 計算每個月有資料的電號總數
-        month_meter_counts = df_curr.groupby('統計月份')['電號'].nunique()
-        max_meters = month_meter_counts.max()
-        # 設定 80% 門檻：該月電號數需達最大電號數 80% 才算「完整月份」
-        valid_months_series = month_meter_counts[month_meter_counts >= (max_meters * 0.8)]
-        months_curr = sorted(valid_months_series.index.tolist())
+        ref_df = df_curr[df_curr['用電地址'] == REFERENCE_ADDRESS]
+        if not ref_df.empty:
+            max_valid_month = ref_df['統計月份'].max()
+            months_curr = list(range(1, max_valid_month + 1))
+        else:
+            # 防呆機制：如果基準地址剛好沒資料，退回抓取全部資料的最大月份
+            months_curr = sorted(df_curr['統計月份'].unique())
     else:
         months_curr = []
         
@@ -820,14 +824,17 @@ def render_dashboard_fragment(df, years, default_idx):
     
     st.markdown("---")
     
-    # 4. 節能成效 (導入電號覆蓋率自動過濾不完整月份)
+    # 4. 節能成效 (依據整月計費基準地址，決定同期比較月份)
+    # 🔥 保持與 Tab 1 相同的基準地址
+    REFERENCE_ADDRESS = "蘭潭教學行政區" 
+    
     if not df_curr.empty:
-        # 計算每個月有資料的電號總數
-        month_meter_counts = df_curr.groupby('統計月份')['電號'].nunique()
-        max_meters = month_meter_counts.max()
-        # 設定 80% 門檻：該月電號數需達最大電號數 80% 才算「完整月份」
-        valid_months_series = month_meter_counts[month_meter_counts >= (max_meters * 0.8)]
-        months_curr = sorted(valid_months_series.index.tolist())
+        ref_df = df_curr[df_curr['用電地址'] == REFERENCE_ADDRESS]
+        if not ref_df.empty:
+            max_valid_month = ref_df['統計月份'].max()
+            months_curr = list(range(1, max_valid_month + 1))
+        else:
+            months_curr = sorted(df_curr['統計月份'].unique())
     else:
         months_curr = []
         
