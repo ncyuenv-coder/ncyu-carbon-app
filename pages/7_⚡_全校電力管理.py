@@ -624,8 +624,17 @@ def render_equipment_management_fragment(df, years, default_idx):
     
     st.markdown("---")
     
-    # 3. 近2年比較
-    months_curr = sorted(df_curr['統計月份'].unique())
+    # 3. 近2年比較 (導入電號覆蓋率自動過濾不完整月份)
+    if not df_curr.empty:
+        # 計算每個月有資料的電號總數
+        month_meter_counts = df_curr.groupby('統計月份')['電號'].nunique()
+        max_meters = month_meter_counts.max()
+        # 設定 80% 門檻：該月電號數需達最大電號數 80% 才算「完整月份」
+        valid_months_series = month_meter_counts[month_meter_counts >= (max_meters * 0.8)]
+        months_curr = sorted(valid_months_series.index.tolist())
+    else:
+        months_curr = []
+        
     month_range = f"{months_curr[0]}~{months_curr[-1]}月" if months_curr else ""
     compare_year_str = f"{selected_year-1} vs {selected_year}"
     
@@ -811,8 +820,17 @@ def render_dashboard_fragment(df, years, default_idx):
     
     st.markdown("---")
     
-    # 4. 節能成效
-    months_curr = sorted(df_curr['統計月份'].unique())
+    # 4. 節能成效 (導入電號覆蓋率自動過濾不完整月份)
+    if not df_curr.empty:
+        # 計算每個月有資料的電號總數
+        month_meter_counts = df_curr.groupby('統計月份')['電號'].nunique()
+        max_meters = month_meter_counts.max()
+        # 設定 80% 門檻：該月電號數需達最大電號數 80% 才算「完整月份」
+        valid_months_series = month_meter_counts[month_meter_counts >= (max_meters * 0.8)]
+        months_curr = sorted(valid_months_series.index.tolist())
+    else:
+        months_curr = []
+        
     month_range = f"{months_curr[0]}~{months_curr[-1]}月" if months_curr else ""
     compare_year_str = f"{selected_year-1} vs {selected_year}"
     
