@@ -118,11 +118,11 @@ st.markdown("""
     div.stButton > button p { color: #FFFFFF !important; } 
     div.stButton > button:hover, [data-testid="stFormSubmitButton"] > button:hover { background-color: var(--orange-dark) !important; transform: translateY(-2px) !important; color: #FFFFFF !important; }
     
-    /* 頁籤 Tab 客製化樣式：統一深色質感與橘色點綴 */
-    div[data-testid="stTabs"] button[data-baseweb="tab"] { background-color: #384959 !important; border-radius: 8px 8px 0 0 !important; padding: 12px 25px !important; border: none !important; margin-right: 4px !important; }
-    div[data-testid="stTabs"] button[data-baseweb="tab"] > div { font-size: 20px !important; color: #FFFFFF !important; font-weight: 600 !important; }
-    div[data-testid="stTabs"] button[data-baseweb="tab"][aria-selected="true"] { background-color: #1D2631 !important; border-top: 4px solid #F39C12 !important; border-bottom: none !important; }
-    div[data-testid="stTabs"] button[data-baseweb="tab"][aria-selected="true"] > div { color: #F39C12 !important; }
+    /* 頁籤 Tab 客製化樣式：改為深灰底色+白色字體，且字體放大 */
+    div[data-testid="stTabs"] button[data-baseweb="tab"] { background-color: #555555 !important; border-radius: 8px 8px 0 0 !important; padding: 12px 25px !important; border: none !important; margin-right: 4px !important; }
+    div[data-testid="stTabs"] button[data-baseweb="tab"] > div { font-size: 22px !important; color: #FFFFFF !important; font-weight: 700 !important; }
+    div[data-testid="stTabs"] button[data-baseweb="tab"][aria-selected="true"] { background-color: #333333 !important; border-top: 4px solid #F39C12 !important; border-bottom: none !important; }
+    div[data-testid="stTabs"] button[data-baseweb="tab"][aria-selected="true"] > div { color: #FFFFFF !important; }
 
     /* 終極表單標籤放大術：強制覆蓋 Streamlit 所有輸入框的預設字體 (微調縮小以達視覺平衡) */
     .stTextInput label p, 
@@ -234,25 +234,26 @@ st.markdown("""
         transform: translateY(-2px);
     }
 
-    /* [新增] 淺藍底色大字體 Radio 樣式 (針對填報類型選擇) */
+    /* [調整] 淺藍底色+黑字體 Radio 樣式 (針對填報類型選擇) */
     div[data-testid="stRadio"].custom-radio-blue div[role="radiogroup"] > label {
-        background-color: #EBF5FB !important; /* 淺藍底色 */
+        background-color: #D6EAF8 !important; /* 淺藍底色 */
         border: 2px solid #AED6F1 !important;
         border-radius: 12px !important;
-        padding: 12px 20px !important; /* 加大 padding */
+        padding: 12px 20px !important; 
     }
     div[data-testid="stRadio"].custom-radio-blue div[role="radiogroup"] > label p {
-        font-size: 1.35rem !important; /* 放大字體 */
-        color: #154360 !important;
+        font-size: 1.35rem !important; 
+        color: #000000 !important; /* 強制黑字 */
+        font-weight: 800 !important;
     }
     div[data-testid="stRadio"].custom-radio-blue div[role="radiogroup"] > label[data-checked="true"],
     div[data-testid="stRadio"].custom-radio-blue div[role="radiogroup"] > label:has(input:checked) {
-        background-color: #3498DB !important; /* 選取時較深的藍色 */
+        background-color: #AED6F1 !important; /* 選取時些微加深的淺藍色 */
         border-color: #2980B9 !important;
     }
     div[data-testid="stRadio"].custom-radio-blue div[role="radiogroup"] > label[data-checked="true"] p,
     div[data-testid="stRadio"].custom-radio-blue div[role="radiogroup"] > label:has(input:checked) p {
-        color: #FFFFFF !important; /* 選取時白字 */
+        color: #000000 !important; /* 選取時維持黑字 */
     }
 </style>
 """, unsafe_allow_html=True)
@@ -950,8 +951,42 @@ def render_user_interface():
             units = sorted([x for x in df_equip_yr['填報單位'].unique() if x != '-' and x != '填報單位'])
             selected_dept = col_u.selectbox("🏢 填報單位", units, index=None, placeholder="請選擇單位...", key="dept_selector")
             
-            selected_month_str = col_m.selectbox("📆 填報月份", [f"{m}月" for m in range(1, 13)], index=get_taiwan_time().month-1, key="month_selector")
-            selected_month_int = int(selected_month_str.replace("月", ""))
+            # --- 智慧防呆：計算該單位尚有缺漏的月份 ---
+            available_months_strs = [f"{m}月" for m in range(1, 13)]
+            default_month_idx = get_taiwan_time().month - 1
+            
+            if selected_dept is not None:
+                sel_year_int = int(selected_year_str)
+                df_dept_rec_all = df_records[(df_records['填報單位'] == selected_dept) & (df_records['日期格式'].dt.year == sel_year_int)]
+                dept_equip_all = df_equip_yr[df_equip_yr['填報單位'] == selected_dept]
+                
+                missing_months = []
+                for m in range(1, 13):
+                    check_ym = sel_year_int * 100 + m
+                    active_eq_names = []
+                    for _, r in dept_equip_all.iterrows():
+                        start_ym = str(r.get('設備加油起算年月', '')).strip()
+                        if start_ym.isdigit() and len(start_ym) == 6:
+                            if int(start_ym) > check_ym: continue
+                        active_eq_names.append(r['設備名稱備註'])
+                    
+                    if not active_eq_names:
+                        continue # 當月無須申報
+                        
+                    reported_eq = df_dept_rec_all[df_dept_rec_all['日期格式'].dt.month == m]['設備名稱備註'].unique()
+                    if set(active_eq_names) - set(reported_eq):
+                        missing_months.append(f"{m}月")
+                        
+                if missing_months:
+                    available_months_strs = missing_months
+                    default_month_idx = 0
+                else:
+                    available_months_strs = ["✅已全數完成"]
+                    default_month_idx = 0
+
+            selected_month_str = col_m.selectbox("📆 填報月份", available_months_strs, index=default_month_idx, key="month_selector")
+            # 若全部完成則代入12月避免後續邏輯報錯，後續過濾器會將設備清單清空
+            selected_month_int = 12 if "已全數完成" in selected_month_str else int(selected_month_str.replace("月", ""))
             
             shared_note_text = "如有與其他設備共用油單，請於備註區備註是與哪個設備共用，謝謝。<br>"
             typo_note = f'<div class="correction-note"><span style="color:#C0392B; font-weight:900;">{shared_note_text}</span>如有資料誤繕情形，請重新登錄1次資訊，並於備註欄填寫：「前筆資料誤繕，請刪除。」，管理單位將協助刪除誤打資訊</div>'
@@ -1032,17 +1067,24 @@ def render_user_interface():
                         if "汽油" in target_sub_cat: filtered_equip = filtered_equip[filtered_equip['原燃物料名稱'].str.contains("汽油")]
                         elif "柴油" in target_sub_cat: filtered_equip = filtered_equip[filtered_equip['原燃物料名稱'].str.contains("柴油")]
                         
-                        # [新增防呆] 批次申報時，剔除「尚未到達加油起算年月」的設備
-                        def is_active(row):
+                        # [新增防呆] 批次申報時，剔除「尚未到達起算年月」及「當月已申報」的設備
+                        def is_active_vip(row):
+                            dev_name = row['設備名稱備註']
                             start_ym = str(row.get('設備加油起算年月', '')).strip()
                             if start_ym.isdigit() and len(start_ym) == 6:
-                                return int(start_ym) <= current_ym_check
+                                if int(start_ym) > current_ym_check:
+                                    return False
+                            if dev_name in reported_report:
+                                return False
                             return True
-                        filtered_equip = filtered_equip[filtered_equip.apply(is_active, axis=1)]
+                        filtered_equip = filtered_equip[filtered_equip.apply(is_active_vip, axis=1)]
                         
-                        # 第一個替換：
-                        st.markdown("<div style='font-size: 1.4rem; font-weight: 900; color: #2C3E50; margin-bottom: 15px; margin-top: 20px;'>步驟 2：批次填寫與上傳</div>", unsafe_allow_html=True)
-                        with st.form("batch_form", clear_on_submit=True):
+                        if filtered_equip.empty:
+                            st.success(f"🎉 此類別設備於 {selected_month_str} 皆已完成申報！")
+                        else:
+                            # 第一個替換：
+                            st.markdown("<div style='font-size: 1.4rem; font-weight: 900; color: #2C3E50; margin-bottom: 15px; margin-top: 20px;'>步驟 2：批次填寫與上傳</div>", unsafe_allow_html=True)
+                            with st.form("batch_form", clear_on_submit=True):
                             col_p1, col_p2 = st.columns(2)
                             p_name = col_p1.text_input("👤 填報人姓名 (必填)")
                             p_ext = col_p2.text_input("📞 聯絡分機 (必填)")
@@ -1136,11 +1178,15 @@ def render_user_interface():
                 else:
                     filtered = df_equip_yr[df_equip_yr['填報單位'] == selected_dept].copy()
                     
-                    # [新增防呆] 下拉選單中，直接剔除「尚未到達加油起算年月」的設備
+                    # [新增防呆] 下拉選單中，直接剔除「尚未到達起算年月」及「當月已申報」的設備
                     def is_active_normal(row):
+                        dev_name = row['設備名稱備註']
                         start_ym = str(row.get('設備加油起算年月', '')).strip()
                         if start_ym.isdigit() and len(start_ym) == 6:
-                            return int(start_ym) <= current_ym_check
+                            if int(start_ym) > current_ym_check:
+                                return False
+                        if dev_name in reported_report:
+                            return False
                         return True
                     filtered = filtered[filtered.apply(is_active_normal, axis=1)]
                     
