@@ -118,31 +118,47 @@ st.markdown("""
     div.stButton > button p { color: #FFFFFF !important; } 
     div.stButton > button:hover, [data-testid="stFormSubmitButton"] > button:hover { background-color: var(--orange-dark) !important; transform: translateY(-2px) !important; color: #FFFFFF !important; }
     
-    /* 頁籤 Tab 按鈕化樣式：深灰色底色 + 白色字體 + 放大一號 */
-    div[data-testid="stTabs"] button[data-baseweb="tab"] { 
+    /* 隱藏 Streamlit 預設的滑動底線與邊界，呈現真正獨立按鈕感 */
+    div[data-testid="stTabs"] div[data-baseweb="tab-highlight"], 
+    div[data-testid="stTabs"] div[data-baseweb="tab-border"] {
+        display: none !important;
+    }
+
+    /* 頁籤 Tab 獨立按鈕化：深灰色底色 */
+    div[data-testid="stTabs"] button[role="tab"] { 
         background-color: #566573 !important; 
-        border-radius: 10px !important; /* 四角皆圓，呈現獨立按鈕感 */
-        padding: 10px 24px !important; 
+        border-radius: 10px !important; 
+        padding: 8px 24px !important; 
         border: 2px solid transparent !important; 
         margin-right: 10px !important; 
         box-shadow: 0 3px 5px rgba(0,0,0,0.15) !important;
         transition: all 0.2s ease;
+        margin-bottom: 10px !important;
     }
-    div[data-testid="stTabs"] button[data-baseweb="tab"] > div { 
-        font-size: 22px !important; /* 字體放大一號 */
+
+    /* 終極穿透：針對內層的 p 標籤強制覆蓋白色、放大字體 */
+    div[data-testid="stTabs"] button[role="tab"] p { 
+        font-size: 22px !important; 
         color: #FFFFFF !important; 
-        font-weight: 800 !important; 
+        font-weight: 900 !important; 
+        margin: 0 !important;
     }
-    div[data-testid="stTabs"] button[data-baseweb="tab"]:hover {
+
+    /* 懸停效果：顏色加深與上浮 */
+    div[data-testid="stTabs"] button[role="tab"]:hover {
         background-color: #424949 !important;
         transform: translateY(-2px);
     }
-    div[data-testid="stTabs"] button[data-baseweb="tab"][aria-selected="true"] { 
+
+    /* 點擊選取狀態：亮橘色邊框 + 更深的底色 */
+    div[data-testid="stTabs"] button[role="tab"][aria-selected="true"] { 
         background-color: #2C3E50 !important; 
-        border: 2px solid #F39C12 !important; /* 選取時加上亮橘色邊框凸顯 */
+        border: 2px solid #F39C12 !important; 
     }
-    div[data-testid="stTabs"] button[data-baseweb="tab"][aria-selected="true"] > div { 
-        color: #F39C12 !important; 
+
+    /* 點擊選取狀態：文字變為橘黃色 */
+    div[data-testid="stTabs"] button[role="tab"][aria-selected="true"] p { 
+        color: #F1C40F !important; 
     }
 
     /* 終極表單標籤放大術：強制覆蓋 Streamlit 所有輸入框的預設字體 (微調縮小以達視覺平衡) */
