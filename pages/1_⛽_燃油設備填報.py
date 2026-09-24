@@ -152,20 +152,18 @@ st.markdown("""
         transform: translateY(-2px) !important;
     }
 
-    /* 5. 點擊選取狀態：亮橘色邊框 + 橘光 */
+    /* 5. 點擊選取狀態：亮橘色邊框 (移除外圍橘光，維持乾淨立體感) */
     div[data-testid="stTabs"] [role="tab"][aria-selected="true"] {
         background-color: #222222 !important;
         border: 2px solid #FF9800 !important;
-        /* 確保連下方的邊框也是橘色，徹底蓋掉官方原本的紅色 */
         border-bottom: 2px solid #FF9800 !important; 
-        box-shadow: 0 0 15px 3px rgba(255, 152, 0, 0.6) !important;
+        box-shadow: 0 3px 5px rgba(0,0,0,0.15) !important; 
     }
 
-    /* 6. 選取狀態的文字變亮橘色 */
+    /* 6. 選取狀態的文字變亮橘色 (移除文字微光) */
     div[data-testid="stTabs"] [role="tab"][aria-selected="true"] p,
     div[data-testid="stTabs"] [role="tab"][aria-selected="true"] span {
         color: #FF9800 !important;
-        text-shadow: 0 0 8px rgba(255, 152, 0, 0.4) !important;
     }
 
     /* 終極表單標籤放大術：強制覆蓋 Streamlit 所有輸入框的預設字體 (微調縮小以達視覺平衡) */
