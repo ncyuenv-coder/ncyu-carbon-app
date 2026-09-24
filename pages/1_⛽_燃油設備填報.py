@@ -139,30 +139,29 @@ st.markdown("""
     div[data-testid="stCheckbox"] label p { font-size: 1.05rem !important; color: #1F618D !important; font-weight: 800 !important; }
     [data-testid="stFileUploaderDropzone"] { background-color: #D6EAF8 !important; border: 2px dashed #2E86C1 !important; padding: 20px; border-radius: 12px; }
     [data-testid="stFileUploaderDropzone"] div, span, small { color: #154360 !important; font-weight: bold !important; }
-    /* Radio 按鈕：未選取淺灰，選取時使用高質感深灰色底色與純白字體 */
-    /* Radio 按鈕終極覆蓋術：使用 :has 確保底層 Input 被選取時絕對變色 */
+    /* [依照截圖優化] 淺藍底色、深藍字體，保留原生紅點的 Radio 樣式 */
     div[data-testid="stRadio"] div[role="radiogroup"] > label {
-        background-color: #F2F4F4 !important; 
+        background-color: #DFEBF6 !important; /* 截圖中的淺藍底色 */
         border: 1px solid #BDC3C7 !important; 
-        border-radius: 8px !important; 
-        padding: 8px 15px !important; 
-        margin-right: 10px !important; 
-        transition: all 0.2s ease; 
+        border-radius: 6px !important; 
+        padding: 10px 18px !important; 
+        margin-right: 12px !important; 
     }
     div[data-testid="stRadio"] div[role="radiogroup"] > label p {
         font-size: 1.15rem !important; 
         font-weight: 900 !important; 
-        color: #566573 !important; 
+        color: #1A5276 !important; /* 深藍字體 */
     }
+    /* 選取時維持淺藍底色，僅加深邊框，靠原生紅色圓點辨識狀態 */
     div[data-testid="stRadio"] div[role="radiogroup"] > label[data-checked="true"],
     div[data-testid="stRadio"] div[role="radiogroup"] > label:has(input:checked) {
-        background-color: #34495E !important; 
-        border-color: #2C3E50 !important; 
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important; 
+        background-color: #DFEBF6 !important; 
+        border-color: #85C1E9 !important; 
+        box-shadow: 0 0 5px rgba(52, 152, 219, 0.3) !important; 
     }
     div[data-testid="stRadio"] div[role="radiogroup"] > label[data-checked="true"] p,
     div[data-testid="stRadio"] div[role="radiogroup"] > label:has(input:checked) p {
-        color: #FFFFFF !important; 
+        color: #1A5276 !important; 
     }
 
     /* 終極覆蓋：強制將表單「確認送出」按鈕內部所有層級的文字顏色綁定為純白色 */
@@ -939,11 +938,9 @@ def render_user_interface():
                 equip_years = [str(get_taiwan_time().year)]
             if not equip_years: equip_years = [str(get_taiwan_time().year)]
             
-            # 調整為 4 個欄位，加入月份
-            col_y, col_m, col_u, col_d = st.columns([1, 1, 1.5, 1.5])
+            # 調整順序為：年度 -> 單位 -> 月份 -> 設備，符合操作直覺
+            col_y, col_u, col_m, col_d = st.columns([1, 1.5, 1, 1.5])
             selected_year_str = col_y.selectbox("📅 填報年度", equip_years, index=0, key="year_selector")
-            selected_month_str = col_m.selectbox("📆 填報月份", [f"{m}月" for m in range(1, 13)], index=get_taiwan_time().month-1, key="month_selector")
-            selected_month_int = int(selected_month_str.replace("月", ""))
             
             if '設備檢視年度' in df_equip.columns:
                 df_equip_yr = df_equip[df_equip['設備檢視年度'].astype(str) == selected_year_str].copy()
@@ -952,6 +949,9 @@ def render_user_interface():
                 
             units = sorted([x for x in df_equip_yr['填報單位'].unique() if x != '-' and x != '填報單位'])
             selected_dept = col_u.selectbox("🏢 填報單位", units, index=None, placeholder="請選擇單位...", key="dept_selector")
+            
+            selected_month_str = col_m.selectbox("📆 填報月份", [f"{m}月" for m in range(1, 13)], index=get_taiwan_time().month-1, key="month_selector")
+            selected_month_int = int(selected_month_str.replace("月", ""))
             
             shared_note_text = "如有與其他設備共用油單，請於備註區備註是與哪個設備共用，謝謝。<br>"
             typo_note = f'<div class="correction-note"><span style="color:#C0392B; font-weight:900;">{shared_note_text}</span>如有資料誤繕情形，請重新登錄1次資訊，並於備註欄填寫：「前筆資料誤繕，請刪除。」，管理單位將協助刪除誤打資訊</div>'
@@ -1031,6 +1031,14 @@ def render_user_interface():
                         elif "無車牌" in target_sub_cat: filtered_equip = filtered_equip[~filtered_equip['設備名稱備註'].apply(has_plate)]
                         if "汽油" in target_sub_cat: filtered_equip = filtered_equip[filtered_equip['原燃物料名稱'].str.contains("汽油")]
                         elif "柴油" in target_sub_cat: filtered_equip = filtered_equip[filtered_equip['原燃物料名稱'].str.contains("柴油")]
+                        
+                        # [新增防呆] 批次申報時，剔除「尚未到達加油起算年月」的設備
+                        def is_active(row):
+                            start_ym = str(row.get('設備加油起算年月', '')).strip()
+                            if start_ym.isdigit() and len(start_ym) == 6:
+                                return int(start_ym) <= current_ym_check
+                            return True
+                        filtered_equip = filtered_equip[filtered_equip.apply(is_active, axis=1)]
                         
                         # 第一個替換：
                         st.markdown("<div style='font-size: 1.4rem; font-weight: 900; color: #2C3E50; margin-bottom: 15px; margin-top: 20px;'>步驟 2：批次填寫與上傳</div>", unsafe_allow_html=True)
@@ -1126,7 +1134,16 @@ def render_user_interface():
                                         else: st.warning("系統錯誤：無法產生寫入資料。")
                                     except Exception as e: st.error(f"失敗: {e}")
                 else:
-                    filtered = df_equip_yr[df_equip_yr['填報單位'] == selected_dept]
+                    filtered = df_equip_yr[df_equip_yr['填報單位'] == selected_dept].copy()
+                    
+                    # [新增防呆] 下拉選單中，直接剔除「尚未到達加油起算年月」的設備
+                    def is_active_normal(row):
+                        start_ym = str(row.get('設備加油起算年月', '')).strip()
+                        if start_ym.isdigit() and len(start_ym) == 6:
+                            return int(start_ym) <= current_ym_check
+                        return True
+                    filtered = filtered[filtered.apply(is_active_normal, axis=1)]
+                    
                     devices = sorted([x for x in filtered['設備名稱備註'].unique()])
                     dynamic_key = f"vehicle_selector_{st.session_state['reset_counter']}"
                     selected_device = col_d.selectbox("🚜 車輛/機具名稱", devices, index=None, placeholder="請選擇車輛...", key=dynamic_key)
