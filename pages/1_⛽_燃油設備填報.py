@@ -950,10 +950,19 @@ def render_user_interface():
                 df_dept_rec = df_records[(df_records['填報單位'] == selected_dept) & (df_records['日期格式'].dt.year == sel_year_int)]
                 dept_equip = df_equip_yr[df_equip_yr['填報單位'] == selected_dept]
                 
+                # 1. 模糊匹配尋找「起算年月」欄位 (防禦表頭名稱變更)
+                start_ym_col = None
+                for col in dept_equip.columns:
+                    if '起算年月' in str(col):
+                        start_ym_col = col
+                        break
+                
                 available_months = []
                 month_device_map = {}
+                missing_report = {}
 
                 for m in check_months:
+                    # 2. 將年度與月份組合成 YYYYMM (例如 202608)
                     m_str = f"{sel_year_int}{m:02d}"
                     m_int = int(m_str)
                     
@@ -961,16 +970,17 @@ def render_user_interface():
                     for _, row in dept_equip.iterrows():
                         dev_name = row['設備名稱備註']
                         
-                        # Rule A: 檢查起算年月 (加入強型別轉換，預防 Pandas 讀成 '202609.0' 導致失效)
-                        start_ym_raw = str(row.get('設備加油起算年月', '')).strip()
-                        if start_ym_raw and start_ym_raw.lower() != 'nan' and start_ym_raw != '-':
-                            try:
-                                # 轉 float 再轉 int，完美解決 "202609.0" 與 "202609" 的格式問題
-                                start_ym_int = int(float(start_ym_raw))
-                                if m_int < start_ym_int:
-                                    continue # 尚未到起算月份，跳過該設備，該月不顯示
-                            except ValueError:
-                                pass # 若欄位填寫無法解析的非數字，則視為無需過濾(預設顯示)
+                        # Rule A: 精準檢查起算年月
+                        if start_ym_col:
+                            start_ym_raw = str(row.get(start_ym_col, '')).strip()
+                            if start_ym_raw and start_ym_raw.lower() != 'nan' and start_ym_raw != '-':
+                                try:
+                                    start_ym_int = int(float(start_ym_raw))
+                                    # 核心邏輯：如果該月 (e.g. 202608) 小於 設備起算月 (e.g. 202609)，直接跳過
+                                    if m_int < start_ym_int:
+                                        continue 
+                                except ValueError:
+                                    pass # 若非數字則視為無限制
                                 
                         # Rule B: 檢查是否已申報
                         dev_rec = df_dept_rec[(df_dept_rec['設備名稱備註'] == dev_name) & (df_dept_rec['日期格式'].dt.month == m)]
@@ -980,10 +990,25 @@ def render_user_interface():
                     if unreported_devices:
                         available_months.append(m)
                         month_device_map[m] = unreported_devices
-                        
-                if not available_months:
-                    st.success(f"✅ 【狀態】本單位 {selected_year_str} 年度目前所有應申報月份皆已依規定完成申報！")
+                        # 紀錄給 UI 面板顯示用
+                        for d in unreported_devices:
+                            if d not in missing_report: missing_report[d] = []
+                            missing_report[d].append(m)
+                
+                # ==========================================
+                # --- 動態未提報提醒 (智慧摺疊面板) ---
+                # ==========================================
+                if missing_report:
+                    with st.expander(f"🚨 【提醒】本單位 {selected_year_str} 年度尚有設備未完成填報 (點擊展開)", expanded=False):
+                        st.markdown(f"<div style='color: #C0392B; font-weight: bold; margin-bottom: 10px;'>以下為系統偵測尚缺漏申報紀錄的設備與月份：</div>", unsafe_allow_html=True)
+                        for dev, m_list in missing_report.items():
+                            m_str = "、".join([f"{m}月" for m in m_list])
+                            st.markdown(f"* 🔸 **{dev}**：<span style='color: #2874A6; font-weight: 800;'>缺漏月份 [{m_str}]</span>", unsafe_allow_html=True)
                 else:
+                    st.success(f"✅ 【狀態】本單位 {selected_year_str} 年度目前所有應申報月份皆已依規定完成申報！")
+                # ==========================================
+
+                if available_months:
                     selected_month = col_m.selectbox("📆 填報月份", available_months, index=None, placeholder="請選擇...", key="month_selector")
                     
                     if selected_month:
