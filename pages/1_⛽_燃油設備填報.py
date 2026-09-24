@@ -234,6 +234,27 @@ st.markdown("""
         border: 2px solid #BA4A00 !important; 
         transform: translateY(-2px);
     }
+
+    /* [新增] 淺藍底色大字體 Radio 樣式 (針對填報類型選擇) */
+    div[data-testid="stRadio"].custom-radio-blue div[role="radiogroup"] > label {
+        background-color: #EBF5FB !important; /* 淺藍底色 */
+        border: 2px solid #AED6F1 !important;
+        border-radius: 12px !important;
+        padding: 12px 20px !important; /* 加大 padding */
+    }
+    div[data-testid="stRadio"].custom-radio-blue div[role="radiogroup"] > label p {
+        font-size: 1.35rem !important; /* 放大字體 */
+        color: #154360 !important;
+    }
+    div[data-testid="stRadio"].custom-radio-blue div[role="radiogroup"] > label[data-checked="true"],
+    div[data-testid="stRadio"].custom-radio-blue div[role="radiogroup"] > label:has(input:checked) {
+        background-color: #3498DB !important; /* 選取時較深的藍色 */
+        border-color: #2980B9 !important;
+    }
+    div[data-testid="stRadio"].custom-radio-blue div[role="radiogroup"] > label[data-checked="true"] p,
+    div[data-testid="stRadio"].custom-radio-blue div[role="radiogroup"] > label:has(input:checked) p {
+        color: #FFFFFF !important; /* 選取時白字 */
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -910,7 +931,7 @@ def render_user_interface():
     with tabs[0]:
         st.markdown('<div class="alert-box">📢 請「誠實申報」，以保障單位及自身權益！</div>', unsafe_allow_html=True)
         if not df_equip.empty:
-            st.markdown("<div style='font-size: 1.4rem; font-weight: 900; color: #2C3E50; margin-bottom: 15px;'>步驟 1：請選擇填報年度、單位及設備</div>", unsafe_allow_html=True)
+            st.markdown("<div style='font-size: 1.4rem; font-weight: 900; color: #2C3E50; margin-bottom: 15px;'>步驟 1：請選擇填報年度月份、單位及設備</div>", unsafe_allow_html=True)
             
             if '設備檢視年度' in df_equip.columns:
                 equip_years = sorted(list(set([str(y).strip() for y in df_equip['設備檢視年度'].unique() if str(y).strip() not in ['', 'nan']])), reverse=True)
@@ -918,8 +939,11 @@ def render_user_interface():
                 equip_years = [str(get_taiwan_time().year)]
             if not equip_years: equip_years = [str(get_taiwan_time().year)]
             
-            col_y, col_u, col_d = st.columns(3)
+            # 調整為 4 個欄位，加入月份
+            col_y, col_m, col_u, col_d = st.columns([1, 1, 1.5, 1.5])
             selected_year_str = col_y.selectbox("📅 填報年度", equip_years, index=0, key="year_selector")
+            selected_month_str = col_m.selectbox("📆 填報月份", [f"{m}月" for m in range(1, 13)], index=get_taiwan_time().month-1, key="month_selector")
+            selected_month_int = int(selected_month_str.replace("月", ""))
             
             if '設備檢視年度' in df_equip.columns:
                 df_equip_yr = df_equip[df_equip['設備檢視年度'].astype(str) == selected_year_str].copy()
@@ -937,49 +961,58 @@ def render_user_interface():
             if selected_dept is not None:
                 
                 # ==========================================
-                # --- 新增：未提報提醒 (智慧摺疊面板) ---
+                # --- 新增：針對指定月份的防呆提醒 (結合起算年月) ---
                 # ==========================================
-                tw_now = get_taiwan_time()
                 sel_year_int = int(selected_year_str)
+                current_ym_check = sel_year_int * 100 + selected_month_int
                 
-                # 設定應檢核的月份：若是今年，檢核 1 月到上個月 (若為 1 月則檢核 1 月)；若是歷史年份則檢核 1~12 月
-                if sel_year_int == tw_now.year:
-                    check_months = list(range(1, tw_now.month)) if tw_now.month > 1 else [1]
-                elif sel_year_int < tw_now.year:
-                    check_months = list(range(1, 13))
-                else:
-                    check_months = []
-
-                if check_months:
-                    # 篩選該單位該年度的填報紀錄
-                    df_dept_rec = df_records[(df_records['填報單位'] == selected_dept) & (df_records['日期格式'].dt.year == sel_year_int)]
-                    dept_equip = df_equip_yr[df_equip_yr['填報單位'] == selected_dept]
+                # 篩選該單位該年度「指定月份」的填報紀錄
+                df_dept_rec = df_records[(df_records['填報單位'] == selected_dept) & 
+                                         (df_records['日期格式'].dt.year == sel_year_int) & 
+                                         (df_records['日期格式'].dt.month == selected_month_int)]
+                dept_equip = df_equip_yr[df_equip_yr['填報單位'] == selected_dept]
+                
+                missing_report = []
+                reported_report = []
+                not_started_report = []
+                
+                for _, row in dept_equip.iterrows():
+                    dev_name = row['設備名稱備註']
                     
-                    missing_report = {}
-                    for _, row in dept_equip.iterrows():
-                        dev_name = row['設備名稱備註']
-                        # 找出該設備當年度的申報紀錄，並抓出已申報的月份集合
-                        dev_rec = df_dept_rec[df_dept_rec['設備名稱備註'] == dev_name]
-                        reported_months = set(dev_rec['日期格式'].dt.month.dropna().astype(int)) if not dev_rec.empty else set()
+                    # 判斷起算年月
+                    start_ym_str = str(row.get('設備加油起算年月', '')).strip()
+                    is_started = True
+                    if start_ym_str.isdigit() and len(start_ym_str) == 6:
+                        if int(start_ym_str) > current_ym_check:
+                            is_started = False
+                    
+                    if not is_started:
+                        not_started_report.append(dev_name)
+                        continue
                         
-                        # 比對應檢核月份與已申報月份
-                        missing = [m for m in check_months if m not in reported_months]
-                        if missing:
-                            missing_report[dev_name] = missing
-                            
-                    # 繪製 UI (Expander)
-                    if missing_report:
-                        with st.expander(f"🚨 【提醒】本單位 {selected_year_str} 年度尚有 {len(missing_report)} 項設備未完成填報 (點擊展開)", expanded=False):
-                            st.markdown(f"<div style='color: #C0392B; font-weight: bold; margin-bottom: 10px;'>以下為系統偵測 {check_months[0]} 月至 {check_months[-1]} 月期間，尚缺漏申報紀錄的設備：</div>", unsafe_allow_html=True)
-                            for dev, m_list in missing_report.items():
-                                m_str = "、".join([f"{m}月" for m in m_list])
-                                if len(m_list) == len(check_months):
-                                    st.markdown(f"* 🔸 **{dev}**：<span style='color: #D35400; font-weight: 800;'>尚未申報 (缺漏 {check_months[0]}~{check_months[-1]}月)</span>", unsafe_allow_html=True)
-                                else:
-                                    st.markdown(f"* 🔸 **{dev}**：<span style='color: #2874A6; font-weight: 800;'>缺漏月份 [{m_str}]</span>", unsafe_allow_html=True)
+                    # 判斷是否已申報
+                    dev_rec = df_dept_rec[df_dept_rec['設備名稱備註'] == dev_name]
+                    if dev_rec.empty:
+                        missing_report.append(dev_name)
                     else:
-                        with st.expander(f"✅ 【狀態】本單位 {selected_year_str} 年度 1 至 {check_months[-1]} 月皆已依規定完成申報！", expanded=False):
-                            st.success("感謝您的配合，目前無缺漏紀錄。")
+                        reported_report.append(dev_name)
+                        
+                # 繪製 UI (Expander)
+                status_title = f"🔍 【填報狀態】{selected_year_str}年 {selected_month_str} - 待申報: {len(missing_report)} 項 / 已申報: {len(reported_report)} 項"
+                if missing_report: status_title = "🚨 " + status_title
+                else: status_title = "✅ " + status_title
+                
+                with st.expander(status_title, expanded=bool(missing_report)):
+                    if missing_report:
+                        st.markdown(f"<div style='color: #C0392B; font-weight: bold; margin-bottom: 5px;'>⚠️ 以下設備尚未填報 {selected_month_str} 份資料，請盡速完成：</div>", unsafe_allow_html=True)
+                        for dev in missing_report:
+                            st.markdown(f"* 🔸 **{dev}**", unsafe_allow_html=True)
+                    else:
+                        st.success(f"🎉 太棒了！本單位所有應申報設備皆已完成 {selected_month_str} 份申報。")
+                    
+                    if not_started_report:
+                        st.markdown("---")
+                        st.markdown(f"<div style='color: #7F8C8D; font-size: 0.9rem;'>ℹ️ 以下設備未達起算年月，免申報：{', '.join(not_started_report)}</div>", unsafe_allow_html=True)
                 # ==========================================
 
                 if selected_dept in VIP_UNITS:
@@ -1132,7 +1165,11 @@ def render_user_interface():
                         st.write("") 
                         st.markdown('<p style="color:#566573; font-size:1rem; font-weight:bold; margin-bottom:-10px;">請選擇申報類型，並於填報前先設定申報筆數(至多10筆)</p>', unsafe_allow_html=True)
                         st.write("") 
-                        report_mode = st.radio("類型選擇", ["用油量申報 (含單筆/多筆/油卡)", "無使用"], horizontal=True, label_visibility="collapsed")
+                        
+                        # 套用新的自定義 CSS 類別
+                        st.markdown('<div class="custom-radio-blue">', unsafe_allow_html=True)
+                        report_mode = st.radio("類型選擇", ["用油量申報 (含單筆/多筆/油卡)", "期間未加油"], horizontal=True, label_visibility="collapsed")
+                        st.markdown('</div>', unsafe_allow_html=True)
                         
                         if report_mode == "用油量申報 (含單筆/多筆/油卡)":
                             c_btn1, c_btn2, _ = st.columns([1, 1, 3])
@@ -1141,10 +1178,28 @@ def render_user_interface():
                             with c_btn2: 
                                 if st.button("➖ 減少一列") and st.session_state['multi_row_count'] > 1: st.session_state['multi_row_count'] -= 1
 
+                        # --- 自動帶入前次填報人資訊邏輯 ---
+                        prev_name = ""
+                        prev_ext = ""
+                        if not df_records.empty:
+                            df_prev = df_records[df_records['填報單位'] == selected_dept].copy()
+                            if not df_prev.empty:
+                                # 嘗試尋找該設備的最新紀錄
+                                df_prev_dev = df_prev[df_prev['設備名稱備註'] == selected_device]
+                                if not df_prev_dev.empty:
+                                    last_row = df_prev_dev.iloc[-1]
+                                else:
+                                    # 退而求其次，找該單位的最新紀錄
+                                    last_row = df_prev.iloc[-1]
+                                prev_name = str(last_row.get('填報人', '')).strip()
+                                prev_ext = str(last_row.get('填報人分機', '')).strip()
+                                if prev_name == 'nan': prev_name = ""
+                                if prev_ext == 'nan': prev_ext = ""
+
                         with st.form("entry_form", clear_on_submit=True):
                             col_p1, col_p2 = st.columns(2)
-                            p_name = col_p1.text_input("👤 填報人姓名 (必填)")
-                            p_ext = col_p2.text_input("📞 聯絡分機 (必填)")
+                            p_name = col_p1.text_input("👤 填報人姓名 (必填)", value=prev_name)
+                            p_ext = col_p2.text_input("📞 聯絡分機 (必填)", value=prev_ext)
                             
                             default_email = str(row.get('電子郵件', '')).strip() if '電子郵件' in row else ''
                             if default_email == 'nan': default_email = ''
@@ -1174,7 +1229,7 @@ def render_user_interface():
                                 st.markdown(typo_note, unsafe_allow_html=True)
                                 
                             else:
-                                st.info("ℹ️ 您選擇了「無使用」，請選擇無使用的期間。")
+                                st.info("ℹ️ 您選擇了「期間未加油」，請選擇未加油的期間。")
                                 c_s, c_e = st.columns(2)
                                 tw_now = get_taiwan_time()
                                 d_start = c_s.date_input("開始日期", datetime(tw_now.year, 1, 1))
@@ -1183,7 +1238,7 @@ def render_user_interface():
                                 
                                 st.markdown("<div style='color: #1A5276; font-size: 1.05rem; font-weight: bold; margin-top: 15px; margin-bottom: 5px;'>📝 備註</div>", unsafe_allow_html=True)
                                 note_ext = st.text_input("備註", key="note_ext_input", placeholder="請輸入備註內容...", label_visibility="collapsed")
-                                note_input = f"無使用 (期間: {d_start} ~ {d_end})"
+                                note_input = f"期間未加油 (期間: {d_start} ~ {d_end})"
                                 if note_ext: note_input += f" | {note_ext}"
                                 
                                 st.markdown(typo_note_simple, unsafe_allow_html=True)
@@ -1234,7 +1289,7 @@ def render_user_interface():
                                                 st.session_state['reset_counter'] += 1
                                                 st.cache_data.clear()
                                                 st.rerun()
-                                elif report_mode == "無使用":
+                                elif report_mode == "期間未加油":
                                     if p_email and str(p_email).strip() != default_email:
                                         note_input += f" [Email異動: {str(p_email).strip()}]"
                                         
