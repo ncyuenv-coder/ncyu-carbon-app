@@ -86,27 +86,54 @@ st.markdown("""
     div.stButton > button:hover, [data-testid="stFormSubmitButton"] > button:hover { background-color: var(--orange-dark) !important; transform: translateY(-2px) !important; color: #FFFFFF !important; }
     
     /* ========================================================= */
-    /* 頁籤 Tab 客製化樣式：統一深色質感與橘色點綴  */
+    /* 頁籤 Tab 客製化樣式：統一深灰色按鈕、俐落橘色邊框 */
     /* ========================================================= */
-    div[data-testid="stTabs"] button[data-baseweb="tab"] {
-        background-color: #384959 !important; 
-        border-radius: 8px 8px 0 0 !important;
-        padding: 12px 25px !important;
-        border: none !important;
-        margin-right: 4px !important;
+    /* 1. 隱藏舊版 BaseWeb 的紅線裝飾 */
+    div[data-testid="stTabs"] [data-baseweb="tab-highlight"],
+    div[data-testid="stTabs"] [data-baseweb="tab-border"] {
+        display: none !important;
     }
-    div[data-testid="stTabs"] button[data-baseweb="tab"] > div {
-        font-size: 20px !important; 
+
+    /* 2. 針對所有頁籤本體進行按鈕化 */
+    div[data-testid="stTabs"] [role="tab"] {
+        background-color: #4A4A4A !important;
+        border-radius: 10px !important;
+        padding: 8px 24px !important;
+        border: 2px solid transparent !important;
+        margin-right: 10px !important;
+        box-shadow: 0 3px 5px rgba(0,0,0,0.15) !important;
+        transition: all 0.3s ease !important;
+        /* 強制拔除官方在底層預設的紅底線 */
+        border-bottom-color: transparent !important; 
+    }
+
+    /* 3. 精準指定內層文字白化 */
+    div[data-testid="stTabs"] [role="tab"] p,
+    div[data-testid="stTabs"] [role="tab"] span {
         color: #FFFFFF !important;
-        font-weight: 600 !important;
+        font-size: 22px !important;
+        font-weight: 900 !important;
+        margin: 0 !important;
     }
-    div[data-testid="stTabs"] button[data-baseweb="tab"][aria-selected="true"] {
-        background-color: #1D2631 !important; 
-        border-top: 4px solid #F39C12 !important;
-        border-bottom: none !important; 
+
+    /* 4. 懸停效果 */
+    div[data-testid="stTabs"] [role="tab"]:hover {
+        background-color: #333333 !important;
+        transform: translateY(-2px) !important;
     }
-    div[data-testid="stTabs"] button[data-baseweb="tab"][aria-selected="true"] > div {
-        color: #F39C12 !important;
+
+    /* 5. 點擊選取狀態：亮橘色邊框 */
+    div[data-testid="stTabs"] [role="tab"][aria-selected="true"] {
+        background-color: #222222 !important;
+        border: 2px solid #FF9800 !important;
+        border-bottom: 2px solid #FF9800 !important; 
+        box-shadow: 0 3px 5px rgba(0,0,0,0.15) !important;
+    }
+
+    /* 6. 選取狀態的文字變亮橘色 */
+    div[data-testid="stTabs"] [role="tab"][aria-selected="true"] p,
+    div[data-testid="stTabs"] [role="tab"][aria-selected="true"] span {
+        color: #FF9800 !important;
     }
 
     div[data-testid="stCheckbox"] label p { font-size: 1.05rem !important; color: #1F618D !important; font-weight: 800 !important; }
