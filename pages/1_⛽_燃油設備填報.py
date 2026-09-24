@@ -118,11 +118,32 @@ st.markdown("""
     div.stButton > button p { color: #FFFFFF !important; } 
     div.stButton > button:hover, [data-testid="stFormSubmitButton"] > button:hover { background-color: var(--orange-dark) !important; transform: translateY(-2px) !important; color: #FFFFFF !important; }
     
-    /* 頁籤 Tab 客製化樣式：統一深灰色底色與白色字體，並放大一號 */
-    div[data-testid="stTabs"] button[data-baseweb="tab"] { background-color: #566573 !important; border-radius: 8px 8px 0 0 !important; padding: 12px 25px !important; border: none !important; margin-right: 4px !important; }
-    div[data-testid="stTabs"] button[data-baseweb="tab"] > div { font-size: 22px !important; color: #FFFFFF !important; font-weight: 600 !important; }
-    div[data-testid="stTabs"] button[data-baseweb="tab"][aria-selected="true"] { background-color: #2C3E50 !important; border-top: 4px solid #F39C12 !important; border-bottom: none !important; }
-    div[data-testid="stTabs"] button[data-baseweb="tab"][aria-selected="true"] > div { color: #F39C12 !important; }
+    /* 頁籤 Tab 按鈕化樣式：深灰色底色 + 白色字體 + 放大一號 */
+    div[data-testid="stTabs"] button[data-baseweb="tab"] { 
+        background-color: #566573 !important; 
+        border-radius: 10px !important; /* 四角皆圓，呈現獨立按鈕感 */
+        padding: 10px 24px !important; 
+        border: 2px solid transparent !important; 
+        margin-right: 10px !important; 
+        box-shadow: 0 3px 5px rgba(0,0,0,0.15) !important;
+        transition: all 0.2s ease;
+    }
+    div[data-testid="stTabs"] button[data-baseweb="tab"] > div { 
+        font-size: 22px !important; /* 字體放大一號 */
+        color: #FFFFFF !important; 
+        font-weight: 800 !important; 
+    }
+    div[data-testid="stTabs"] button[data-baseweb="tab"]:hover {
+        background-color: #424949 !important;
+        transform: translateY(-2px);
+    }
+    div[data-testid="stTabs"] button[data-baseweb="tab"][aria-selected="true"] { 
+        background-color: #2C3E50 !important; 
+        border: 2px solid #F39C12 !important; /* 選取時加上亮橘色邊框凸顯 */
+    }
+    div[data-testid="stTabs"] button[data-baseweb="tab"][aria-selected="true"] > div { 
+        color: #F39C12 !important; 
+    }
 
     /* 終極表單標籤放大術：強制覆蓋 Streamlit 所有輸入框的預設字體 (微調縮小以達視覺平衡) */
     .stTextInput label p, 
@@ -1127,7 +1148,16 @@ def render_user_interface():
                                                         
                                                     for idx, vol in batch_inputs.items():
                                                         row = filtered_equip.loc[idx]
-                                                        rows_to_append.append([current_time, selected_dept, p_name, p_ext, row['設備名稱備註'], str(row.get('校內財產編號','-')), row['原燃物料名稱'], fleet_id, str(batch_date), vol, "是", f"批次申報-{target_sub_cat} | {note_val}", file_link])
+                                                        if vol == 0.0:
+                                                            # 智慧判定：若該月加油量為 0，自動轉為「期間未加油」格式
+                                                            zero_note = f"期間未加油 | 批次申報-{target_sub_cat}"
+                                                            if note_val: 
+                                                                zero_note += f" | {note_val}"
+                                                            # 寫入格式：油卡("-")、共用("-")、佐證資料("無")
+                                                            rows_to_append.append([current_time, selected_dept, p_name, p_ext, row['設備名稱備註'], str(row.get('校內財產編號','-')), row['原燃物料名稱'], "-", str(batch_date), 0.0, "-", zero_note, "無"])
+                                                        else:
+                                                            # 正常用油量申報寫入
+                                                            rows_to_append.append([current_time, selected_dept, p_name, p_ext, row['設備名稱備註'], str(row.get('校內財產編號','-')), row['原燃物料名稱'], fleet_id, str(batch_date), vol, "是", f"批次申報-{target_sub_cat} | {note_val}", file_link])
                                                     
                                                     if rows_to_append: 
                                                         append_rows_with_retry(ws_record, rows_to_append)
