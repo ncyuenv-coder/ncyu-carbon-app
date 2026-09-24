@@ -118,48 +118,57 @@ st.markdown("""
     div.stButton > button p { color: #FFFFFF !important; } 
     div.stButton > button:hover, [data-testid="stFormSubmitButton"] > button:hover { background-color: var(--orange-dark) !important; transform: translateY(-2px) !important; color: #FFFFFF !important; }
     
-    /* 隱藏 Streamlit 預設的滑動底線與邊界，呈現真正獨立按鈕感 */
-    div[data-testid="stTabs"] div[data-baseweb="tab-highlight"], 
-    div[data-testid="stTabs"] div[data-baseweb="tab-border"] {
+    /* 1. 徹底隱藏預設的底部線條 (Tab highlight & border) */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 12px !important; /* 讓頁籤之間保持固定間距 */
+    }
+    .stTabs [data-baseweb="tab-border"],
+    .stTabs [data-baseweb="tab-highlight"] {
         display: none !important;
+        background-color: transparent !important;
+        border: none !important;
     }
 
-    /* 頁籤 Tab 獨立按鈕化：深灰色底色 */
-    div[data-testid="stTabs"] button[role="tab"] { 
+    /* 2. 頁籤 Tab 本體按鈕化：深灰色底色 */
+    .stTabs button[data-baseweb="tab"] { 
         background-color: #4A4A4A !important; 
         border-radius: 10px !important; 
         padding: 8px 24px !important; 
         border: 2px solid transparent !important; 
-        margin-right: 10px !important; 
+        margin: 0 !important; /* 取消預設 margin，改由 tab-list gap 控制 */
         box-shadow: 0 3px 5px rgba(0,0,0,0.15) !important;
-        transition: all 0.3s ease;
-        margin-bottom: 10px !important;
+        transition: all 0.3s ease !important;
+        height: auto !important; 
     }
 
-    /* 終極穿透：針對內層的 p 標籤強制覆蓋白色、放大字體 */
-    div[data-testid="stTabs"] button[role="tab"] p { 
+    /* 3. 終極穿透：針對內層文字強制覆蓋白色、放大字體 (涵蓋 p 與 span 防禦 Streamlit 版本差異) */
+    .stTabs button[data-baseweb="tab"] p,
+    .stTabs button[data-baseweb="tab"] span,
+    .stTabs button[data-baseweb="tab"] div { 
         font-size: 22px !important; 
         color: #FFFFFF !important; 
         font-weight: 900 !important; 
         margin: 0 !important;
-        transition: all 0.3s ease;
+        transition: all 0.3s ease !important;
     }
 
-    /* 懸停效果：顏色加深與上浮 */
-    div[data-testid="stTabs"] button[role="tab"]:hover {
+    /* 4. 懸停效果：顏色加深與上浮 */
+    .stTabs button[data-baseweb="tab"]:hover {
         background-color: #333333 !important;
-        transform: translateY(-2px);
+        transform: translateY(-2px) !important;
     }
 
-    /* 點擊選取狀態：亮橘色邊框 + 發出橘光 + 更深的底色 */
-    div[data-testid="stTabs"] button[role="tab"][aria-selected="true"] { 
+    /* 5. 點擊選取狀態：亮橘色邊框 + 發出橘光 + 更深的底色 */
+    .stTabs button[data-baseweb="tab"][aria-selected="true"] { 
         background-color: #222222 !important; 
         border: 2px solid #FF9800 !important; 
         box-shadow: 0 0 15px 3px rgba(255, 152, 0, 0.6) !important; 
     }
 
-    /* 點擊選取狀態：文字變為亮橘色 (含微發光) */
-    div[data-testid="stTabs"] button[role="tab"][aria-selected="true"] p { 
+    /* 6. 點擊選取狀態：文字變為亮橘色 (含微發光) */
+    .stTabs button[data-baseweb="tab"][aria-selected="true"] p,
+    .stTabs button[data-baseweb="tab"][aria-selected="true"] span,
+    .stTabs button[data-baseweb="tab"][aria-selected="true"] div { 
         color: #FF9800 !important; 
         text-shadow: 0 0 8px rgba(255, 152, 0, 0.4) !important;
     }
