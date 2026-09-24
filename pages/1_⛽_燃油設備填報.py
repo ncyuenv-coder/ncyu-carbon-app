@@ -118,33 +118,30 @@ st.markdown("""
     div.stButton > button p { color: #FFFFFF !important; } 
     div.stButton > button:hover, [data-testid="stFormSubmitButton"] > button:hover { background-color: var(--orange-dark) !important; transform: translateY(-2px) !important; color: #FFFFFF !important; }
     
-    /* 1. 徹底隱藏預設的底部線條 (Tab highlight & border) */
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 12px !important; /* 讓頁籤之間保持固定間距 */
-    }
-    .stTabs [data-baseweb="tab-border"],
-    .stTabs [data-baseweb="tab-highlight"] {
+    /* 1. 徹底隱藏預設的底部線條 (Tab highlight & border) - 雙重鎖定 */
+    div[data-testid="stTabs"] [data-baseweb="tab-highlight"],
+    div[data-testid="stTabs"] [data-baseweb="tab-border"] {
         display: none !important;
+        opacity: 0 !important;
         background-color: transparent !important;
-        border: none !important;
     }
 
-    /* 2. 頁籤 Tab 本體按鈕化：深灰色底色 */
-    .stTabs button[data-baseweb="tab"] { 
+    /* 2. 頁籤 Tab 本體按鈕化：深灰色底色 (相容兩種寫法) */
+    div[data-testid="stTabs"] button[data-baseweb="tab"],
+    div[data-testid="stTabs"] button[role="tab"] { 
         background-color: #4A4A4A !important; 
         border-radius: 10px !important; 
         padding: 8px 24px !important; 
         border: 2px solid transparent !important; 
-        margin: 0 !important; /* 取消預設 margin，改由 tab-list gap 控制 */
+        margin-right: 10px !important; 
         box-shadow: 0 3px 5px rgba(0,0,0,0.15) !important;
         transition: all 0.3s ease !important;
-        height: auto !important; 
     }
 
-    /* 3. 終極穿透：針對內層文字強制覆蓋白色、放大字體 (涵蓋 p 與 span 防禦 Streamlit 版本差異) */
-    .stTabs button[data-baseweb="tab"] p,
-    .stTabs button[data-baseweb="tab"] span,
-    .stTabs button[data-baseweb="tab"] div { 
+    /* 3. 終極穿透：破解 Streamlit 內建的 Markdown 容器，強制變白 */
+    div[data-testid="stTabs"] button[data-baseweb="tab"] p,
+    div[data-testid="stTabs"] button[data-baseweb="tab"] span,
+    div[data-testid="stTabs"] button[data-baseweb="tab"] div[data-testid="stMarkdownContainer"] p { 
         font-size: 22px !important; 
         color: #FFFFFF !important; 
         font-weight: 900 !important; 
@@ -153,22 +150,24 @@ st.markdown("""
     }
 
     /* 4. 懸停效果：顏色加深與上浮 */
-    .stTabs button[data-baseweb="tab"]:hover {
+    div[data-testid="stTabs"] button[data-baseweb="tab"]:hover,
+    div[data-testid="stTabs"] button[role="tab"]:hover {
         background-color: #333333 !important;
         transform: translateY(-2px) !important;
     }
 
     /* 5. 點擊選取狀態：亮橘色邊框 + 發出橘光 + 更深的底色 */
-    .stTabs button[data-baseweb="tab"][aria-selected="true"] { 
+    div[data-testid="stTabs"] button[data-baseweb="tab"][aria-selected="true"],
+    div[data-testid="stTabs"] button[role="tab"][aria-selected="true"] { 
         background-color: #222222 !important; 
         border: 2px solid #FF9800 !important; 
         box-shadow: 0 0 15px 3px rgba(255, 152, 0, 0.6) !important; 
     }
 
-    /* 6. 點擊選取狀態：文字變為亮橘色 (含微發光) */
-    .stTabs button[data-baseweb="tab"][aria-selected="true"] p,
-    .stTabs button[data-baseweb="tab"][aria-selected="true"] span,
-    .stTabs button[data-baseweb="tab"][aria-selected="true"] div { 
+    /* 6. 點擊選取狀態：文字變為亮橘色 (破解 Markdown 容器紅字) */
+    div[data-testid="stTabs"] button[data-baseweb="tab"][aria-selected="true"] p,
+    div[data-testid="stTabs"] button[data-baseweb="tab"][aria-selected="true"] span,
+    div[data-testid="stTabs"] button[data-baseweb="tab"][aria-selected="true"] div[data-testid="stMarkdownContainer"] p { 
         color: #FF9800 !important; 
         text-shadow: 0 0 8px rgba(255, 152, 0, 0.4) !important;
     }
