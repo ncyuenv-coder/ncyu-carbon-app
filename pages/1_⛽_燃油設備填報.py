@@ -126,13 +126,13 @@ st.markdown("""
 
     /* 頁籤 Tab 獨立按鈕化：深灰色底色 */
     div[data-testid="stTabs"] button[role="tab"] { 
-        background-color: #566573 !important; 
+        background-color: #4A4A4A !important; 
         border-radius: 10px !important; 
         padding: 8px 24px !important; 
         border: 2px solid transparent !important; 
         margin-right: 10px !important; 
         box-shadow: 0 3px 5px rgba(0,0,0,0.15) !important;
-        transition: all 0.2s ease;
+        transition: all 0.3s ease;
         margin-bottom: 10px !important;
     }
 
@@ -142,23 +142,26 @@ st.markdown("""
         color: #FFFFFF !important; 
         font-weight: 900 !important; 
         margin: 0 !important;
+        transition: all 0.3s ease;
     }
 
     /* 懸停效果：顏色加深與上浮 */
     div[data-testid="stTabs"] button[role="tab"]:hover {
-        background-color: #424949 !important;
+        background-color: #333333 !important;
         transform: translateY(-2px);
     }
 
-    /* 點擊選取狀態：亮橘色邊框 + 更深的底色 */
+    /* 點擊選取狀態：亮橘色邊框 + 發出橘光 + 更深的底色 */
     div[data-testid="stTabs"] button[role="tab"][aria-selected="true"] { 
-        background-color: #2C3E50 !important; 
-        border: 2px solid #F39C12 !important; 
+        background-color: #222222 !important; 
+        border: 2px solid #FF9800 !important; 
+        box-shadow: 0 0 15px 3px rgba(255, 152, 0, 0.6) !important; 
     }
 
-    /* 點擊選取狀態：文字變為橘黃色 */
+    /* 點擊選取狀態：文字變為亮橘色 (含微發光) */
     div[data-testid="stTabs"] button[role="tab"][aria-selected="true"] p { 
-        color: #F1C40F !important; 
+        color: #FF9800 !important; 
+        text-shadow: 0 0 8px rgba(255, 152, 0, 0.4) !important;
     }
 
     /* 終極表單標籤放大術：強制覆蓋 Streamlit 所有輸入框的預設字體 (微調縮小以達視覺平衡) */
