@@ -950,19 +950,16 @@ def render_user_interface():
                 df_dept_rec = df_records[(df_records['填報單位'] == selected_dept) & (df_records['日期格式'].dt.year == sel_year_int)]
                 dept_equip = df_equip_yr[df_equip_yr['填報單位'] == selected_dept]
                 
-                # 1. 模糊匹配尋找「起算年月」欄位 (防禦表頭名稱變更)
-                start_ym_col = None
-                for col in dept_equip.columns:
-                    if '起算年月' in str(col):
-                        start_ym_col = col
-                        break
+                # 1. 強制鎖定 Sheet1 的 L 欄 (在 Python 索引中 A 欄為 0，L 欄為 11)
+                # 加上長度防護，確保表格至少有 12 欄，避免索引超界報錯
+                start_ym_col = dept_equip.columns[11] if len(dept_equip.columns) > 11 else None
                 
                 available_months = []
                 month_device_map = {}
                 missing_report = {}
 
                 for m in check_months:
-                    # 2. 將年度與月份組合成 YYYYMM (例如 202608)
+                    # 2. 將當下檢查的年度與月份組合成 YYYYMM (例如 202601)
                     m_str = f"{sel_year_int}{m:02d}"
                     m_int = int(m_str)
                     
@@ -970,19 +967,29 @@ def render_user_interface():
                     for _, row in dept_equip.iterrows():
                         dev_name = row['設備名稱備註']
                         
-                        # Rule A: 精準檢查起算年月
+                        # Rule A: 絕對定位 + 正規表達式暴力萃取數字
+                        is_skipped = False
                         if start_ym_col:
                             start_ym_raw = str(row.get(start_ym_col, '')).strip()
-                            if start_ym_raw and start_ym_raw.lower() != 'nan' and start_ym_raw != '-':
-                                try:
-                                    start_ym_int = int(float(start_ym_raw))
-                                    # 核心邏輯：如果該月 (e.g. 202608) 小於 設備起算月 (e.g. 202609)，直接跳過
-                                    if m_int < start_ym_int:
-                                        continue 
-                                except ValueError:
-                                    pass # 若非數字則視為無限制
+                            if start_ym_raw and start_ym_raw.lower() != 'nan':
+                                # 使用正規表達式 \D 剔除所有「非數字」字元 (包含空白、斜線、中文字)
+                                clean_digits = re.sub(r'\D', '', start_ym_raw)
+                                # 確保萃取出的數字至少有 6 碼 (YYYYMM)
+                                if len(clean_digits) >= 6:
+                                    try:
+                                        # 嚴格取前 6 碼轉為整數
+                                        start_ym_int = int(clean_digits[:6])
+                                        # 核心防呆：如果該月 (e.g. 202601) 小於 設備起算月 (e.g. 202604)
+                                        if m_int < start_ym_int:
+                                            is_skipped = True
+                                    except ValueError:
+                                        pass
+                        
+                        # 若未達起算時間，直接放行 (不加入漏報清單，該月也不顯示此設備)
+                        if is_skipped:
+                            continue
                                 
-                        # Rule B: 檢查是否已申報
+                        # Rule B: 檢查該月份是否已經有申報紀錄
                         dev_rec = df_dept_rec[(df_dept_rec['設備名稱備註'] == dev_name) & (df_dept_rec['日期格式'].dt.month == m)]
                         if dev_rec.empty:
                             unreported_devices.append(dev_name)
