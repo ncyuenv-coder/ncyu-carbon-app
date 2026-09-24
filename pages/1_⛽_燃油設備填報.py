@@ -140,29 +140,28 @@ st.markdown("""
     [data-testid="stFileUploaderDropzone"] { background-color: #D6EAF8 !important; border: 2px dashed #2E86C1 !important; padding: 20px; border-radius: 12px; }
     [data-testid="stFileUploaderDropzone"] div, span, small { color: #154360 !important; font-weight: bold !important; }
     
-    /* Radio 按鈕：淺藍色底色 + 黑字按鈕 */
-    div[data-testid="stRadio"] div[role="radiogroup"] > label {
+    /* Radio 按鈕：淺藍色底色 + 黑字按鈕 (移除 > 限制以對應 Streamlit 最新 DOM 結構) */
+    .stRadio div[role="radiogroup"] label {
         background-color: #EBF5FB !important; 
         border: 1px solid #AED6F1 !important; 
         border-radius: 8px !important; 
-        padding: 8px 15px !important; 
-        margin-right: 10px !important; 
+        padding: 10px 20px !important; 
+        margin-right: 12px !important; 
+        margin-bottom: 5px !important;
         transition: all 0.2s ease; 
+        cursor: pointer !important;
     }
-    div[data-testid="stRadio"] div[role="radiogroup"] > label p {
+    .stRadio div[role="radiogroup"] label p {
         font-size: 1.15rem !important; 
         font-weight: 900 !important; 
-        color: #000000 !important; 
+        color: #154360 !important; 
     }
-    div[data-testid="stRadio"] div[role="radiogroup"] > label[data-checked="true"],
-    div[data-testid="stRadio"] div[role="radiogroup"] > label:has(input:checked) {
+    .stRadio div[role="radiogroup"] label:has(input:checked) {
         background-color: #AED6F1 !important; 
-        border-color: #2980B9 !important; 
-        border-width: 2px !important;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important; 
+        border: 2px solid #2980B9 !important; 
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1) !important; 
     }
-    div[data-testid="stRadio"] div[role="radiogroup"] > label[data-checked="true"] p,
-    div[data-testid="stRadio"] div[role="radiogroup"] > label:has(input:checked) p {
+    .stRadio div[role="radiogroup"] label:has(input:checked) p {
         color: #000000 !important; 
     }
 
@@ -962,11 +961,16 @@ def render_user_interface():
                     for _, row in dept_equip.iterrows():
                         dev_name = row['設備名稱備註']
                         
-                        # Rule A: 檢查起算年月 (Sheet1的L欄)
+                        # Rule A: 檢查起算年月 (加入強型別轉換，預防 Pandas 讀成 '202609.0' 導致失效)
                         start_ym_raw = str(row.get('設備加油起算年月', '')).strip()
-                        if start_ym_raw and start_ym_raw.isdigit():
-                            if m_int < int(start_ym_raw):
-                                continue # 尚未到起算月份，跳過
+                        if start_ym_raw and start_ym_raw.lower() != 'nan' and start_ym_raw != '-':
+                            try:
+                                # 轉 float 再轉 int，完美解決 "202609.0" 與 "202609" 的格式問題
+                                start_ym_int = int(float(start_ym_raw))
+                                if m_int < start_ym_int:
+                                    continue # 尚未到起算月份，跳過該設備，該月不顯示
+                            except ValueError:
+                                pass # 若欄位填寫無法解析的非數字，則視為無需過濾(預設顯示)
                                 
                         # Rule B: 檢查是否已申報
                         dev_rec = df_dept_rec[(df_dept_rec['設備名稱備註'] == dev_name) & (df_dept_rec['日期格式'].dt.month == m)]
