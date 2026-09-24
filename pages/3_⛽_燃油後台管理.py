@@ -278,7 +278,7 @@ def export_general_docx(df_year, df_eq, drive_srv):
         section.page_width = Cm(21.0); section.page_height = Cm(29.7)
         section.left_margin = Cm(1.5); section.right_margin = Cm(1.5); section.top_margin = Cm(1.5); section.bottom_margin = Cm(1.5)
 
-    # 確保只處理非批次申報的資料 (UI 端已篩選過，做雙重保險)
+    # 確保只處理非批次申報的資料
     df_gen = df_year[~df_year['備註'].astype(str).str.contains('批次申報', na=False)].copy()
     if df_gen.empty: return None
 
@@ -289,8 +289,8 @@ def export_general_docx(df_year, df_eq, drive_srv):
     valid_df = df_merged[(df_merged['佐證資料_clean'] != '') & (df_merged['佐證資料_clean'] != '無')]
     
     # --- 1. 建立「圖片記憶體快取」與「共用關聯反查字典」 ---
-    image_cache = {} # 格式: fid -> list of img_bytes
-    fid_to_eqs = {}  # 格式: fid -> set(設備編號)
+    image_cache = {} 
+    fid_to_eqs = {}  
     
     for _, row in valid_df.iterrows():
         eq_id = row['設備編號']
@@ -310,10 +310,8 @@ def export_general_docx(df_year, df_eq, drive_srv):
     for name, group in sorted_groups:
         eq_id, dept, eq_name, fuel = name
         
-        # 計算該單一設備在該年度的總加油量
         yearly_vol = df_gen[(df_gen['設備名稱備註'] == eq_name) & (df_gen['填報單位'] == dept)]['加油量'].sum()
         
-        # 【第 1 層：資訊擴充版標題】
         doc.add_heading(f"【{eq_id}】{dept} - {eq_name}", level=1)
         p = doc.add_paragraph()
         p.add_run(f"設備編號：{eq_id} | 燃料：{fuel} | 總加油量：{yearly_vol:,.1f} 公升\n").bold = True
@@ -327,10 +325,8 @@ def export_general_docx(df_year, df_eq, drive_srv):
                 if fid and fid not in local_seen_fids:
                     local_seen_fids.add(fid)
         
-        # 【第 2 層：佐證照片牆與共用動態註記】
         if local_seen_fids:
             for fid in local_seen_fids:
-                # 記憶體快取機制：未下載過的才透過 API 下載
                 if fid not in image_cache:
                     downloaded_imgs = download_and_convert_drive_files(drive_srv, fid)
                     byte_list = []
@@ -339,16 +335,45 @@ def export_general_docx(df_year, df_eq, drive_srv):
                         byte_list.append(img_io.read())
                     image_cache[fid] = byte_list
                 
-                # 從記憶體快取中讀取並置入圖片
+                # --- 圖片動態排版邏輯 (導入 PIL 判斷橫直式) ---
+                portrait_buffer = []
+                def flush_portraits():
+                    if not portrait_buffer: return
+                    table = doc.add_table(rows=1, cols=2)
+                    table.autofit = False
+                    cells = table.rows[0].cells
+                    for idx, b in enumerate(portrait_buffer):
+                        p_cell = cells[idx].paragraphs[0]
+                        p_cell.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                        try: p_cell.add_run().add_picture(io.BytesIO(b), width=Cm(8.5))
+                        except Exception: pass
+                    portrait_buffer.clear()
+                    doc.add_paragraph() # 增加一點段落間距
+                
                 for img_bytes in image_cache[fid]:
-                    p_img = doc.add_paragraph()
-                    p_img.alignment = WD_ALIGN_PARAGRAPH.CENTER
-                    try: 
-                        p_img.add_run().add_picture(io.BytesIO(img_bytes), height=Cm(11.0))
-                    except Exception: 
-                        pass
+                    is_landscape = False
+                    try:
+                        from PIL import Image
+                        with Image.open(io.BytesIO(img_bytes)) as img:
+                            w, h = img.size
+                            is_landscape = w > h
+                    except Exception: pass
+                    
+                    if is_landscape:
+                        flush_portraits() # 遇到橫式先將排隊中的直式印出
+                        doc.add_page_break() # 確保橫式自己獨立一頁
+                        p_img = doc.add_paragraph()
+                        p_img.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                        try: p_img.add_run().add_picture(io.BytesIO(img_bytes), width=Cm(17.0))
+                        except Exception: pass
+                        doc.add_page_break() # 印完橫式後強制換頁
+                    else:
+                        portrait_buffer.append(img_bytes)
+                        if len(portrait_buffer) == 2:
+                            flush_portraits() # 湊滿兩張直式，建立一列
+                            
+                flush_portraits() # 處理落單的最後一張直式圖片
                         
-                # 檢查此張圖片是否與其他設備共用，並產生動態註記
                 shared_with = fid_to_eqs.get(fid, set()) - {eq_id}
                 if shared_with:
                     shared_str = ", ".join(sorted(list(shared_with)))
@@ -368,6 +393,7 @@ def export_general_docx(df_year, df_eq, drive_srv):
 def export_batch_docx(df_year, drive_srv):
     doc = Document()
     for section in doc.sections:
+        # 批次報表統一採用橫印(Landscape)，版面較寬廣適合雙欄圖片
         section.orientation = WD_ORIENT.LANDSCAPE
         section.page_width = Cm(29.7); section.page_height = Cm(21.0)
         section.left_margin = Cm(1.5); section.right_margin = Cm(1.5); section.top_margin = Cm(1.5); section.bottom_margin = Cm(1.5)
@@ -376,64 +402,68 @@ def export_batch_docx(df_year, drive_srv):
     if df_batch.empty: return None
 
     doc.add_heading(f"年度油卡批次申報佐證資料總表", level=1)
+    
+    # 確保有設備類別欄位可供群組
+    if '統計類別' not in df_batch.columns:
+        df_batch['統計類別'] = "其他/未分類"
+        
     df_batch['批次類別'] = df_batch['備註'].apply(lambda x: str(x).split(' | ')[0] if ' | ' in str(x) else str(x))
-    groups = df_batch.groupby(['填報單位', '原燃物料名稱', '批次類別'])
-
-    for name, group in groups:
-        dept, fuel, cat = name
-        eq_names = group['設備名稱備註'].unique()
-        eq_str = "、".join(eq_names)
-        yearly_vol = group['加油量'].sum()
-        p = doc.add_paragraph()
-        p.add_run(f"填報單位：{dept}\n").bold = True
-        p.add_run(f"設備名稱：{eq_str}\n").bold = True
-        p.add_run(f"燃料：{fuel} | 年度總加油量：{yearly_vol:,.1f} 公升\n").bold = True
     
-    unique_links = df_batch['佐證資料'].dropna().unique()
-    images_to_print = []
-    global_seen_fids = set()
-    global_image_hashes = set()
+    # 【改版重點】：第一層依「設備類型(統計類別)」進行分類
+    cat_groups = df_batch.groupby('統計類別')
     
-    for link_str in unique_links:
-        for l in str(link_str).split('\n'):
-            l = l.strip()
-            if not l or l in ["無", ""] or "佐證如" in l: continue
-            fid = get_drive_id(l)
-            if fid and fid not in global_seen_fids:
-                global_seen_fids.add(fid)
-                downloaded_imgs = download_and_convert_drive_files(drive_srv, fid)
-                for img_io in downloaded_imgs:
-                    img_io.seek(0)
-                    img_hash = hashlib.md5(img_io.read()).hexdigest()
-                    img_io.seek(0)
-                    if img_hash not in global_image_hashes:
-                        global_image_hashes.add(img_hash)
-                        images_to_print.append(img_io)
-    
-    if images_to_print:
-        doc.add_page_break()
-        doc.add_heading("佐證資料明細", level=2)
-        if len(images_to_print) == 1:
-            p_img = doc.add_paragraph()
-            p_img.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            try: p_img.add_run().add_picture(images_to_print[0], width=Cm(22.0))
-            except: pass
-        elif len(images_to_print) > 1:
+    for cat_name, cat_group in cat_groups:
+        doc.add_heading(f"【{cat_name}】批次申報明細", level=2)
+        
+        # 第二層分群：依單位、燃料與批次類別列出資訊
+        groups = cat_group.groupby(['填報單位', '原燃物料名稱', '批次類別'])
+        for name, group in groups:
+            dept, fuel, batch_cat = name
+            eq_names = group['設備名稱備註'].unique()
+            eq_str = "、".join(eq_names)
+            yearly_vol = group['加油量'].sum()
+            
+            p = doc.add_paragraph()
+            p.add_run(f"填報單位：{dept} | 批次類別：{batch_cat}\n").bold = True
+            p.add_run(f"涵蓋設備：{eq_str}\n").bold = True
+            p.add_run(f"燃料：{fuel} | 批次總加油量：{yearly_vol:,.1f} 公升\n").bold = True
+        
+        # 抓取該「設備類型」下的所有油卡佐證資料
+        unique_links = cat_group['佐證資料'].dropna().unique()
+        images_to_print = []
+        global_seen_fids = set()
+        
+        for link_str in unique_links:
+            for l in str(link_str).split('\n'):
+                l = l.strip()
+                if not l or l in ["無", ""] or "佐證如" in l: continue
+                fid = get_drive_id(l)
+                if fid and fid not in global_seen_fids:
+                    global_seen_fids.add(fid)
+                    downloaded_imgs = download_and_convert_drive_files(drive_srv, fid)
+                    for img_io in downloaded_imgs:
+                        img_io.seek(0)
+                        images_to_print.append(img_io.read())
+        
+        # 將該設備類別的圖片以雙欄表格統一印出 (橫印版面極度適合雙欄佈局)
+        if images_to_print:
+            doc.add_heading(f"佐證資料照片牆 - {cat_name}", level=3)
             table = doc.add_table(rows=0, cols=2)
             table.autofit = False
-            for i, img in enumerate(images_to_print):
+            for i, img_bytes in enumerate(images_to_print):
                 if i % 2 == 0: row_cells = table.add_row().cells
                 try:
                     p_img = row_cells[i % 2].paragraphs[0]
                     p_img.alignment = WD_ALIGN_PARAGRAPH.CENTER
-                    p_img.add_run().add_picture(img, width=Cm(12.0))
-                except: pass
+                    p_img.add_run().add_picture(io.BytesIO(img_bytes), width=Cm(12.0))
+                except Exception: pass
+                
+        doc.add_page_break() # 結束當前設備類別，換頁處理下一類
 
     output = io.BytesIO()
     doc.save(output)
     output.seek(0)
     return output
-
 
 # ==========================================
 # 5. 後台分頁 Fragment 模組 (已精簡)
