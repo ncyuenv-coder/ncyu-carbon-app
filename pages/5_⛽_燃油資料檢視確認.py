@@ -431,10 +431,12 @@ def render_tab1_db_manage(df_equip_full, eq_cols, ws_title):
             add_sub = c_n5.text_input("設備所屬單位/部門", key="add_sub")
             add_loc = c_n6.text_input("詳細位置/樓層", key="add_loc")
             
-            c_n7, c_n8, c_n9 = st.columns(3)
+            # 調整為 4 欄，新增「設備加油起算年月」
+            c_n7, c_n8, c_n9, c_n10 = st.columns(4)
             add_qty = c_n7.text_input("設備數量", value="1", key="add_qty")
             add_mail = c_n8.text_input("電子郵件", key="add_mail")
             add_ast = c_n9.text_input("校內財產編號", key="add_ast")
+            add_start_ym = c_n10.text_input("設備加油起算年月", placeholder="例:202609", key="add_start_ym")
             
             if st.form_submit_button("➕ 確認新增設備", type="primary"):
                 if not add_name.strip():
@@ -453,7 +455,8 @@ def render_tab1_db_manage(df_equip_full, eq_cols, ws_title):
                         elif col == "設備數量": new_vals.append(add_qty)
                         elif col == "電子郵件": new_vals.append(add_mail)
                         elif col == "校內財產編號": new_vals.append(add_ast)
-                        else: new_vals.append("") 
+                        elif col == "設備加油起算年月": new_vals.append(add_start_ym)
+                        else: new_vals.append("")
                     
                     try:
                         with st.spinner("🔄 寫入資料庫中..."):
@@ -493,10 +496,12 @@ def render_tab1_db_manage(df_equip_full, eq_cols, ws_title):
                     new_sub = c_b2.text_input("設備所屬單位/部門", value=row.get('設備所屬單位/部門', ''), key=f"esb_{r_idx}")
                     new_loc = c_b3.text_input("詳細位置/樓層", value=row.get('設備詳細位置/樓層', ''), key=f"elc_{r_idx}")
                     
-                    c_c1, c_c2, c_c3 = st.columns(3)
+                    # 調整為 4 欄，新增「設備加油起算年月」
+                    c_c1, c_c2, c_c3, c_c4 = st.columns(4)
                     new_qty = c_c1.text_input("設備數量", value=row.get('設備數量', ''), key=f"eqt_{r_idx}")
                     new_mail = c_c2.text_input("電子郵件", value=row.get('電子郵件', ''), key=f"eml_{r_idx}")
                     new_ast = c_c3.text_input("校內財產編號", value=row.get('校內財產編號', ''), key=f"eas_{r_idx}")
+                    new_start_ym = c_c4.text_input("設備加油起算年月", value=row.get('設備加油起算年月', ''), placeholder="例:202609", key=f"esym_{r_idx}")
                     
                     # [新增] 雙按鈕佈局：儲存 vs 刪除
                     col_btn_save, col_btn_del = st.columns([7, 3])
@@ -518,6 +523,7 @@ def render_tab1_db_manage(df_equip_full, eq_cols, ws_title):
                             elif col == "設備數量": updated_vals.append(new_qty)
                             elif col == "電子郵件": updated_vals.append(new_mail)
                             elif col == "校內財產編號": updated_vals.append(new_ast)
+                            elif col == "設備加油起算年月": updated_vals.append(new_start_ym)
                             elif col in row: updated_vals.append(str(row[col]))
                             else: updated_vals.append("")
                         
@@ -576,6 +582,15 @@ def render_tab2_notify(df_records, df_equip_full):
         
         def get_report_info(r):
             key = str(r.get('填報單位', '')) + "|||" + str(r.get('設備名稱備註', ''))
+            
+            # 智慧判斷：起算年月是否大於篩選年月 (例如 202609 > 202602 -> 則免申報)
+            start_ym_str = str(r.get('設備加油起算年月', '')).strip()
+            is_required = True
+            if start_ym_str.isdigit() and len(start_ym_str) == 6:
+                check_ym = sel_year * 100 + sel_month
+                if int(start_ym_str) > check_ym:
+                    is_required = False
+                    
             if key in reported_keys:
                 recs = df_target_rec[(df_target_rec['填報單位'] == r['填報單位']) & (df_target_rec['設備名稱備註'] == r['設備名稱備註'])]
                 dts_list = sorted(pd.to_datetime(recs['加油日期'], errors='coerce').dropna().dt.date.unique())
@@ -583,6 +598,8 @@ def render_tab2_notify(df_records, df_equip_full):
                 vol = recs['加油量_num'].sum()
                 return pd.Series(["✅ 已申報", dts, vol])
             else:
+                if not is_required:
+                    return pd.Series(["➖ 免申報(未達起算月)", "-", 0.0])
                 return pd.Series(["❌ 未申報", "-", 0.0])
                 
         df_eq[['申報狀態', '申報日期', '當月加油量']] = df_eq.apply(get_report_info, axis=1)
@@ -596,7 +613,13 @@ def render_tab2_notify(df_records, df_equip_full):
                 <tr><th>狀態</th><th>設備編號</th><th>設備名稱</th><th>燃料</th><th>數量</th><th>申報日期</th><th>加油量</th></tr>"""
             
             for _, row in group.iterrows():
-                color = "#148F77" if "✅" in row['申報狀態'] else "#C0392B"
+                # 加入免申報灰色標記判斷
+                if "✅" in row['申報狀態']:
+                    color = "#148F77"
+                elif "➖" in row['申報狀態']:
+                    color = "#7F8C8D"
+                else:
+                    color = "#C0392B"
                 html_table += f"<tr><td style='color:{color}; font-weight:bold;'>{row['申報狀態']}</td><td>{row.get('設備編號','-')}</td><td>{row['設備名稱備註']}</td><td>{row.get('原燃物料名稱','-')}</td><td>{row.get('設備數量','1')}</td><td>{row['申報日期']}</td><td>{row['當月加油量']:.1f} L</td></tr>"
             html_table += "</table></div>"
             st.markdown(html_table, unsafe_allow_html=True)
@@ -669,12 +692,23 @@ def render_tab2_notify(df_records, df_equip_full):
         
         def get_report_dates_range(r):
             key = str(r.get('填報單位', '')) + "|||" + str(r.get('設備名稱備註', ''))
+            
+            # 智慧判斷：以篩選結束日作為比較基準
+            start_ym_str = str(r.get('設備加油起算年月', '')).strip()
+            is_required = True
+            if start_ym_str.isdigit() and len(start_ym_str) == 6:
+                check_ym = d_end.year * 100 + d_end.month
+                if int(start_ym_str) > check_ym:
+                    is_required = False
+                    
             if key in reported_keys:
                 recs = df_target_rec[(df_target_rec['填報單位'] == r.get('填報單位')) & (df_target_rec['設備名稱備註'] == r.get('設備名稱備註'))]
                 dts_list = sorted(pd.to_datetime(recs['加油日期'], errors='coerce').dropna().dt.date.unique())
                 dts = ", ".join([str(d) for d in dts_list])
                 return pd.Series(["✅ 已申報", dts])
             else:
+                if not is_required:
+                    return pd.Series(["➖ 免申報(未達起算月)", "-"])
                 return pd.Series(["❌ 未申報", "-"])
                 
         df_eq[['申報狀態', '申報日期']] = df_eq.apply(get_report_dates_range, axis=1)
@@ -688,7 +722,13 @@ def render_tab2_notify(df_records, df_equip_full):
                 <tr><th>狀態</th><th>設備編號</th><th>設備名稱</th><th>燃料</th><th>數量</th><th>申報日期</th></tr>"""
             
             for _, row in group.iterrows():
-                color = "#148F77" if "✅" in row['申報狀態'] else "#C0392B"
+                # 加入免申報灰色標記判斷
+                if "✅" in row['申報狀態']:
+                    color = "#148F77"
+                elif "➖" in row['申報狀態']:
+                    color = "#7F8C8D"
+                else:
+                    color = "#C0392B"
                 html_table += f"<tr><td style='color:{color}; font-weight:bold;'>{row['申報狀態']}</td><td>{row.get('設備編號','-')}</td><td>{row['設備名稱備註']}</td><td>{row.get('原燃物料名稱','-')}</td><td>{row.get('設備數量','1')}</td><td>{row['申報日期']}</td></tr>"
             html_table += "</table></div>"
             st.markdown(html_table, unsafe_allow_html=True)
