@@ -31,7 +31,7 @@ st.set_page_config(page_title="燃油設備填報", page_icon="⛽", layout="wid
 def get_taiwan_time():
     return datetime.utcnow() + timedelta(hours=8)
 
-# [防護機制 1] 智慧重試裝甲 (指數退避機制)
+# [防護機制 1] 
 def with_retry(max_retries=5, base_delay=2.0, backoff_factor=2.0):
     def decorator(func):
         @wraps(func)
@@ -70,7 +70,7 @@ def upload_file_to_drive_with_retry(drive_svc, file_meta, file_obj, mime_type):
     media = MediaIoBaseUpload(file_obj, mimetype=mime_type, resumable=True)
     return drive_svc.files().create(body=file_meta, media_body=media, fields='webViewLink').execute()
 
-# [防護機制 2] 圖片聰明壓縮處理
+# [防護機制 2] 圖片壓縮處理
 def process_and_compress_file(uploaded_file):
     file_ext = uploaded_file.name.split('.')[-1].lower()
     if file_ext in ['jpg', 'jpeg', 'png']:
@@ -152,7 +152,7 @@ st.markdown("""
         transform: translateY(-2px) !important;
     }
 
-    /* 5. 點擊選取狀態：亮橘色邊框 (移除外圍橘光，維持乾淨立體感) */
+    /* 5. 點擊選取狀態：亮橘色邊框 */
     div[data-testid="stTabs"] [role="tab"][aria-selected="true"] {
         background-color: #222222 !important;
         border: 2px solid #FF9800 !important;
@@ -160,7 +160,7 @@ st.markdown("""
         box-shadow: 0 3px 5px rgba(0,0,0,0.15) !important; 
     }
 
-    /* 6. 選取狀態的文字變亮橘色 (移除文字微光) */
+    /* 6. 選取狀態的文字變亮橘色 */
     div[data-testid="stTabs"] [role="tab"][aria-selected="true"] p,
     div[data-testid="stTabs"] [role="tab"][aria-selected="true"] span {
         color: #FF9800 !important;
@@ -335,24 +335,37 @@ MORANDI_COLORS = { "公務車輛(GV-1-)": "#B0C4DE", "乘坐式割草機(GV-2-)"
 DASH_PALETTE = ['#B0C4DE', '#F5CBA7', '#A9CCE3', '#E6B0AA', '#D7BDE2', '#A3E4D7', '#F9E79F', '#95A5A6', '#85C1E9', '#D2B4DE', '#F1948A', '#76D7C4']
 
 @st.cache_resource
-def init_google_fuel():
+def init_google_services():
     oauth = st.secrets["gcp_oauth"]
     creds = Credentials(token=None, refresh_token=oauth["refresh_token"], token_uri="https://oauth2.googleapis.com/token", client_id=oauth["client_id"], client_secret=oauth["client_secret"], scopes=["https://www.googleapis.com/auth/drive", "https://www.googleapis.com/auth/spreadsheets"])
-    gc = gspread.authorize(creds); drive = build('drive', 'v3', credentials=creds)
-    return gc, drive
+    gc = gspread.authorize(creds)
+    drive = build('drive', 'v3', credentials=creds)
+    
+    # 將最耗時的「網路請求尋找 Google Sheet 表單」動作一併放入系統資源快取中
+    sh = gc.open_by_key(SHEET_ID)
+    try: 
+        ws_equip = sh.worksheet("設備清單") 
+    except: 
+        ws_equip = sh.sheet1 
+    try: 
+        ws_record = sh.worksheet("油料填報紀錄")
+    except:
+        try: 
+            ws_record = sh.worksheet("填報紀錄")
+        except: 
+            ws_record = sh.add_worksheet(title="油料填報紀錄", rows="1000", cols="13")
+            
+    if len(ws_record.get_all_values()) == 0: 
+        ws_record.append_row(["填報時間", "填報單位", "填報人", "填報人分機", "設備名稱備註", "校內財產編號", "原燃物料名稱", "油卡編號", "加油日期", "加油量", "與其他設備共用加油單", "備註", "佐證資料"])
+        
+    return gc, drive, ws_equip, ws_record
 
 try:
-    gc, drive_service = init_google_fuel()
-    sh = gc.open_by_key(SHEET_ID)
-    try: ws_equip = sh.worksheet("設備清單") 
-    except: ws_equip = sh.sheet1 
-    try: ws_record = sh.worksheet("油料填報紀錄")
-    except:
-        try: ws_record = sh.worksheet("填報紀錄")
-        except: ws_record = sh.add_worksheet(title="油料填報紀錄", rows="1000", cols="13")
-            
-    if len(ws_record.get_all_values()) == 0: ws_record.append_row(["填報時間", "填報單位", "填報人", "填報人分機", "設備名稱備註", "校內財產編號", "原燃物料名稱", "油卡編號", "加油日期", "加油量", "與其他設備共用加油單", "備註", "佐證資料"])
-except Exception as e: st.error(f"燃油資料庫連線失敗: {e}"); st.stop()
+    # 這裡只做參數承接，不發生任何網路連線，極大幅提升 UI 切換速度
+    gc, drive_service, ws_equip, ws_record = init_google_services()
+except Exception as e: 
+    st.error(f"燃油資料庫連線失敗: {e}")
+    st.stop()
 
 @st.cache_data(ttl=86400)
 def load_fuel_data():
@@ -643,7 +656,6 @@ def render_dashboard_fragment(df_records, df_equip, record_units, available_year
                                                 """, unsafe_allow_html=True)
             else: st.warning(f"⚠️ {query_dept} 在 {query_year} 年度尚無填報紀錄。")
     else: st.info("尚無該年度資料，無法顯示儀表板。")
-
 
 # ==========================================
 # [明細與佐證] 局部渲染區塊 
@@ -1011,7 +1023,7 @@ def render_user_interface():
                     for _, row in dept_equip.iterrows():
                         dev_name = row['設備名稱備註']
                         
-                        # Rule A: 絕對定位 + 正規表達式暴力萃取數字
+                        # Rule A: 絕對定位 + 正規表達式萃取數字
                         is_skipped = False
                         if start_ym_col:
                             start_ym_raw = str(row.get(start_ym_col, '')).strip()
