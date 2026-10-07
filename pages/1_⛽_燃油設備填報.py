@@ -423,7 +423,9 @@ else:
 @st.cache_data(ttl=86400, show_spinner=False, max_entries=100)
 def get_cached_file_from_drive(url):
     try:
-        _, d_svc = init_google_fuel()
+        # [修正] 對應最新的連線函數名稱與 4 個回傳值 (我們只需要用到第2個 drive 服務)
+        _, d_svc, _, _ = init_google_services()
+        
         match = re.search(r'/d/([a-zA-Z0-9_-]+)', url)
         if not match:
             match = re.search(r'id=([a-zA-Z0-9_-]+)', url)
@@ -469,6 +471,8 @@ def get_cached_file_from_drive(url):
             return None, False, file_bytes, filename, is_pdf
             
     except Exception as e:
+        # 加上印出錯誤訊息，若未來雲端權限有變更時可從終端機快速除錯
+        print(f"讀取圖片失敗: {e}")
         return None, False, None, None, False
 
 # ==========================================
