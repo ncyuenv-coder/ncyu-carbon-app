@@ -1006,6 +1006,8 @@ def render_user_interface():
                     m_int = int(m_str)
                     
                     unreported_devices = []
+                    valid_devices = [] # [新增] 紀錄該月份所有「合法營運」的設備（不論是否已申報）
+                    
                     for _, row in dept_equip.iterrows():
                         dev_name = row['設備名稱備註']
                         
@@ -1030,16 +1032,23 @@ def render_user_interface():
                         # 若未達起算時間，直接放行 (不加入漏報清單，該月也不顯示此設備)
                         if is_skipped:
                             continue
+                        
+                        # [修改] 只要通過時間檢核的設備，皆加入「合法設備」清單，全面開放下拉選單重報
+                        valid_devices.append(dev_name)
                                 
-                        # Rule B: 檢查該月份是否已經有申報紀錄
+                        # Rule B: 檢查該月份是否已經有申報紀錄 (此陣列僅保留作漏報紅字提醒用)
                         dev_rec = df_dept_rec[(df_dept_rec['設備名稱備註'] == dev_name) & (df_dept_rec['日期格式'].dt.month == m)]
                         if dev_rec.empty:
                             unreported_devices.append(dev_name)
                             
-                    if unreported_devices:
+                    # [修改] 只要該月有合法設備，就將該月份開放至下拉選單
+                    if valid_devices:
                         available_months.append(m)
-                        month_device_map[m] = unreported_devices
-                        # 紀錄給 UI 面板顯示用
+                        # 將選單連動的設備改為 valid_devices (讓已報過的設備也能在選單被選取)
+                        month_device_map[m] = valid_devices
+                        
+                    # [保留] 漏報提醒機制依然維持，只針對真正沒報過的設備顯示折疊警告
+                    if unreported_devices:
                         for d in unreported_devices:
                             if d not in missing_report: missing_report[d] = []
                             missing_report[d].append(m)
