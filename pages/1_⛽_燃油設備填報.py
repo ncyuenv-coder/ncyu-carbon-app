@@ -703,7 +703,7 @@ def render_details_fragment(df_records, record_units, available_years):
                                     total_vol = group['加油量'].sum()
                                     
                                     # [修改1] 莫蘭迪深色標題(#4A5568) 與 灰白內容區(#F8F9F9)，無縫接續 (margin-bottom: 8px)
-                                    info_html = f"""<div style="background-color: #F8F9F9; border: 1px solid #D5D8DC; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 5px rgba(0,0,0,0.05); margin-bottom: 8px;"><div style="background-color: #4A5568; padding: 15px 20px; border-bottom: 3px solid #2D3748; display: flex; justify-content: space-between; align-items: center;"><div style="font-size: 1.2rem; font-weight: 900; color: #FFFFFF;">🚜 {equip_name}</div><div style="text-align: right;"><div style="font-size: 0.95rem; font-weight: bold; color: #CBD5E1;">⛽ {fuel_type}</div><div style="font-size: 1.35rem; font-weight: 900; color: #F1C40F;">共 {total_vol:.1f} 公升</div></div></div><div style="padding: 10px 20px;">"""
+                                    info_html = f"""<div style="background-color: #F8F9F9; border: 1px solid #D5D8DC; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 5px rgba(0,0,0,0.05); margin-bottom: 8px;"><div style="background-color: #4A5568; padding: 15px 20px; border-bottom: 3px solid #2D3748; display: flex; justify-content: space-between; align-items: center;"><div style="font-size: 1.2rem; font-weight: 900; color: #FFFFFF;">🚜 {equip_name}</div><div style="text-align: right;"><div style="font-size: 0.95rem; font-weight: bold; color: #CBD5E1;">⛽ {fuel_type}</div><div style="font-size: 1.35rem; font-weight: 900; color: #F1C40F;">共 {total_vol:.2f} 公升</div></div></div><div style="padding: 10px 20px;">"""
                                     
                                     email_changes = set()
                                     rows_html = ""
@@ -721,7 +721,7 @@ def render_details_fragment(df_records, record_units, available_years):
                                             if note.endswith('|'): note = note[:-1].strip()
                                             if note.startswith('|'): note = note[1:].strip()
                                         
-                                        rows_html += f"<div style='border-bottom: 1px dashed #D5D8DC; padding: 10px 0;'><div style='display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;'><div style='font-size: 1.05rem; color: #34495E; font-weight: bold;'>📅 {date_str}</div><div style='font-size: 1.25rem; color: #1A5276; font-weight: 900;'>💧 {vol:.1f} 公升</div></div>"
+                                        rows_html += f"<div style='border-bottom: 1px dashed #D5D8DC; padding: 10px 0;'><div style='display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;'><div style='font-size: 1.05rem; color: #34495E; font-weight: bold;'>📅 {date_str}</div><div style='font-size: 1.25rem; color: #1A5276; font-weight: 900;'>💧 {vol:.2f} 公升</div></div>"
                                         
                                         note_parts = []
                                         if shared == '是': note_parts.append("🔄 共用")
@@ -843,7 +843,7 @@ def render_details_fragment(df_records, record_units, available_years):
                                 
                                 with col_info:
                                     # [修改1] 灰白底色 (#F8F9F9)
-                                    info_html = f"""<div style="background-color: #F8F9F9; border: 1px solid #D5D8DC; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.05); margin-bottom: 20px;"><div style="background-color: #4A5568; padding: 15px 20px; border-bottom: 3px solid #2D3748; display: flex; justify-content: space-between; align-items: center;"><div style="font-size: 1.2rem; font-weight: 900; color: #FFFFFF;">🚜 {equip_name}</div><div style="text-align: right;"><div style="font-size: 0.95rem; font-weight: bold; color: #CBD5E1;">⛽ {fuel_type}</div><div style="font-size: 1.35rem; font-weight: 900; color: #F1C40F;">共 {total_vol:.1f} 公升</div></div></div><div style="padding: 10px 20px;">"""
+                                    info_html = f"""<div style="background-color: #F8F9F9; border: 1px solid #D5D8DC; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.05); margin-bottom: 20px;"><div style="background-color: #4A5568; padding: 15px 20px; border-bottom: 3px solid #2D3748; display: flex; justify-content: space-between; align-items: center;"><div style="font-size: 1.2rem; font-weight: 900; color: #FFFFFF;">🚜 {equip_name}</div><div style="text-align: right;"><div style="font-size: 0.95rem; font-weight: bold; color: #CBD5E1;">⛽ {fuel_type}</div><div style="font-size: 1.35rem; font-weight: 900; color: #F1C40F;">共 {total_vol:.2f} 公升</div></div></div><div style="padding: 10px 20px;">"""
                                     
                                     email_changes = set()
                                     rows_html = ""
@@ -861,7 +861,7 @@ def render_details_fragment(df_records, record_units, available_years):
                                             if note.endswith('|'): note = note[:-1].strip()
                                             if note.startswith('|'): note = note[1:].strip()
                                         
-                                        rows_html += f"<div style='border-bottom: 1px dashed #D5D8DC; padding: 10px 0;'><div style='display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;'><div style='font-size: 1.05rem; color: #34495E; font-weight: bold;'>📅 {date_str}</div><div style='font-size: 1.25rem; color: #1A5276; font-weight: 900;'>💧 {vol:.1f} 公升</div></div>"
+                                        rows_html += f"<div style='border-bottom: 1px dashed #D5D8DC; padding: 10px 0;'><div style='display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;'><div style='font-size: 1.05rem; color: #34495E; font-weight: bold;'>📅 {date_str}</div><div style='font-size: 1.25rem; color: #1A5276; font-weight: 900;'>💧 {vol:.2f} 公升</div></div>"
                                         
                                         note_parts = []
                                         if shared == '是': note_parts.append("🔄 共用")
