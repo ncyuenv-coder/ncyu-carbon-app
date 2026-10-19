@@ -992,7 +992,7 @@ def render_tab4_edit_records_by_unit(df_records, rec_cols, ws_title):
     all_units = sorted([str(u).strip() for u in df_clean['填報單位'].unique() if str(u).strip() not in ['', 'nan', '-']])
     
     c_u, c_y, c_m = st.columns([2, 1, 1])
-    sel_unit = c_u.selectbox("🏢 1. 選擇填報單位", all_units, index=None, placeholder="請先選擇填報單位...", key="unit_sel")
+    sel_unit = c_u.selectbox("🏢 選擇填報單位", all_units, index=None, placeholder="請先選擇填報單位...", key="unit_sel")
     
     if not sel_unit:
         return
@@ -1004,7 +1004,7 @@ def render_tab4_edit_records_by_unit(df_records, rec_cols, ws_title):
         st.warning(f"⚠️ 【{sel_unit}】目前尚無有效的年度申報紀錄。")
         return
         
-    sel_yr = c_y.selectbox("📅 2. 篩選年份", unit_years, index=0, key="unit_yr")
+    sel_yr = c_y.selectbox("📅 篩選年份", unit_years, index=0, key="unit_yr")
     df_yr = df_unit[df_unit['年份'] == sel_yr]
     
     unit_months = sorted(df_yr['月份'][df_yr['月份'] > 0].unique())
@@ -1012,7 +1012,7 @@ def render_tab4_edit_records_by_unit(df_records, rec_cols, ws_title):
         st.warning(f"⚠️ 【{sel_unit}】在 {sel_yr} 年度尚無月份申報紀錄。")
         return
         
-    sel_mo = c_m.selectbox("📆 3. 篩選月份", unit_months, index=0, key="unit_mo")
+    sel_mo = c_m.selectbox("📆 篩選月份", unit_months, index=0, key="unit_mo")
     df_target = df_yr[df_yr['月份'] == sel_mo]
     
     st.markdown("---")
