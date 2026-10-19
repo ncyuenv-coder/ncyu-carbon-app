@@ -410,7 +410,7 @@ def get_cached_file_from_drive(url):
 
 def render_image_gallery(links, base_key):
     if not links:
-        st.info("無佐證圖片連結")
+        st.info("本月份無加油紀錄")
         return
     
     unique_links = list(dict.fromkeys([l.strip() for l_str in links for l in str(l_str).split('\n') if str(l).strip() not in ["", "無", "佐證如總務處事務組中油明細", "-"]]))
@@ -963,13 +963,16 @@ def render_tab3_edit_records(df_records, rec_cols, ws_title):
                                     st.error(f"寫入失敗：{e}")
 
             with col_right:
-                raw_links = []
-                for links_str in group['佐證資料'].dropna():
-                    if links_str and str(links_str).strip() not in ["無", "-"]:
-                        raw_links.extend([l.strip() for l in re.split(r'[\n,]', str(links_str)) if l.strip()])
-                        
-                unique_links = list(dict.fromkeys(raw_links))
-                render_image_gallery(unique_links, base_key=f"img_grp_{eq_name}")
+                if group['加油量_num'].sum() <= 0:
+                    st.info("本月份無加油紀錄")
+                else:
+                    raw_links = []
+                    for links_str in group['佐證資料'].dropna():
+                        if links_str and str(links_str).strip() not in ["無", "-"]:
+                            raw_links.extend([l.strip() for l in re.split(r'[\n,]', str(links_str)) if l.strip()])
+                            
+                    unique_links = list(dict.fromkeys(raw_links))
+                    render_image_gallery(unique_links, base_key=f"img_grp_{eq_name}")
             
             st.markdown("<hr style='border: 1px solid #BDC3C7; margin: 30px 0;'>", unsafe_allow_html=True)
     else:
@@ -1080,13 +1083,16 @@ def render_tab4_edit_records_by_unit(df_records, rec_cols, ws_title):
                                     st.error(f"寫入失敗：{e}")
 
             with col_right:
-                raw_links = []
-                for links_str in group['佐證資料'].dropna():
-                    if links_str and str(links_str).strip() not in ["無", "-"]:
-                        raw_links.extend([l.strip() for l in re.split(r'[\n,]', str(links_str)) if l.strip()])
-                        
-                unique_links = list(dict.fromkeys(raw_links))
-                render_image_gallery(unique_links, base_key=f"unit_img_grp_{sel_unit}_{eq_name}")
+                if group['加油量_num'].sum() <= 0:
+                    st.info("本月份無加油紀錄")
+                else:
+                    raw_links = []
+                    for links_str in group['佐證資料'].dropna():
+                        if links_str and str(links_str).strip() not in ["無", "-"]:
+                            raw_links.extend([l.strip() for l in re.split(r'[\n,]', str(links_str)) if l.strip()])
+                            
+                    unique_links = list(dict.fromkeys(raw_links))
+                    render_image_gallery(unique_links, base_key=f"unit_img_grp_{sel_unit}_{eq_name}")
             
             st.markdown("<hr style='border: 1px solid #BDC3C7; margin: 30px 0;'>", unsafe_allow_html=True)
     else:
