@@ -146,14 +146,52 @@ st.markdown("""
     div[data-baseweb="input"] > div, div[data-baseweb="base-input"] > input, textarea, input { background-color: #FFFFFF !important; border-color: #BDC3C7 !important; color: #000000 !important; font-size: 1.15rem !important; }
     div[data-baseweb="select"] > div { border-color: #BDC3C7 !important; background-color: #FFFFFF !important; }
     
-    /* 莫蘭迪深色調 Tabs */
-    div[data-baseweb="tab-list"] { background-color: transparent !important; gap: 5px; }
-    div[data-baseweb="tab-list"] button { background-color: var(--morandi-tab-bg) !important; border-radius: 8px 8px 0 0 !important; padding: 12px 25px !important; border: 1px solid #2C3E50 !important; border-bottom: none !important; transition: all 0.3s; }
-    div[data-baseweb="tab-list"] button div p { color: #ECF0F1 !important; font-size: 1.25rem !important; font-weight: 800 !important; margin: 0; }
-    div[data-baseweb="tab-list"] button:hover { background-color: var(--morandi-tab-hover) !important; }
-    div[data-baseweb="tab-list"] button[aria-selected="true"] { background-color: var(--morandi-tab-hover) !important; border-top: 4px solid #E67E22 !important; }
-    div[data-baseweb="tab-list"] button[aria-selected="true"] div p { color: #F39C12 !important; }
-    div[data-baseweb="tab-highlight"] { display: none; }
+    /* 1. 隱藏舊版 BaseWeb 的紅線裝飾 */
+    div[data-testid="stTabs"] [data-baseweb="tab-highlight"],
+    div[data-testid="stTabs"] [data-baseweb="tab-border"] {
+        display: none !important;
+    }
+
+    /* 2. 針對所有頁籤本體進行按鈕化 (比照 1_⛽_燃油設備填報.py) */
+    div[data-testid="stTabs"] [role="tab"] {
+        background-color: #4A4A4A !important;
+        border-radius: 10px !important;
+        padding: 8px 24px !important;
+        border: 2px solid transparent !important;
+        margin-right: 10px !important;
+        box-shadow: 0 3px 5px rgba(0,0,0,0.15) !important;
+        transition: all 0.3s ease !important;
+        border-bottom-color: transparent !important; 
+    }
+
+    /* 3. 精準指定內層文字白化 */
+    div[data-testid="stTabs"] [role="tab"] p,
+    div[data-testid="stTabs"] [role="tab"] span {
+        color: #FFFFFF !important;
+        font-size: 22px !important;
+        font-weight: 900 !important;
+        margin: 0 !important;
+    }
+
+    /* 4. 懸停效果 */
+    div[data-testid="stTabs"] [role="tab"]:hover {
+        background-color: #333333 !important;
+        transform: translateY(-2px) !important;
+    }
+
+    /* 5. 點擊選取狀態：亮橘色邊框 */
+    div[data-testid="stTabs"] [role="tab"][aria-selected="true"] {
+        background-color: #222222 !important;
+        border: 2px solid #FF9800 !important;
+        border-bottom: 2px solid #FF9800 !important; 
+        box-shadow: 0 3px 5px rgba(0,0,0,0.15) !important; 
+    }
+
+    /* 6. 選取狀態的文字變亮橘色 */
+    div[data-testid="stTabs"] [role="tab"][aria-selected="true"] p,
+    div[data-testid="stTabs"] [role="tab"][aria-selected="true"] span {
+        color: #FF9800 !important;
+    }
 
     button[kind="primary"] { background-color: var(--orange-bg) !important; color: #FFFFFF !important; border: 2px solid var(--orange-dark) !important; border-radius: 12px !important; font-size: 1.2rem !important; font-weight: 800 !important; padding: 0.6rem 1.2rem !important; box-shadow: 0 4px 6px rgba(230, 126, 34, 0.3) !important; width: 100%; }
     button[kind="primary"] p { color: #FFFFFF !important; } 
@@ -163,7 +201,9 @@ st.markdown("""
     
     .stRadio div[role="radiogroup"] label { background-color: #D6EAF8 !important; border: 1px solid #AED6F1 !important; border-radius: 8px !important; padding: 8px 15px !important; margin-right: 10px !important; }
     .stRadio div[role="radiogroup"] label p { font-size: 1.15rem !important; font-weight: 800 !important; color: #1A5276 !important; }
+    .stRadio div[role="radiogroup"] label:has(input:checked),
     .stRadio div[role="radiogroup"] label[data-checked="true"] { background-color: #1A5276 !important; border-color: #1A5276 !important; }
+    .stRadio div[role="radiogroup"] label:has(input:checked) p,
     .stRadio div[role="radiogroup"] label[data-checked="true"] p { color: #FFFFFF !important; }
     
     .db-card { background-color: #FFFFFF; border: 1px solid #BDC3C7; border-radius: 12px; padding: 0; box-shadow: 0 4px 10px rgba(0,0,0,0.05); margin-bottom: 25px; overflow: hidden; }
@@ -175,6 +215,14 @@ st.markdown("""
     .visual-table td { padding: 10px; border: 1px solid #EAEDED; color: #34495E; }
     
     .edit-card-header { font-size: 1.3rem; font-weight: 900; color: #2C3E50; border-bottom: 2px solid #E67E22; padding-bottom: 10px; margin-bottom: 15px; }
+
+    /* 點擊展開標籤 (stExpander) 深灰色底色呈現 */
+    div[data-testid="stExpander"] { border: 1px solid #BDC3C7; border-radius: 10px; overflow: hidden; margin-bottom: 12px; box-shadow: 0 2px 5px rgba(0,0,0,0.08); }
+    div[data-testid="stExpander"] > details > summary { background-color: #4A4A4A !important; padding: 12px 16px !important; transition: background-color 0.2s ease; }
+    div[data-testid="stExpander"] > details > summary p { font-size: 1.15rem !important; font-weight: 800 !important; color: #FFFFFF !important; margin: 0 !important; }
+    div[data-testid="stExpander"] > details > summary svg { color: #FFFFFF !important; fill: #FFFFFF !important; }
+    div[data-testid="stExpander"] > details > summary:hover { background-color: #333333 !important; }
+    div[data-testid="stExpanderDetails"] { padding: 18px; background-color: #F8F9F9 !important; border-top: 1px solid #BDC3C7; border-radius: 0 0 10px 10px; }
 
     /* ========================================================= */
     /* 左側欄登出按鈕專屬樣式 (含深橘紅邊框設計)                 */
@@ -831,16 +879,16 @@ def render_tab3_edit_records(df_records, rec_cols, ws_title):
     all_years = sorted(df_clean['年份'][df_clean['年份']>0].unique(), reverse=True) if not df_clean.empty else [datetime.now().year]
     
     c_y, c_m, c_c = st.columns(3)
-    sel_yr = c_y.selectbox("📅 篩選年份", all_years, index=0)
+    sel_yr = c_y.selectbox("📅 篩選年份", all_years, index=0, key="cat_yr")
     
     df_yr = df_clean[df_clean['年份'] == sel_yr]
     all_months = sorted(df_yr['月份'][df_yr['月份']>0].unique()) if not df_yr.empty else [1]
-    sel_mo = c_m.selectbox("📆 篩選月份", all_months, index=0)
+    sel_mo = c_m.selectbox("📆 篩選月份", all_months, index=0, key="cat_mo")
     
     df_mo = df_yr[df_yr['月份'] == sel_mo]
     
     cats = ["全部"] + DEVICE_ORDER
-    sel_cat = c_c.selectbox("🚜 設備類別", cats, index=0)
+    sel_cat = c_c.selectbox("🚜 設備類別", cats, index=0, key="cat_sel")
     
     st.markdown("---")
     
@@ -854,9 +902,10 @@ def render_tab3_edit_records(df_records, rec_cols, ws_title):
         
         for eq_name, group in grouped:
             col_left, col_right = st.columns([4, 6], gap="large")
+            unit_str = str(group['填報單位'].iloc[0]).strip() if '填報單位' in group.columns and not group.empty else "未知單位"
             
             with col_left:
-                st.markdown(f"<div class='edit-card-header'>🚜 設備: {eq_name}</div>", unsafe_allow_html=True)
+                st.markdown(f"<div class='edit-card-header'>🚜 設備: {eq_name} ({unit_str})</div>", unsafe_allow_html=True)
                 
                 for idx, row in group.iterrows():
                     row_idx_in_sheet = int(row['_row_index'])
@@ -927,6 +976,123 @@ def render_tab3_edit_records(df_records, rec_cols, ws_title):
         st.warning("該條件下無申報紀錄。")
 
 
+@st.fragment
+def render_tab4_edit_records_by_unit(df_records, rec_cols, ws_title):
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.info("請先選擇「填報單位」，系統將自動連動該單位有申報紀錄的「年份」與「月份」，方便快速檢視與異動資料。")
+    
+    df_clean = df_records.copy()
+    if df_clean.empty:
+        st.warning("目前尚無任何申報紀錄。")
+        return
+        
+    all_units = sorted([str(u).strip() for u in df_clean['填報單位'].unique() if str(u).strip() not in ['', 'nan', '-']])
+    
+    c_u, c_y, c_m = st.columns([2, 1, 1])
+    sel_unit = c_u.selectbox("🏢 1. 選擇填報單位", all_units, index=None, placeholder="請先選擇填報單位...", key="unit_sel")
+    
+    if not sel_unit:
+        return
+        
+    df_unit = df_clean[df_clean['填報單位'] == sel_unit]
+    unit_years = sorted(df_unit['年份'][df_unit['年份'] > 0].unique(), reverse=True)
+    
+    if not unit_years:
+        st.warning(f"⚠️ 【{sel_unit}】目前尚無有效的年度申報紀錄。")
+        return
+        
+    sel_yr = c_y.selectbox("📅 2. 篩選年份", unit_years, index=0, key="unit_yr")
+    df_yr = df_unit[df_unit['年份'] == sel_yr]
+    
+    unit_months = sorted(df_yr['月份'][df_yr['月份'] > 0].unique())
+    if not unit_months:
+        st.warning(f"⚠️ 【{sel_unit}】在 {sel_yr} 年度尚無月份申報紀錄。")
+        return
+        
+    sel_mo = c_m.selectbox("📆 3. 篩選月份", unit_months, index=0, key="unit_mo")
+    df_target = df_yr[df_yr['月份'] == sel_mo]
+    
+    st.markdown("---")
+    
+    if not df_target.empty:
+        grouped = df_target.groupby('設備名稱備註')
+        
+        for eq_name, group in grouped:
+            col_left, col_right = st.columns([4, 6], gap="large")
+            unit_str = str(group['填報單位'].iloc[0]).strip() if '填報單位' in group.columns and not group.empty else sel_unit
+            
+            with col_left:
+                st.markdown(f"<div class='edit-card-header'>🚜 設備: {eq_name} ({unit_str})</div>", unsafe_allow_html=True)
+                
+                for idx, row in group.iterrows():
+                    row_idx_in_sheet = int(row['_row_index'])
+                    
+                    with st.expander(f"✏️ 編輯紀錄: {row.get('加油日期', '')} ({row.get('加油量', 0)} L)"):
+                        with st.form(key=f"unit_rec_form_{row_idx_in_sheet}"):
+                            eq_id = st.text_input("設備編號 / 財產編號", value=row.get('校內財產編號', ''), key=f"unit_id_{row_idx_in_sheet}")
+                            eq_name_input = st.text_input("設備名稱備註", value=row.get('設備名稱備註', ''), key=f"unit_nm_{row_idx_in_sheet}")
+                            eq_qty = st.text_input("設備數量", value=row.get('設備數量', '1'), key=f"unit_qty_{row_idx_in_sheet}")
+                            eq_fuel = st.text_input("原燃物料名稱", value=row.get('原燃物料名稱', ''), key=f"unit_fl_{row_idx_in_sheet}")
+                            
+                            try: d_val = pd.to_datetime(row['加油日期']).date()
+                            except: d_val = date.today()
+                            eq_date = st.date_input("加油日期", value=d_val, key=f"unit_dt_{row_idx_in_sheet}")
+                            
+                            eq_vol = st.number_input("加油量", value=float(row.get('加油量', 0)), step=0.1, key=f"unit_vl_{row_idx_in_sheet}")
+                            eq_share = st.selectbox("與其他設備共用加油單", ["是", "否", "-"], index=0 if row.get('與其他設備共用加油單')=='是' else (1 if row.get('與其他設備共用加油單')=='否' else 2), key=f"unit_sh_{row_idx_in_sheet}")
+                            
+                            eq_dept = st.text_input("填報單位", value=row.get('填報單位', ''), key=f"unit_dp_{row_idx_in_sheet}")
+                            c_u1, c_u2 = st.columns(2)
+                            eq_user = c_u1.text_input("填報人", value=row.get('填報人', ''), key=f"unit_ur_{row_idx_in_sheet}")
+                            eq_ext = c_u2.text_input("分機", value=row.get('填報人分機', ''), key=f"unit_ex_{row_idx_in_sheet}")
+                            
+                            eq_note = st.text_area("備註資訊", value=row.get('備註', ''), height=80, key=f"unit_nt_{row_idx_in_sheet}")
+                            
+                            submit_btn = st.form_submit_button("💾 精準更新此筆紀錄", type="primary")
+                            if submit_btn:
+                                updated_vals = []
+                                for col in rec_cols:
+                                    if col == "設備名稱備註": updated_vals.append(eq_name_input)
+                                    elif col == "校內財產編號": updated_vals.append(eq_id)
+                                    elif col == "設備數量": updated_vals.append(eq_qty)
+                                    elif col == "原燃物料名稱": updated_vals.append(eq_fuel)
+                                    elif col == "加油日期": updated_vals.append(str(eq_date))
+                                    elif col == "加油量": updated_vals.append(str(eq_vol))
+                                    elif col == "與其他設備共用加油單": updated_vals.append(eq_share)
+                                    elif col == "填報單位": updated_vals.append(eq_dept)
+                                    elif col == "填報人": updated_vals.append(eq_user)
+                                    elif col == "填報人分機": updated_vals.append(eq_ext)
+                                    elif col == "備註": updated_vals.append(eq_note)
+                                    elif col in row: updated_vals.append(str(row[col]))
+                                    else: updated_vals.append("")
+                                
+                                try:
+                                    end_col = get_col_letter(len(updated_vals))
+                                    range_str = f"A{row_idx_in_sheet}:{end_col}{row_idx_in_sheet}"
+                                    
+                                    with st.spinner("🔄 寫入資料庫中..."):
+                                        update_sheet_row_safe(ws_title, range_str, updated_vals)
+                                    st.success("✅ 更新成功！")
+                                    st.cache_data.clear()
+                                    time.sleep(1)
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"寫入失敗：{e}")
+
+            with col_right:
+                raw_links = []
+                for links_str in group['佐證資料'].dropna():
+                    if links_str and str(links_str).strip() not in ["無", "-"]:
+                        raw_links.extend([l.strip() for l in re.split(r'[\n,]', str(links_str)) if l.strip()])
+                        
+                unique_links = list(dict.fromkeys(raw_links))
+                render_image_gallery(unique_links, base_key=f"unit_img_grp_{sel_unit}_{eq_name}")
+            
+            st.markdown("<hr style='border: 1px solid #BDC3C7; margin: 30px 0;'>", unsafe_allow_html=True)
+    else:
+        st.warning("該條件下無申報紀錄。")
+
+
 # ==========================================
 # 6. 主程式入口
 # ==========================================
@@ -936,12 +1102,14 @@ def main():
     admin_tabs = st.tabs([
         "🗄️ 燃油設備單位資料庫管理",
         "⚠️ 寄送通知與未申報篩選", 
-        "🔍 申報資料異動"
+        "🔍 申報資料異動(依類別)",
+        "🏢 申報資料異動(依填報單位)"
     ])
     
     with admin_tabs[0]: render_tab1_db_manage(df_equip_full, eq_cols, ws_equip_title)
     with admin_tabs[1]: render_tab2_notify(df_records, df_equip_full)
     with admin_tabs[2]: render_tab3_edit_records(df_records, rec_cols, ws_record_title)
+    with admin_tabs[3]: render_tab4_edit_records_by_unit(df_records, rec_cols, ws_record_title)
 
 if __name__ == "__main__":
     main()
