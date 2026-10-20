@@ -952,15 +952,6 @@ def render_tab3_edit_records(df_records, rec_cols, ws_title):
             with col_left:
                 st.markdown(f"<div class='edit-card-header'>🚜 設備: {eq_name} ({unit_str})</div>", unsafe_allow_html=True)
                 
-                # 若屬於指定油卡單位，於設備標題正下方顯示油卡編號校對資訊
-                if unit_str in VIP_CARD_INFO:
-                    st.markdown(
-                        f"<div style='background-color: #FEF9E7; border-left: 4px solid #F39C12; padding: 8px 12px; border-radius: 6px; margin-top: -8px; margin-bottom: 12px; font-size: 1rem; font-weight: 800; color: #9A7D0A;'>"
-                        f"💳 油卡資訊：{VIP_CARD_INFO[unit_str]}"
-                        f"</div>",
-                        unsafe_allow_html=True
-                    )
-                
                 for idx, row in group.iterrows():
                     row_idx_in_sheet = int(row['_row_index'])
                     
