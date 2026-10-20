@@ -870,6 +870,51 @@ def render_tab2_notify(df_records, df_equip_full):
                         st.success(f"寄送完畢！成功: {success_count} 封，失敗: {fail_count} 封。")
 
 
+# ==========================================
+# [共用設定] 特定單位油卡編號與總務處佐證調閱邏輯
+# ==========================================
+VIP_CARD_INFO = {
+    "總務處事務組": "蘭潭柴油使用TZI510508油卡、蘭潭汽油使用TZI510509油卡",
+    "民雄聯辦": "民雄聯辦使用TZI510594油卡",
+    "民雄總務": "民雄聯辦使用TZI510594油卡",
+    "新民聯辦": "新民聯辦使用TZI510410油卡",
+    "產推處產學營運組": "林森使用TZI510244油卡"
+}
+
+# 強制使用「總務處事務組」當月加油明細檔之附屬單位清單
+FORCE_ZONGWU_PROOF_UNITS = ["新民聯辦", "民雄聯辦", "民雄總務", "產推處產學營運組"]
+
+def get_zongwu_monthly_links(df_all_records, target_yr, target_mo):
+    """精準撈取『總務處事務組』於指定年、月之代表性加油明細檔"""
+    df_z = df_all_records[
+        (df_all_records['填報單位'] == '總務處事務組') & 
+        (df_all_records['年份'] == target_yr) & 
+        (df_all_records['月份'] == target_mo)
+    ]
+    if df_z.empty:
+        return []
+        
+    # 1. 優先尋找備註包含 "具車牌的汽油公務車" 的油單檔案 (比照 1_⛽_燃油設備填報.py)
+    for _, r in df_z.iterrows():
+        note = str(r.get('備註', ''))
+        links_str = str(r.get('佐證資料', '')).strip()
+        if links_str and links_str not in ["無", "佐證如總務處事務組中油明細", "-"]:
+            if "具車牌的汽油公務車" in note:
+                valid = [l.strip() for l in re.split(r'[\n,]', links_str) if l.strip()]
+                if valid:
+                    return [valid[0]]
+                    
+    # 2. Fallback: 若無上述標記，抓取總務處事務組當月第一份有效檔案
+    for links_str in df_z['佐證資料'].dropna():
+        s = str(links_str).strip()
+        if s and s not in ["無", "佐證如總務處事務組中油明細", "-"]:
+            valid = [l.strip() for l in re.split(r'[\n,]', s) if l.strip()]
+            if valid:
+                return [valid[0]]
+                
+    return []
+
+
 @st.fragment
 def render_tab3_edit_records(df_records, rec_cols, ws_title):
     st.markdown("<br>", unsafe_allow_html=True)
@@ -906,6 +951,15 @@ def render_tab3_edit_records(df_records, rec_cols, ws_title):
             
             with col_left:
                 st.markdown(f"<div class='edit-card-header'>🚜 設備: {eq_name} ({unit_str})</div>", unsafe_allow_html=True)
+                
+                # 若屬於指定油卡單位，於設備標題正下方顯示油卡編號校對資訊
+                if unit_str in VIP_CARD_INFO:
+                    st.markdown(
+                        f"<div style='background-color: #FEF9E7; border-left: 4px solid #F39C12; padding: 8px 12px; border-radius: 6px; margin-top: -8px; margin-bottom: 12px; font-size: 1rem; font-weight: 800; color: #9A7D0A;'>"
+                        f"💳 油卡資訊：{VIP_CARD_INFO[unit_str]}"
+                        f"</div>",
+                        unsafe_allow_html=True
+                    )
                 
                 for idx, row in group.iterrows():
                     row_idx_in_sheet = int(row['_row_index'])
@@ -965,6 +1019,13 @@ def render_tab3_edit_records(df_records, rec_cols, ws_title):
             with col_right:
                 if group['加油量_num'].sum() <= 0:
                     st.info("本月份無加油紀錄")
+                elif unit_str in FORCE_ZONGWU_PROOF_UNITS:
+                    # 新民聯辦、民雄聯辦(民雄總務)、產推處產學營運組：強制顯示總務處事務組該月份加油明細檔
+                    zw_links = get_zongwu_monthly_links(df_clean, sel_yr, sel_mo)
+                    if zw_links:
+                        render_image_gallery(zw_links, base_key=f"img_grp_zw_{unit_str}_{eq_name}")
+                    else:
+                        st.info("📁 總務處事務組本月尚未上傳統一加油明細佐證資料。")
                 else:
                     raw_links = []
                     for links_str in group['佐證資料'].dropna():
@@ -992,7 +1053,7 @@ def render_tab4_edit_records_by_unit(df_records, rec_cols, ws_title):
     all_units = sorted([str(u).strip() for u in df_clean['填報單位'].unique() if str(u).strip() not in ['', 'nan', '-']])
     
     c_u, c_y, c_m = st.columns([2, 1, 1])
-    sel_unit = c_u.selectbox("🏢 選擇填報單位", all_units, index=None, placeholder="請先選擇填報單位...", key="unit_sel")
+    sel_unit = c_u.selectbox("🏢 1. 選擇填報單位", all_units, index=None, placeholder="請先選擇填報單位...", key="unit_sel")
     
     if not sel_unit:
         return
@@ -1004,7 +1065,7 @@ def render_tab4_edit_records_by_unit(df_records, rec_cols, ws_title):
         st.warning(f"⚠️ 【{sel_unit}】目前尚無有效的年度申報紀錄。")
         return
         
-    sel_yr = c_y.selectbox("📅 篩選年份", unit_years, index=0, key="unit_yr")
+    sel_yr = c_y.selectbox("📅 2. 篩選年份", unit_years, index=0, key="unit_yr")
     df_yr = df_unit[df_unit['年份'] == sel_yr]
     
     unit_months = sorted(df_yr['月份'][df_yr['月份'] > 0].unique())
@@ -1012,89 +1073,177 @@ def render_tab4_edit_records_by_unit(df_records, rec_cols, ws_title):
         st.warning(f"⚠️ 【{sel_unit}】在 {sel_yr} 年度尚無月份申報紀錄。")
         return
         
-    sel_mo = c_m.selectbox("📆 篩選月份", unit_months, index=0, key="unit_mo")
+    sel_mo = c_m.selectbox("📆 3. 篩選月份", unit_months, index=0, key="unit_mo")
     df_target = df_yr[df_yr['月份'] == sel_mo]
     
     st.markdown("---")
     
     if not df_target.empty:
+        # 1. 若為指定油卡單位，於所有設備最上方置頂顯示油卡編號校對資訊
+        if sel_unit in VIP_CARD_INFO:
+            st.markdown(
+                f"<div style='background-color: #FEF9E7; border: 2px solid #F39C12; border-left: 6px solid #E67E22; padding: 12px 18px; border-radius: 10px; margin-bottom: 20px; font-size: 1.15rem; font-weight: 900; color: #9A7D0A; box-shadow: 0 2px 5px rgba(0,0,0,0.05);'>"
+                f"💳 {sel_unit} 油卡校對資訊：{VIP_CARD_INFO[sel_unit]}"
+                f"</div>",
+                unsafe_allow_html=True
+            )
+            
         grouped = df_target.groupby('設備名稱備註')
         
-        for eq_name, group in grouped:
+        # 2. 判斷是否為油卡統一佐證單位 (總務處事務組、民雄聯辦/總務、新民聯辦、產推處產學營運組)
+        if sel_unit in VIP_CARD_INFO:
+            # 採用「左側垂直排列所有設備編輯表單 ＋ 右側單張統一顯示總務處事務組當月明細檔」
             col_left, col_right = st.columns([4, 6], gap="large")
-            unit_str = str(group['填報單位'].iloc[0]).strip() if '填報單位' in group.columns and not group.empty else sel_unit
             
             with col_left:
-                st.markdown(f"<div class='edit-card-header'>🚜 設備: {eq_name} ({unit_str})</div>", unsafe_allow_html=True)
-                
-                for idx, row in group.iterrows():
-                    row_idx_in_sheet = int(row['_row_index'])
+                for eq_name, group in grouped:
+                    unit_str = str(group['填報單位'].iloc[0]).strip() if '填報單位' in group.columns and not group.empty else sel_unit
+                    st.markdown(f"<div class='edit-card-header'>🚜 設備: {eq_name} ({unit_str})</div>", unsafe_allow_html=True)
                     
-                    with st.expander(f"✏️ 編輯紀錄: {row.get('加油日期', '')} ({row.get('加油量', 0)} L)"):
-                        with st.form(key=f"unit_rec_form_{row_idx_in_sheet}"):
-                            eq_id = st.text_input("設備編號 / 財產編號", value=row.get('校內財產編號', ''), key=f"unit_id_{row_idx_in_sheet}")
-                            eq_name_input = st.text_input("設備名稱備註", value=row.get('設備名稱備註', ''), key=f"unit_nm_{row_idx_in_sheet}")
-                            eq_qty = st.text_input("設備數量", value=row.get('設備數量', '1'), key=f"unit_qty_{row_idx_in_sheet}")
-                            eq_fuel = st.text_input("原燃物料名稱", value=row.get('原燃物料名稱', ''), key=f"unit_fl_{row_idx_in_sheet}")
-                            
-                            try: d_val = pd.to_datetime(row['加油日期']).date()
-                            except: d_val = date.today()
-                            eq_date = st.date_input("加油日期", value=d_val, key=f"unit_dt_{row_idx_in_sheet}")
-                            
-                            eq_vol = st.number_input("加油量", value=float(row.get('加油量', 0)), step=0.1, key=f"unit_vl_{row_idx_in_sheet}")
-                            eq_share = st.selectbox("與其他設備共用加油單", ["是", "否", "-"], index=0 if row.get('與其他設備共用加油單')=='是' else (1 if row.get('與其他設備共用加油單')=='否' else 2), key=f"unit_sh_{row_idx_in_sheet}")
-                            
-                            eq_dept = st.text_input("填報單位", value=row.get('填報單位', ''), key=f"unit_dp_{row_idx_in_sheet}")
-                            c_u1, c_u2 = st.columns(2)
-                            eq_user = c_u1.text_input("填報人", value=row.get('填報人', ''), key=f"unit_ur_{row_idx_in_sheet}")
-                            eq_ext = c_u2.text_input("分機", value=row.get('填報人分機', ''), key=f"unit_ex_{row_idx_in_sheet}")
-                            
-                            eq_note = st.text_area("備註資訊", value=row.get('備註', ''), height=80, key=f"unit_nt_{row_idx_in_sheet}")
-                            
-                            submit_btn = st.form_submit_button("💾 精準更新此筆紀錄", type="primary")
-                            if submit_btn:
-                                updated_vals = []
-                                for col in rec_cols:
-                                    if col == "設備名稱備註": updated_vals.append(eq_name_input)
-                                    elif col == "校內財產編號": updated_vals.append(eq_id)
-                                    elif col == "設備數量": updated_vals.append(eq_qty)
-                                    elif col == "原燃物料名稱": updated_vals.append(eq_fuel)
-                                    elif col == "加油日期": updated_vals.append(str(eq_date))
-                                    elif col == "加油量": updated_vals.append(str(eq_vol))
-                                    elif col == "與其他設備共用加油單": updated_vals.append(eq_share)
-                                    elif col == "填報單位": updated_vals.append(eq_dept)
-                                    elif col == "填報人": updated_vals.append(eq_user)
-                                    elif col == "填報人分機": updated_vals.append(eq_ext)
-                                    elif col == "備註": updated_vals.append(eq_note)
-                                    elif col in row: updated_vals.append(str(row[col]))
-                                    else: updated_vals.append("")
+                    for idx, row in group.iterrows():
+                        row_idx_in_sheet = int(row['_row_index'])
+                        
+                        with st.expander(f"✏️ 編輯紀錄: {row.get('加油日期', '')} ({row.get('加油量', 0)} L)"):
+                            with st.form(key=f"unit_rec_form_{row_idx_in_sheet}"):
+                                eq_id = st.text_input("設備編號 / 財產編號", value=row.get('校內財產編號', ''), key=f"unit_id_{row_idx_in_sheet}")
+                                eq_name_input = st.text_input("設備名稱備註", value=row.get('設備名稱備註', ''), key=f"unit_nm_{row_idx_in_sheet}")
+                                eq_qty = st.text_input("設備數量", value=row.get('設備數量', '1'), key=f"unit_qty_{row_idx_in_sheet}")
+                                eq_fuel = st.text_input("原燃物料名稱", value=row.get('原燃物料名稱', ''), key=f"unit_fl_{row_idx_in_sheet}")
                                 
-                                try:
-                                    end_col = get_col_letter(len(updated_vals))
-                                    range_str = f"A{row_idx_in_sheet}:{end_col}{row_idx_in_sheet}"
+                                try: d_val = pd.to_datetime(row['加油日期']).date()
+                                except: d_val = date.today()
+                                eq_date = st.date_input("加油日期", value=d_val, key=f"unit_dt_{row_idx_in_sheet}")
+                                
+                                eq_vol = st.number_input("加油量", value=float(row.get('加油量', 0)), step=0.1, key=f"unit_vl_{row_idx_in_sheet}")
+                                eq_share = st.selectbox("與其他設備共用加油單", ["是", "否", "-"], index=0 if row.get('與其他設備共用加油單')=='是' else (1 if row.get('與其他設備共用加油單')=='否' else 2), key=f"unit_sh_{row_idx_in_sheet}")
+                                
+                                eq_dept = st.text_input("填報單位", value=row.get('填報單位', ''), key=f"unit_dp_{row_idx_in_sheet}")
+                                c_u1, c_u2 = st.columns(2)
+                                eq_user = c_u1.text_input("填報人", value=row.get('填報人', ''), key=f"unit_ur_{row_idx_in_sheet}")
+                                eq_ext = c_u2.text_input("分機", value=row.get('填報人分機', ''), key=f"unit_ex_{row_idx_in_sheet}")
+                                
+                                eq_note = st.text_area("備註資訊", value=row.get('備註', ''), height=80, key=f"unit_nt_{row_idx_in_sheet}")
+                                
+                                submit_btn = st.form_submit_button("💾 精準更新此筆紀錄", type="primary")
+                                if submit_btn:
+                                    updated_vals = []
+                                    for col in rec_cols:
+                                        if col == "設備名稱備註": updated_vals.append(eq_name_input)
+                                        elif col == "校內財產編號": updated_vals.append(eq_id)
+                                        elif col == "設備數量": updated_vals.append(eq_qty)
+                                        elif col == "原燃物料名稱": updated_vals.append(eq_fuel)
+                                        elif col == "加油日期": updated_vals.append(str(eq_date))
+                                        elif col == "加油量": updated_vals.append(str(eq_vol))
+                                        elif col == "與其他設備共用加油單": updated_vals.append(eq_share)
+                                        elif col == "填報單位": updated_vals.append(eq_dept)
+                                        elif col == "填報人": updated_vals.append(eq_user)
+                                        elif col == "填報人分機": updated_vals.append(eq_ext)
+                                        elif col == "備註": updated_vals.append(eq_note)
+                                        elif col in row: updated_vals.append(str(row[col]))
+                                        else: updated_vals.append("")
                                     
-                                    with st.spinner("🔄 寫入資料庫中..."):
-                                        update_sheet_row_safe(ws_title, range_str, updated_vals)
-                                    st.success("✅ 更新成功！")
-                                    st.cache_data.clear()
-                                    time.sleep(1)
-                                    st.rerun()
-                                except Exception as e:
-                                    st.error(f"寫入失敗：{e}")
-
+                                    try:
+                                        end_col = get_col_letter(len(updated_vals))
+                                        range_str = f"A{row_idx_in_sheet}:{end_col}{row_idx_in_sheet}"
+                                        
+                                        with st.spinner("🔄 寫入資料庫中..."):
+                                            update_sheet_row_safe(ws_title, range_str, updated_vals)
+                                        st.success("✅ 更新成功！")
+                                        st.cache_data.clear()
+                                        time.sleep(1)
+                                        st.rerun()
+                                    except Exception as e:
+                                        st.error(f"寫入失敗：{e}")
+                    st.markdown("<div style='margin-bottom: 18px;'></div>", unsafe_allow_html=True)
+                    
             with col_right:
-                if group['加油量_num'].sum() <= 0:
+                if df_target['加油量_num'].sum() <= 0:
                     st.info("本月份無加油紀錄")
                 else:
-                    raw_links = []
-                    for links_str in group['佐證資料'].dropna():
-                        if links_str and str(links_str).strip() not in ["無", "-"]:
-                            raw_links.extend([l.strip() for l in re.split(r'[\n,]', str(links_str)) if l.strip()])
-                            
-                    unique_links = list(dict.fromkeys(raw_links))
-                    render_image_gallery(unique_links, base_key=f"unit_img_grp_{sel_unit}_{eq_name}")
-            
-            st.markdown("<hr style='border: 1px solid #BDC3C7; margin: 30px 0;'>", unsafe_allow_html=True)
+                    # 統一撈取並顯示單張「總務處事務組」該月份的加油明細檔
+                    zw_links = get_zongwu_monthly_links(df_clean, sel_yr, sel_mo)
+                    if zw_links:
+                        render_image_gallery(zw_links, base_key=f"unit_vip_zw_{sel_unit}_{sel_yr}_{sel_mo}")
+                    else:
+                        st.info("📁 總務處事務組本月尚未上傳統一加油明細佐證資料。")
+                        
+        else:
+            # 一般填報單位：維持每台設備左右對照顯示各自上傳的佐證資料
+            for eq_name, group in grouped:
+                col_left, col_right = st.columns([4, 6], gap="large")
+                unit_str = str(group['填報單位'].iloc[0]).strip() if '填報單位' in group.columns and not group.empty else sel_unit
+                
+                with col_left:
+                    st.markdown(f"<div class='edit-card-header'>🚜 設備: {eq_name} ({unit_str})</div>", unsafe_allow_html=True)
+                    
+                    for idx, row in group.iterrows():
+                        row_idx_in_sheet = int(row['_row_index'])
+                        
+                        with st.expander(f"✏️ 編輯紀錄: {row.get('加油日期', '')} ({row.get('加油量', 0)} L)"):
+                            with st.form(key=f"unit_rec_form_{row_idx_in_sheet}"):
+                                eq_id = st.text_input("設備編號 / 財產編號", value=row.get('校內財產編號', ''), key=f"unit_id_{row_idx_in_sheet}")
+                                eq_name_input = st.text_input("設備名稱備註", value=row.get('設備名稱備註', ''), key=f"unit_nm_{row_idx_in_sheet}")
+                                eq_qty = st.text_input("設備數量", value=row.get('設備數量', '1'), key=f"unit_qty_{row_idx_in_sheet}")
+                                eq_fuel = st.text_input("原燃物料名稱", value=row.get('原燃物料名稱', ''), key=f"unit_fl_{row_idx_in_sheet}")
+                                
+                                try: d_val = pd.to_datetime(row['加油日期']).date()
+                                except: d_val = date.today()
+                                eq_date = st.date_input("加油日期", value=d_val, key=f"unit_dt_{row_idx_in_sheet}")
+                                
+                                eq_vol = st.number_input("加油量", value=float(row.get('加油量', 0)), step=0.1, key=f"unit_vl_{row_idx_in_sheet}")
+                                eq_share = st.selectbox("與其他設備共用加油單", ["是", "否", "-"], index=0 if row.get('與其他設備共用加油單')=='是' else (1 if row.get('與其他設備共用加油單')=='否' else 2), key=f"unit_sh_{row_idx_in_sheet}")
+                                
+                                eq_dept = st.text_input("填報單位", value=row.get('填報單位', ''), key=f"unit_dp_{row_idx_in_sheet}")
+                                c_u1, c_u2 = st.columns(2)
+                                eq_user = c_u1.text_input("填報人", value=row.get('填報人', ''), key=f"unit_ur_{row_idx_in_sheet}")
+                                eq_ext = c_u2.text_input("分機", value=row.get('填報人分機', ''), key=f"unit_ex_{row_idx_in_sheet}")
+                                
+                                eq_note = st.text_area("備註資訊", value=row.get('備註', ''), height=80, key=f"unit_nt_{row_idx_in_sheet}")
+                                
+                                submit_btn = st.form_submit_button("💾 精準更新此筆紀錄", type="primary")
+                                if submit_btn:
+                                    updated_vals = []
+                                    for col in rec_cols:
+                                        if col == "設備名稱備註": updated_vals.append(eq_name_input)
+                                        elif col == "校內財產編號": updated_vals.append(eq_id)
+                                        elif col == "設備數量": updated_vals.append(eq_qty)
+                                        elif col == "原燃物料名稱": updated_vals.append(eq_fuel)
+                                        elif col == "加油日期": updated_vals.append(str(eq_date))
+                                        elif col == "加油量": updated_vals.append(str(eq_vol))
+                                        elif col == "與其他設備共用加油單": updated_vals.append(eq_share)
+                                        elif col == "填報單位": updated_vals.append(eq_dept)
+                                        elif col == "填報人": updated_vals.append(eq_user)
+                                        elif col == "填報人分機": updated_vals.append(eq_ext)
+                                        elif col == "備註": updated_vals.append(eq_note)
+                                        elif col in row: updated_vals.append(str(row[col]))
+                                        else: updated_vals.append("")
+                                    
+                                    try:
+                                        end_col = get_col_letter(len(updated_vals))
+                                        range_str = f"A{row_idx_in_sheet}:{end_col}{row_idx_in_sheet}"
+                                        
+                                        with st.spinner("🔄 寫入資料庫中..."):
+                                            update_sheet_row_safe(ws_title, range_str, updated_vals)
+                                        st.success("✅ 更新成功！")
+                                        st.cache_data.clear()
+                                        time.sleep(1)
+                                        st.rerun()
+                                    except Exception as e:
+                                        st.error(f"寫入失敗：{e}")
+
+                with col_right:
+                    if group['加油量_num'].sum() <= 0:
+                        st.info("本月份無加油紀錄")
+                    else:
+                        raw_links = []
+                        for links_str in group['佐證資料'].dropna():
+                            if links_str and str(links_str).strip() not in ["無", "-"]:
+                                raw_links.extend([l.strip() for l in re.split(r'[\n,]', str(links_str)) if l.strip()])
+                                
+                        unique_links = list(dict.fromkeys(raw_links))
+                        render_image_gallery(unique_links, base_key=f"unit_img_grp_{sel_unit}_{eq_name}")
+                
+                st.markdown("<hr style='border: 1px solid #BDC3C7; margin: 30px 0;'>", unsafe_allow_html=True)
     else:
         st.warning("該條件下無申報紀錄。")
 
