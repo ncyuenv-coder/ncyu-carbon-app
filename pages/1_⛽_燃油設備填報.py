@@ -54,7 +54,7 @@ def with_retry(max_retries=5, base_delay=2.0, backoff_factor=2.0):
 # [防護機制 1.1] 封裝重試 API 動作
 @with_retry(max_retries=5, base_delay=3.0)
 def append_rows_with_retry(worksheet, rows):
-    worksheet.append_rows(rows)
+    worksheet.append_rows(rows, value_input_option='USER_ENTERED')
 
 @with_retry(max_retries=3, base_delay=2.0)
 def get_all_records_with_retry(worksheet):
@@ -1199,8 +1199,8 @@ def render_user_interface():
                                                             zero_note = f"期間未加油 | 批次申報-{target_sub_cat}"
                                                             if note_val: 
                                                                 zero_note += f" | {note_val}"
-                                                            # 寫入格式：油卡("-")、共用("-")、佐證資料("無")
-                                                            rows_to_append.append([current_time, selected_dept, p_name, p_ext, row['設備名稱備註'], str(row.get('校內財產編號','-')), row['原燃物料名稱'], "-", str(batch_date), 0.0, "-", zero_note, "無"])
+                                                            # 寫入格式：油卡("-")、共用("-")、佐證資料("無") (強制鎖定該月最後一天)
+                                                            rows_to_append.append([current_time, selected_dept, p_name, p_ext, row['設備名稱備註'], str(row.get('校內財產編號','-')), row['原燃物料名稱'], "-", str(default_batch_date), 0.0, "-", zero_note, "無"])
                                                         else:
                                                             # 正常用油量申報寫入
                                                             rows_to_append.append([current_time, selected_dept, p_name, p_ext, row['設備名稱備註'], str(row.get('校內財產編號','-')), row['原燃物料名稱'], fleet_id, str(batch_date), vol, "是", f"批次申報-{target_sub_cat} | {note_val}", file_link])
@@ -1359,17 +1359,21 @@ def render_user_interface():
                                                         st.cache_data.clear()
                                                         st.rerun()
                                         elif report_mode == "期間未加油":
-                                            if p_email and str(p_email).strip() != default_email:
-                                                note_input += f" [Email異動: {str(p_email).strip()}]"
-                                                
-                                            rows = [[get_taiwan_time().strftime("%Y-%m-%d %H:%M:%S"), selected_dept, p_name, p_ext, selected_device, str(row.get('校內財產編號','-')), str(row.get('原燃物料名稱','-')), "-", str(data_entries[0]['date']), 0.0, "-", note_input, "無"]]
-                                            append_rows_with_retry(ws_record, rows)
-                                            st.success("✅ 申報成功！即將重置畫面...")
-                                            st.balloons()
-                                            time.sleep(2.5)
-                                            st.session_state['reset_counter'] += 1
-                                            st.cache_data.clear()
-                                            st.rerun()
+                                            try:
+                                                if p_email and str(p_email).strip() != default_email:
+                                                    note_input += f" [Email異動: {str(p_email).strip()}]"
+                                                    
+                                                # 強制將日期鎖定為 default_end_date (該月最後一天)，確保系統能抓到對應月份消除紅字
+                                                rows = [[get_taiwan_time().strftime("%Y-%m-%d %H:%M:%S"), selected_dept, p_name, p_ext, selected_device, str(row.get('校內財產編號','-')), str(row.get('原燃物料名稱','-')), "-", str(default_end_date), 0.0, "-", note_input, "無"]]
+                                                append_rows_with_retry(ws_record, rows)
+                                                st.success("✅ 申報成功！即將重置畫面...")
+                                                st.balloons()
+                                                time.sleep(2.5)
+                                                st.session_state['reset_counter'] += 1
+                                                st.cache_data.clear()
+                                                st.rerun()
+                                            except Exception as e:
+                                                st.error(f"系統錯誤，寫入失敗: {e}")
         else: st.warning("📭 目前資料庫尚無有效資料，請聯絡管理員。")
 
     # --- Tab 2: 看板 ---
